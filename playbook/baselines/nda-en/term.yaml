@@ -1,0 +1,30 @@
+# Playbook baseline — NDA (EN) — term
+#
+# Standard NDA term is 2 years from the Effective Date, with the
+# obligation to maintain confidentiality surviving for 3 years after
+# the termination of the agreement. Trade secrets are protected for
+# as long as they remain trade secrets under applicable law. This
+# baseline captures the typical "2y + 3y survival" structure; the
+# ABA Model NDA uses 2 years for the obligation period and
+# indefinite survival for trade secrets.
+clause_id: term-of-confidentiality
+type: term
+language: en
+title: Term of Confidentiality Obligations
+text: >-
+  This Agreement shall commence on the Effective Date and shall
+  continue for a period of two (2) years thereafter, unless earlier
+  terminated in accordance with its terms. The obligations of
+  confidentiality and non-use set forth in this Agreement shall
+  survive the termination or expiration of this Agreement for an
+  additional period of three (3) years; provided, however, that
+  with respect to any Confidential Information that constitutes a
+  trade secret under applicable law, such obligations shall survive
+  for so long as such information remains a trade secret.
+source_url: https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf
+retrieval_date: 2026-06-07
+license: public template, free to download, no copyright notice on the source page
+notes: >-
+  Indefinite terms ("perpetual confidentiality") and one-sided
+  short-form terms (<1 year) are flagged as deviations. Trade-secret
+  carve-outs are preserved across all common NDA variants.

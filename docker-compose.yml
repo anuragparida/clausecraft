@@ -1,0 +1,88 @@
+name: clausecraft
+
+# Single-host Docker Compose for the v0 skeleton.
+# Honcho already binds 8000 (api) and 5432 (postgres) on this host, so every
+# published port is high-numbered (12000+). If a chosen port is rejected at
+# runtime, pick another high port and log the change in the reporting checklist.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: clausecraft-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-clausecraft}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clausecraft}
+      POSTGRES_DB: clausecraft
+    ports:
+      - "${POSTGRES_HOST_PORT:-15432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/pgvector-init.sql:/docker-entrypoint-initdb.d/pgvector-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d clausecraft"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clausecraft-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-clausecraft}:${POSTGRES_PASSWORD:-clausecraft}@postgres:5432/clausecraft
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-placeholder}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-placeholder}
+    ports:
+      - "${BACKEND_PORT:-18000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      langfuse-web:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: clausecraft-frontend
+    environment:
+      VITE_PORT: 15173
+    ports:
+      - "${FRONTEND_PORT:-15173}:15173"
+    depends_on:
+      - backend
+
+  # Langfuse v2 image (the v3 image hard-requires ClickHouse, Redis, and a
+  # separate worker container — that's the "production multi-container config"
+  # the spec explicitly excludes from Phase 0). v2 only needs Postgres + the
+  # langfuse-server container; it renders the login page out of the box. Phase
+  # 6 will swap this for the full v3 stack + ClickHouse/Redis/MinIO.
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:2
+    container_name: clausecraft-langfuse-web
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-clausecraft}:${POSTGRES_PASSWORD:-clausecraft}@postgres:5432/clausecraft
+      NEXTAUTH_URL: http://localhost:${LANGFUSE_WEB_PORT:-13000}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-secret-replace-me}
+      SALT: ${LANGFUSE_SALT:-dev-only-salt-replace-me}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+    ports:
+      - "${LANGFUSE_WEB_PORT:-13000}:3000"
+      - "${LANGFUSE_API_PORT:-13001}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: clausecraft_postgres_data

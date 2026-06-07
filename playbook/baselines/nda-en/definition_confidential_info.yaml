@@ -1,0 +1,52 @@
+# Playbook baseline — NDA (EN) — definition_confidential_info
+#
+# One YAML file per baseline clause. The seed script reads every .yaml
+# under playbook/baselines/<contract-type>-<language>/ and inserts an
+# idempotent row into the `playbook_clauses` table. The shape is
+# locked: anything that doesn't match this schema is rejected at seed
+# time.
+#
+# Field guide:
+#
+#   clause_id:    stable, kebab-cased identifier for this clause. Used
+#                 as the second half of the (playbook_id, clause_id)
+#                 primary key. Pick something a human can recognise.
+#   type:         one of the ClauseType enum values from
+#                 backend/app/classify/schema.py. Must be lowercase
+#                 snake_case. The classifier emits these.
+#   language:     "en" (this directory) or "de" (Phase 4 adds nda-de/).
+#   title:        short human-readable title. Shown in the UI table.
+#   text:         the canonical baseline clause language. This is the
+#                 "reference" the spotter compares against.
+#   source_url:   where this text came from. The provenance rule is
+#                 non-negotiable: every baseline has a public URL.
+#   retrieval_date: ISO-8601 date the text was retrieved. Useful for
+#                   reproducibility when a public template changes.
+#   license:      license of the source material. Either a SPDX
+#                 identifier (CC0-1.0, CC-BY-4.0) or a short prose note
+#                 like "public template, no copyright notice".
+#   notes:        free-form. Optional. Used for legal caveats
+#                 ("mutual NDA flips this", "DE equivalent uses
+#                 'Betriebsgeheimnis'", etc.). Not loaded by the seed
+#                 script but kept in the file for human readers.
+clause_id: definition-of-confidential-information
+type: definition_confidential_info
+language: en
+title: Definition of Confidential Information
+text: >-
+  "Confidential Information" means any non-public information disclosed
+  by one party (the "Discloser") to the other party (the "Recipient"),
+  whether orally, in writing, or in any other form, that is designated
+  as confidential at the time of disclosure or that, given the nature
+  of the information or the circumstances surrounding its disclosure,
+  reasonably should be understood to be confidential. Confidential
+  Information includes, without limitation, technical information,
+  business information, customer lists, financial information,
+  product plans, and trade secrets.
+source_url: https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf
+retrieval_date: 2026-06-07
+license: public template, free to download, no copyright notice on the source page
+notes: >-
+  The "reasonably should be understood" phrasing is the public-source
+  baseline. Stronger variants ("all information is confidential unless
+  marked otherwise") are flagged as material deviations in Phase 2.

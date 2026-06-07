@@ -1,0 +1,29 @@
+# Playbook baseline — NDA (EN) — governing_law
+#
+# Standard mutual NDAs default to the law of the state where the
+# Discloser is incorporated. For Anurag's use case (SaaS vendor
+# selling to enterprise in DE), the baseline is Delaware law with
+# exclusive jurisdiction in the state and federal courts of New
+# Castle County, Delaware. Phase 4 (DE pass) introduces a DE
+# counterpart in playbook/baselines/nda-de/.
+clause_id: governing-law
+type: governing_law
+language: en
+title: Governing Law and Jurisdiction
+text: >-
+  This Agreement shall be governed by and construed in accordance
+  with the laws of the State of Delaware, without giving effect to
+  any choice-of-law or conflict-of-laws provision that would cause
+  the laws of any other jurisdiction to apply. The parties consent
+  to the exclusive jurisdiction of the state and federal courts
+  located in New Castle County, Delaware, for any action arising
+  out of or relating to this Agreement, and irrevocably waive any
+  objection to the venue of any such action.
+source_url: https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf
+retrieval_date: 2026-06-07
+license: public template, free to download, no copyright notice on the source page
+notes: >-
+  DE baseline ships in Phase 4 (playbook/baselines/nda-de/). Counterparty-
+  specific overrides (e.g. "EU counterparty → German courts") are
+  applied via the counterparty matrix in Phase 5. For Phase 2 the
+  matrix is flat and just renders a verdict column.

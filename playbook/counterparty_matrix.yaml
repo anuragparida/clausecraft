@@ -1,0 +1,62 @@
+# clausecraft — counterparty matrix
+#
+# Phase 2 ships the loader and a *flat* verdict lookup. The
+# counterparty-aware overrides land in Phase 5 (see docs/11-phases.md
+# Phase 5 scope: "the matrix is the source of truth for
+# (clause_type, counterparty_type) → acceptable_range").
+#
+# What "flat" means here: every (clause_type) maps to a single
+# default verdict. Counterparty type is recorded for audit purposes
+# but does not yet change the verdict. The shape is forward-compatible
+# with Phase 5 — the verdict table will gain a `counterparty_type`
+# key and lookups will become a 2D table.
+#
+# Verdict scale (matches the spotter's score scale in Phase 2):
+#   0 = aligned (matches baseline)
+#   1 = minor deviation (typographical, equivalent wording)
+#   2 = material deviation (worth flagging, negotiate)
+#   3 = unacceptable (hard blocker for this counterparty type)
+#
+# When the matrix is flat, every (clause_type) is treated as
+# "counterparty_type=any" and the verdict is the default.
+version: "0.0.0-dev"
+contract_type: nda
+language: en
+default_counterparty_type: any
+# The default verdict for any (clause_type) that does NOT have an
+# explicit override below. The spotter will produce a score; the
+# matrix is consulted to *re-classify* the score into a verdict
+# (acceptable / material / unacceptable) for the UI. In Phase 2
+# the matrix is loaded but the verdict column is rendered as
+# "flat: <verdict>" so reviewers can see the matrix is wired in
+# but not yet counterparty-aware.
+default_verdict: aligned
+# Per-clause-type verdict overrides. Keyed by ClauseType enum value
+# (lowercase snake_case, matches backend/app/classify/schema.py).
+clause_verdicts:
+  definition_confidential_info: aligned
+  term: aligned
+  residual_knowledge: aligned
+  governing_law: aligned
+  injunctive_relief: aligned
+  return_of_materials: aligned
+  non_solicit: aligned
+  non_compete: aligned
+  indemnity: aligned
+  limitation_of_liability: aligned
+  assignment: aligned
+  entire_agreement: aligned
+  severability: aligned
+  notices: aligned
+  counterparts: aligned
+  unknown: aligned
+# Phase 5 will add a section like:
+#   counterparty_overrides:
+#     enterprise:
+#       term: { max_years: 5, acceptable: true }
+#       governing_law: { restrict_to: [DE, US-DE] }
+#     healthcare:
+#       term: { max_years: 1, acceptable: false }
+# and `lookup_verdict(clause_type, counterparty_type, score)` will
+# apply the override. For Phase 2 this entire section is ignored.
+counterparty_overrides: {}

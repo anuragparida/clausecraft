@@ -1,0 +1,30 @@
+# Playbook baseline — NDA (EN) — injunctive_relief
+#
+# The injunctive relief clause acknowledges that monetary damages
+# are inadequate for a breach of confidentiality and that the
+# Discloser is entitled to seek equitable relief (injunctions,
+# specific performance) without posting a bond. This is the
+# standard "equitable remedies" carve-out that turns a paper NDA
+# into an enforceable one — without it, the Recipient can leak
+# Confidential Information, pay the agreed liquidated damages, and
+# walk away.
+clause_id: injunctive-relief
+type: injunctive_relief
+language: en
+title: Injunctive Relief and Equitable Remedies
+text: >-
+  The parties acknowledge and agree that any breach or threatened
+  breach of this Agreement by the Recipient would cause
+  irreparable harm to the Discloser for which monetary damages
+  would be an inadequate remedy. Accordingly, the Discloser shall
+  be entitled to seek injunctive and other equitable relief to
+  prevent or restrain any such breach, without the necessity of
+  proving actual damages or posting a bond, in addition to any
+  other remedies available at law or in equity.
+source_url: https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf
+retrieval_date: 2026-06-07
+license: public template, free to download, no copyright notice on the source page
+notes: >-
+  Contracts that omit this clause (or that limit remedies to
+  "monetary damages capped at $X") are flagged as material
+  deviations — the equity carve-out is the teeth of the NDA.

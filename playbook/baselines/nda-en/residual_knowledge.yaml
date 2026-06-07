@@ -1,0 +1,28 @@
+# Playbook baseline — NDA (EN) — residual_knowledge
+#
+# The "residual knowledge" clause carves out information that
+# remains in the unaided memory of the Recipient's personnel after
+# exposure to the Discloser's Confidential Information. It is a
+# standard feature of the ABA Model NDA and most public-source
+# mutual NDAs. Without this carve-out, the Recipient's employees
+# could be contractually barred from doing their own jobs.
+clause_id: residual-knowledge
+type: residual_knowledge
+language: en
+title: Residual Knowledge
+text: >-
+  Notwithstanding anything to the contrary in this Agreement, the
+  Recipient shall be free to use any general knowledge, skills, and
+  experience retained in the unaided memory of the Recipient's
+  personnel in the ordinary course of their work. This Section does
+  not grant the Recipient any license under any patent, copyright,
+  trade secret, or other intellectual property right of the
+  Discloser.
+source_url: https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf
+retrieval_date: 2026-06-07
+license: public template, free to download, no copyright notice on the source page
+notes: >-
+  The "unaided memory" qualifier is the key phrase. Contracts that
+  broaden the carve-out to "any information remembered" or that
+  eliminate the carve-out entirely are flagged as material
+  deviations in Phase 2.

@@ -1,0 +1,41 @@
+[project]
+name = "clausecraft-backend"
+version = "0.0.0-dev"
+description = "Backend API for clausecraft contract triage system"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+    "alembic>=1.13.0",
+    "langgraph>=0.2.0",
+    "langfuse>=2.50.0",
+    "httpx>=0.27.0",
+    # Phase 1 — ingest + parse + classify
+    "pymupdf>=1.24.0",
+    "python-docx>=1.1.0",
+    "openai>=1.50.0",  # OpenAI-compatible client (works with OpenRouter, local gateways, etc.)
+    "python-multipart>=0.0.9",  # FastAPI file upload form-data parser
+    # Phase 2 — playbook store + bge-m3 retrieval
+    "pyyaml>=6.0.0",  # playbook YAML baselines + counterparty matrix
+    "numpy>=1.26.0",  # embedding vectors (cosine similarity + pgvector serialisation)
+    "pgvector>=0.3.0",  # pgvector Python helpers (server-side vector type, asyncpg codec)
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.6.0",
+]
