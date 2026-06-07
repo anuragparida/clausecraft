@@ -22,11 +22,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.classify import ClauseList
+from app.classify.schema import Clause
 from app.config import settings
 from app.db import db_ping
 from app.graph.graph import run_echo
 from app.observability import init_langfuse
-from app.pipeline import Stage1Result, run_stage1
+from app.pipeline import Stage1Result, Stage3Result, run_stage1, run_stage3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,9 +47,12 @@ app = FastAPI(
     title="clausecraft backend",
     version="0.1.0-dev",
     description=(
-        "Multi-agent contract triage pipeline. Phase 1: ingest → "
-        "parse → classify an uploaded NDA. Returns a typed clause list "
-        "in a stable JSON schema."
+        "Multi-agent contract triage pipeline. Phase 1+2: ingest → "
+        "parse → classify an uploaded NDA, look up matching playbook "
+        "baselines via bge-m3 cosine similarity over pgvector, and "
+        "spot deviations per clause using a prompted Sonnet agent. "
+        "Phase 2 adds the playbook store, the top-k retrieval helper, "
+        "and the deviation spotter (the first real agent)."
     ),
 )
 
@@ -71,7 +75,7 @@ async def root() -> dict[str, str]:
     return {
         "service": "clausecraft-backend",
         "version": "0.1.0-dev",
-        "phase": "1 — ingest + parse + classify (NDA EN)",
+        "phase": "2 — playbook store + bge-m3 retrieval + deviation spotter (NDA EN)",
     }
 
 
@@ -229,3 +233,181 @@ async def post_contracts_ingest(
         ) from exc
 
     return _build_ingest_response(result)
+
+
+# --- Phase 2: deviation spotter endpoint --------------------------------
+
+
+class SpotRequest(BaseModel):
+    """Body for ``POST /contracts/spot``.
+
+    The spotter takes *already-classified* clauses (the output of
+    stage 1, or a re-classify from the UI). The body is the same
+    shape as the ``clauses`` field of :class:`IngestResponse` —
+    the frontend can round-trip the ingest response straight into
+    a spot request.
+
+    Attributes
+    ----------
+    filename
+        The contract filename. Echoed on the response and used as
+        a Langfuse tag so per-contract traces are easy to filter.
+    clauses
+        The classified clauses. Each clause has ``id``, ``text``,
+        ``type`` (a :class:`~app.classify.ClauseType` value),
+        ``language``, ``confidence``, and a ``position`` block.
+    """
+
+    filename: str = Field(..., min_length=1, max_length=512)
+    clauses: list[dict[str, Any]] = Field(..., min_length=1)
+
+
+class SpotFlag(BaseModel):
+    """Response-side view of a :class:`DeviationFlag`.
+
+    The pipeline returns the raw flag dataclass; the API response
+    is a Pydantic model so the JSON schema is stable. Fields:
+
+    - ``clause_id`` — the input clause's id
+    - ``score`` — 0..3
+    - ``rationale`` — the spotter's reasoning
+    - ``citation`` — the citation object (or null)
+    - ``unverified`` — true when the parser couldn't verify the
+      citation or the LLM declined
+    - ``baseline_type`` — the baseline's clause type
+    """
+
+    clause_id: str
+    score: int
+    rationale: str
+    citation: dict[str, Any] | None = None
+    unverified: bool
+    baseline_type: str = ""
+
+
+class SpotResponse(BaseModel):
+    """Response body for ``POST /contracts/spot``."""
+
+    filename: str
+    flag_count: int
+    flagged_count: int
+    unverified_count: int
+    no_baseline_count: int
+    matrix_version: str
+    embedding_provider: str
+    flags: list[SpotFlag]
+
+
+def _parse_clauses_from_spot_request(
+    payload_clauses: list[dict[str, Any]],
+) -> list[Clause]:
+    """Convert the API payload's clause dicts into :class:`Clause` objects.
+
+    The frontend sends a JSON-friendly shape (enums as strings,
+    nested position as a dict). We rebuild the typed Pydantic
+    model here so the pipeline gets the same input shape that
+    :func:`app.pipeline.stage1_ingest.run_stage1` would have
+    produced. A malformed clause (missing fields, bad enum
+    value) is rejected with a 400 — the spotter is not a
+    repair-shop for bad upstream data.
+    """
+    rebuilt: list[Clause] = []
+    for c in payload_clauses:
+        try:
+            rebuilt.append(Clause.model_validate(c))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid clause payload at index {len(rebuilt)}: {exc}"
+                ),
+            ) from exc
+    return rebuilt
+
+
+def _build_spot_response(result: Stage3Result) -> SpotResponse:
+    """Convert a :class:`Stage3Result` into the API response model."""
+    flags: list[SpotFlag] = []
+    for f in result.flags:
+        citation: dict[str, Any] | None = None
+        if f.citation is not None:
+            citation = {
+                "playbook_clause_id": f.citation.playbook_clause_id,
+                "contract_text_excerpt": f.citation.contract_text_excerpt,
+            }
+        flags.append(
+            SpotFlag(
+                clause_id=f.clause_id,
+                score=f.score,
+                rationale=f.rationale,
+                citation=citation,
+                unverified=f.unverified,
+                baseline_type=f.baseline_type,
+            )
+        )
+    return SpotResponse(
+        filename=result.contract_filename,
+        flag_count=len(result.flags),
+        flagged_count=result.flagged_count,
+        unverified_count=result.unverified_count,
+        no_baseline_count=result.no_baseline_count,
+        matrix_version=result.matrix_version,
+        embedding_provider=result.embedding_provider,
+        flags=flags,
+    )
+
+
+@app.post(
+    "/contracts/spot",
+    response_model=SpotResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def post_contracts_spot(payload: SpotRequest) -> SpotResponse:
+    """Phase 2 — spot deviations on a list of classified clauses.
+
+    Takes the output of ``POST /contracts/ingest`` (or any other
+    source of classified clauses) and runs the deviation spotter
+    per clause. The response is a flag list with the citation
+    pointer the UI needs to render the deviation table.
+
+    The endpoint is independent of the upload pipeline: the
+    frontend can re-spot after a re-classify without re-uploading
+    the file. The Phase 3 / Phase 4 eval harness drives the same
+    orchestrator (``app.pipeline.stage3_spot.run_stage3``)
+    directly with its own clause list.
+
+    Failure modes:
+
+    - Empty clauses list → 400.
+    - Malformed clause payload (missing fields, bad enum) → 400
+      with the validator's error message.
+    - Per-clause spot failures (LLM unreachable, parse error) →
+      a flag with ``unverified=True`` and a rationale that names
+      the failure. The endpoint still returns 200 — the pipeline
+      contract is "a flag for every clause, no matter what".
+    - No matching playbook clauses for any clause → every flag
+      has ``rationale="no matching playbook clause"`` and
+      ``unverified=True``. The endpoint still returns 200.
+    """
+    if not payload.clauses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SpotRequest.clauses must contain at least one clause.",
+        )
+    clauses = _parse_clauses_from_spot_request(payload.clauses)
+    try:
+        result = await run_stage3(
+            clauses=clauses,
+            contract_filename=payload.filename,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # The orchestrator is supposed to swallow per-clause
+        # failures; a top-level exception is a real bug. Return
+        # 500 so the operator sees it on the Langfuse error
+        # dashboard.
+        logger.exception("run_stage3 failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Spot stage failed: {exc}",
+        ) from exc
+    return _build_spot_response(result)
