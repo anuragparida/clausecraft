@@ -120,4 +120,51 @@ describe("AuditLogTimeline", () => {
     rerender(<AuditLogTimeline rows={[makeRow()]} showHeader={false} />);
     expect(screen.queryByTestId("audit-timeline-header")).not.toBeInTheDocument();
   });
+
+  it("compact mode caps the visible rows at `limit` and hides the actor line", () => {
+    const rows: AuditLogRow[] = [
+      makeRow({
+        decision_type: "graph_started",
+        decided_at: "2026-06-08T14:00:00.000Z",
+        clause_id: "",
+      }),
+      makeRow({
+        decision_type: "flag_accepted",
+        decided_at: "2026-06-08T14:30:00.000Z",
+        clause_id: "c1",
+      }),
+      makeRow({
+        decision_type: "severity_edited",
+        decided_at: "2026-06-08T14:31:00.000Z",
+        clause_id: "c2",
+        payload_json: { old_severity: 2, new_severity: 1 },
+      }),
+      makeRow({
+        decision_type: "redline_generated",
+        decided_at: "2026-06-08T14:35:00.000Z",
+        clause_id: "",
+      }),
+    ];
+    render(<AuditLogTimeline rows={rows} compact limit={2} />);
+    // Only the latest 2 events (sorted by decided_at asc
+    // first, then sliced to the trailing 2).
+    const visible = screen.getAllByTestId("audit-timeline-row");
+    expect(visible).toHaveLength(2);
+    expect(visible[0]).toHaveAttribute(
+      "data-decision-type",
+      "severity_edited",
+    );
+    expect(visible[1]).toHaveAttribute(
+      "data-decision-type",
+      "redline_generated",
+    );
+    // Compact mode suppresses the per-row actor line.
+    expect(screen.queryByTestId("audit-timeline-actor")).toBeNull();
+    // And the per-row "clause: …" mono footer.
+    expect(screen.queryByTestId("audit-timeline-clause-id")).toBeNull();
+    // Header notes the total count + "Showing the latest N".
+    expect(screen.getByTestId("audit-timeline-header")).toHaveTextContent(
+      /Showing the latest 2/,
+    );
+  });
 });

@@ -118,13 +118,19 @@ type FlagAction = "approved" | "rejected" | "edited" | null;
  * Per-flag local state. The fields are independent:
  * - `action` persists until the user clicks a different action button.
  * - `editing` is transient: true only while the inline input is open.
- * - `committedEdit` is the value the user saved; rendered in the
- *   rationale cell when present.
+ * - `committedSeverity` is the value the user saved; the row's
+ *   severity badge re-renders with this value when present. The
+ *   backend reads `new_severity` off the decision, so this is
+ *   what the user actually "edited" (per spec line 231: Edit is
+ *   the severity override).
+ * - `extraContext` is the free-form context from "Add context".
+ * - `addingContext` is transient: true only while the add-context
+ *   textarea is open.
  */
 type FlagState = {
   action: FlagAction;
   editing: boolean;
-  committedEdit: string | null;
+  committedSeverity: number | null;
   /** Free-form context the user attached via "Add context". */
   extraContext: string | null;
   /** Transient: true only while the add-context textarea is open. */
@@ -135,7 +141,7 @@ function emptyFlagState(): FlagState {
   return {
     action: null,
     editing: false,
-    committedEdit: null,
+    committedSeverity: null,
     extraContext: null,
     addingContext: false,
   };
@@ -203,20 +209,19 @@ function flagStateToDecision(
     return {
       clause_id: clauseId,
       decision: "edit_severity",
-      // The current page model only edits the rationale
-      // (text), not the numeric score. When the connected
-      // page exposes a numeric severity slider in Build 6
-      // it should pass the new value here. For Build 5 we
-      // round-trip the original score — the edit is a
-      // rationale change, not a score change, and the
-      // backend tolerates a same-value edit.
-      new_severity: originalScore,
+      // The committed severity is the value the user typed
+      // in the inline number input. The backend's audit
+      // event for ``severity_edited`` includes both
+      // ``old_severity`` and ``new_severity``; the old
+      // value is the spotter's original score.
+      new_severity:
+        state.committedSeverity !== null ? state.committedSeverity : originalScore,
       old_severity: originalScore,
     };
   }
   // No decision yet. (This branch is hit for a row that the
   // user has not interacted with, or for an "edited" row
-  // whose committedEdit was cleared by a later "cancel".)
+  // whose committedSeverity was cleared by a later "cancel".)
   void originalRationale;
   return null;
 }
@@ -229,7 +234,7 @@ interface ActionRowProps {
   onApprove: () => void;
   onReject: () => void;
   onEdit: () => void;
-  onSaveEdit: (newRationale: string) => void;
+  onSaveEdit: (newSeverity: number) => void;
   onCancelEdit: () => void;
   onAddContext: () => void;
   onSaveContext: (context: string) => void;
@@ -248,18 +253,26 @@ function ActionRow({
   onSaveContext,
   onCancelContext,
 }: ActionRowProps) {
-  // The inline input's draft. Re-seeded via useEffect whenever
-  // the parent flips `editing` back on (i.e. the user clicks Edit
-  // again after a save). Without the effect, useState's
-  // initialiser would only fire on the first mount of this row
-  // instance and the second Edit click would show a stale draft.
-  const initialEditDraft = state.committedEdit ?? flag.rationale;
-  const [editDraft, setEditDraft] = useState(initialEditDraft);
+  // The inline input's draft. The spec (line 231) is
+  // explicit: Edit is the severity override. The input is
+  // ``<input type="number" min="0" max="3">`` so the
+  // browser enforces the spotter's 4-level scale. The
+  // draft is seeded from the committed severity (when
+  // the user re-opens an already-saved edit) or the
+  // spotter's original score (the natural starting
+  // point for a fresh edit).
+  const initialSeverityDraft =
+    state.committedSeverity ?? flag.score;
+  const [severityDraft, setSeverityDraft] = useState(
+    String(initialSeverityDraft),
+  );
   useEffect(() => {
     if (state.editing) {
-      setEditDraft(state.committedEdit ?? flag.rationale);
+      setSeverityDraft(
+        String(state.committedSeverity ?? flag.score),
+      );
     }
-  }, [state.editing, state.committedEdit, flag.rationale]);
+  }, [state.editing, state.committedSeverity, flag.score]);
 
   // Same dance for the Add-context draft. The draft
   // re-seeds whenever the parent flips ``addingContext``
@@ -280,18 +293,38 @@ function ActionRow({
         className="flex flex-col gap-2"
         data-testid={`flag-action-row-edit-${flag.clause_id}`}
       >
-        <input
-          type="text"
-          value={editDraft}
-          onChange={(e) => setEditDraft(e.target.value)}
-          placeholder="Edited rationale…"
-          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
-          data-testid={`flag-edit-input-${flag.clause_id}`}
-        />
+        <label
+          className="flex items-center gap-2 text-xs"
+          data-testid={`flag-edit-label-${flag.clause_id}`}
+        >
+          <span>Severity (0–3):</span>
+          <input
+            type="number"
+            min={0}
+            max={3}
+            step={1}
+            value={severityDraft}
+            onChange={(e) => setSeverityDraft(e.target.value)}
+            className="w-16 rounded-md border bg-background px-2 py-1 text-xs"
+            data-testid={`flag-edit-input-${flag.clause_id}`}
+          />
+          <span className="text-muted-foreground">
+            (was {flag.score}: {scoreToVerdictLabel(flag.score)})
+          </span>
+        </label>
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => onSaveEdit(editDraft)}
+            onClick={() => {
+              // Clamp to [0, 3] so a stray keystroke
+              // (e.g. "5") doesn't end up in the
+              // decision payload. Empty input is a no-op
+              // — the user can cancel without saving.
+              const n = Number(severityDraft);
+              if (!Number.isFinite(n)) return;
+              const clamped = Math.max(0, Math.min(3, Math.round(n)));
+              onSaveEdit(clamped);
+            }}
             data-testid={`flag-save-edit-${flag.clause_id}`}
           >
             Save
@@ -405,7 +438,7 @@ interface FlagTableProps {
   onApprove: (clauseId: string) => void;
   onReject: (clauseId: string) => void;
   onEdit: (clauseId: string) => void;
-  onSaveEdit: (clauseId: string, newRationale: string) => void;
+  onSaveEdit: (clauseId: string, newSeverity: number) => void;
   onCancelEdit: (clauseId: string) => void;
   onAddContext: (clauseId: string) => void;
   onSaveContext: (clauseId: string, context: string) => void;
@@ -508,7 +541,17 @@ function FlagTable({
                   className="px-3 py-2 text-xs"
                   data-testid={`flag-rationale-${flag.clause_id}`}
                 >
-                  {state.committedEdit ?? flag.rationale}
+                  {flag.rationale}
+                  {state.committedSeverity !== null && state.committedSeverity !== flag.score && (
+                    <div
+                      className="mt-1 border-l-2 border-muted pl-2 text-[11px] text-muted-foreground"
+                      data-testid={`flag-severity-cell-${flag.clause_id}`}
+                    >
+                      <span className="font-semibold">Severity: </span>
+                      {flag.score} → {state.committedSeverity} (
+                      {scoreToVerdictLabel(state.committedSeverity)})
+                    </div>
+                  )}
                   {state.extraContext && (
                     <div
                       className="mt-1 border-l-2 border-muted pl-2 text-[11px] text-muted-foreground"
@@ -526,8 +569,8 @@ function FlagTable({
                     onApprove={() => onApprove(flag.clause_id)}
                     onReject={() => onReject(flag.clause_id)}
                     onEdit={() => onEdit(flag.clause_id)}
-                    onSaveEdit={(newRationale) =>
-                      onSaveEdit(flag.clause_id, newRationale)
+                    onSaveEdit={(newSeverity) =>
+                      onSaveEdit(flag.clause_id, newSeverity)
                     }
                     onCancelEdit={() => onCancelEdit(flag.clause_id)}
                     onAddContext={() => onAddContext(flag.clause_id)}
@@ -626,12 +669,17 @@ export function DeviationReviewPage({
         } else if (d.decision === "reject") {
           next[d.clause_id] = { ...existing, action: "rejected", editing: false };
         } else if (d.decision === "edit_severity") {
-          // The backend's edit decision maps to "edited" in
-          // the local UI; we don't restore the text (the
-          // page doesn't know what the new rationale was —
-          // Build 6 will fetch the audit payload to recover
-          // it).
-          next[d.clause_id] = { ...existing, action: "edited", editing: false };
+          // The backend's edit_severity decision carries
+          // the new severity. We restore both the
+          // action and the committed severity so the row
+          // re-renders the "old → new" badge.
+          next[d.clause_id] = {
+            ...existing,
+            action: "edited",
+            editing: false,
+            committedSeverity:
+              typeof d.new_severity === "number" ? d.new_severity : null,
+          };
         } else if (d.decision === "add_context") {
           next[d.clause_id] = {
             ...existing,
@@ -724,14 +772,14 @@ export function DeviationReviewPage({
       };
     });
 
-  const handleSaveEdit = (clauseId: string, newRationale: string) =>
+  const handleSaveEdit = (clauseId: string, newSeverity: number) =>
     mutate(
       clauseId,
       (s) => ({
         ...s,
         action: "edited",
         editing: false,
-        committedEdit: newRationale.trim() || "(no rationale)",
+        committedSeverity: newSeverity,
       }),
       onFlagDecision ?? noop,
     );
@@ -742,13 +790,13 @@ export function DeviationReviewPage({
       // Cancelling an Edit before any save means the action
       // reverts to null. Cancelling after a prior save keeps
       // the prior commit visible (the user can still see the
-      // saved text and reopen Edit if they want).
-      const next: FlagState = current.committedEdit
+      // saved severity and reopen Edit if they want).
+      const next: FlagState = current.committedSeverity !== null
         ? { ...current, editing: false }
         : {
             action: null,
             editing: false,
-            committedEdit: null,
+            committedSeverity: null,
             extraContext: current.extraContext,
             addingContext: current.addingContext,
           };
@@ -804,13 +852,15 @@ export function DeviationReviewPage({
       const state = states[flag.clause_id];
       if (!state) return false;
       // "decided" means: any of the four actions is set, OR
-      // a context was added. (A row that's been "edited" but
-      // has no committedEdit is still decided — the edit
-      // intent counts.)
+      // a context was added, OR a severity was edited (the
+      // committedSeverity is non-null even if the user
+      // happens to have typed the same value as the
+      // spotter's — the edit intent still counts).
       return (
         state.action === "approved" ||
         state.action === "rejected" ||
         state.action === "edited" ||
+        state.committedSeverity !== null ||
         (state.extraContext !== null && state.extraContext !== undefined)
       );
     });

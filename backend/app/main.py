@@ -797,3 +797,64 @@ async def get_contracts_redline_docx(contract_id: str) -> Response:
             ),
         },
     )
+
+
+@app.get(
+    "/contracts/{contract_id}/redline.md",
+    response_class=Response,
+)
+async def get_contracts_redline_md(contract_id: str) -> Response:
+    """Phase 3 Build 5 — download the redline as a markdown diff.
+
+    The markdown path is the v0 escape hatch for the .docx
+    path: same contract baseline + accepted proposals, but
+    rendered as a unified diff against a single text
+    document. The "tracked changes" caveat in the spec
+    (line 287: "Mammoth.js… will not render tracked
+    changes — it sees the 'final' document") is exactly
+    the problem the .md path exists to side-step. A user
+    who cannot open the .docx in Word can still see the
+    redline in a plain-text viewer.
+
+    Returns:
+    - 200 — the body is a UTF-8 markdown document with a
+      unified diff for every accepted flag.
+    - 404 — no state for ``contract_id``, or the markdown
+      render was empty (e.g. every accepted flag's
+      drafter was unavailable).
+    """
+    from app.pipeline.phase3_pipeline import get_state, has_state
+
+    state = get_state(contract_id)
+    md = state.output_markdown_bytes
+    if not md:
+        if not has_state(contract_id) or not state.decisions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"No redline has been generated for "
+                    f"contract_id={contract_id!r}. The flow is: "
+                    f"POST /contracts/ingest → POST /contracts/spot → "
+                    f"POST /contracts/{contract_id}/decisions → "
+                    f"GET /contracts/{contract_id}/redline.md."
+                ),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No markdown redline bytes were rendered for "
+                f"contract_id={contract_id!r}. Every accepted "
+                f"flag's drafter was unavailable (check the "
+                f"audit log for per-redline outcome details)."
+            ),
+        )
+    safe = _safe_filename_segment(contract_id) or "contract"
+    return Response(
+        content=md,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="redline-{safe}.md"'
+            ),
+        },
+    )

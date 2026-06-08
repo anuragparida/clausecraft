@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -191,56 +191,102 @@ describe("DeviationReviewPage", () => {
     expect(row).toHaveAttribute("data-flag-action", "rejected");
   });
 
-  it("Edit button opens an inline text input; Save persists the new rationale", async () => {
+  it("Edit button opens an inline number input; Save persists the new severity (spec: severity override)", async () => {
     const user = userEvent.setup();
     const data = makeData([
-      makeFlag({ clause_id: "c1", rationale: "original rationale" }),
+      makeFlag({ clause_id: "c1", score: 2 }),
     ]);
     render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
     const row = screen.getByTestId("deviation-row-c1");
-    // Pre-edit: the rationale cell shows the original text.
+    // Pre-edit: severity is the spotter's score (2).
     expect(
       within(row).getByTestId("flag-rationale-c1")
-    ).toHaveTextContent("original rationale");
+    ).toBeInTheDocument();
 
     await user.click(screen.getByTestId("flag-edit-c1"));
-    // After click: the inline input appears.
-    const input = screen.getByTestId("flag-edit-input-c1");
+    // After click: the inline number input appears with
+    // min=0, max=3, and the original score as the seed.
+    const input = screen.getByTestId("flag-edit-input-c1") as HTMLInputElement;
     expect(input).toBeInTheDocument();
-    // The input is pre-seeded with the original rationale.
-    expect(input).toHaveValue("original rationale");
+    expect(input.type).toBe("number");
+    expect(input.min).toBe("0");
+    expect(input.max).toBe("3");
+    expect(input.value).toBe("2");
 
-    // Type a new value and save.
+    // Set the new severity (2 → 1) and save.
     await user.clear(input);
-    await user.type(input, "revised rationale");
+    await user.type(input, "1");
     await user.click(screen.getByTestId("flag-save-edit-c1"));
 
-    // The rationale cell now shows the new text.
-    expect(
-      within(row).getByTestId("flag-rationale-c1")
-    ).toHaveTextContent("revised rationale");
     // The row's flag-action is "edited".
     expect(row).toHaveAttribute("data-flag-action", "edited");
+    // The rationale cell now shows the "old → new" badge.
+    expect(
+      within(row).getByTestId("flag-severity-cell-c1")
+    ).toHaveTextContent("2 → 1");
     // The inline input is gone.
     expect(screen.queryByTestId("flag-edit-input-c1")).toBeNull();
   });
 
-  it("Edit → Cancel restores the prior rationale", async () => {
+  it("Edit input clamps out-of-range values to [0, 3]", async () => {
+    const user = userEvent.setup();
+    const data = makeData([makeFlag({ clause_id: "c1", score: 1 })]);
+    render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+
+    await user.click(screen.getByTestId("flag-edit-c1"));
+    const input = screen.getByTestId("flag-edit-input-c1") as HTMLInputElement;
+    await user.clear(input);
+    await user.type(input, "9"); // out of range
+    await user.click(screen.getByTestId("flag-save-edit-c1"));
+
+    // 9 clamps to 3; the badge shows "1 → 3".
+    expect(
+      screen.getByTestId("flag-severity-cell-c1")
+    ).toHaveTextContent("1 → 3");
+  });
+
+  it("Edit fires onFlagDecision with decision=edit_severity + new_severity (button → API wiring)", async () => {
+    const user = userEvent.setup();
+    const onFlagDecision = vi.fn();
+    const data = makeData([makeFlag({ clause_id: "c1", score: 2 })]);
+    render(
+      <DeviationReviewPage
+        {...RENDER_PROPS}
+        data={data}
+        onFlagDecision={onFlagDecision}
+      />,
+    );
+    await user.click(screen.getByTestId("flag-edit-c1"));
+    const input = screen.getByTestId("flag-edit-input-c1") as HTMLInputElement;
+    await user.clear(input);
+    await user.type(input, "0");
+    await user.click(screen.getByTestId("flag-save-edit-c1"));
+
+    expect(onFlagDecision).toHaveBeenCalled();
+    const decision = onFlagDecision.mock.calls[0][0];
+    expect(decision.clause_id).toBe("c1");
+    expect(decision.decision).toBe("edit_severity");
+    expect(decision.new_severity).toBe(0);
+    expect(decision.old_severity).toBe(2);
+  });
+
+  it("Edit → Cancel without prior save reverts the action to none", async () => {
     const user = userEvent.setup();
     const data = makeData([
-      makeFlag({ clause_id: "c1", rationale: "original" }),
+      makeFlag({ clause_id: "c1", score: 2 }),
     ]);
     render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
     await user.click(screen.getByTestId("flag-edit-c1"));
-    const input = screen.getByTestId("flag-edit-input-c1");
+    const input = screen.getByTestId("flag-edit-input-c1") as HTMLInputElement;
     await user.clear(input);
-    await user.type(input, "should not stick");
+    await user.type(input, "0");
     await user.click(screen.getByTestId("flag-cancel-edit-c1"));
 
     const row = screen.getByTestId("deviation-row-c1");
+    // No severity badge cell — the edit was never saved.
     expect(
-      within(row).getByTestId("flag-rationale-c1")
-    ).toHaveTextContent("original");
+      within(row).queryByTestId("flag-severity-cell-c1")
+    ).not.toBeInTheDocument();
     expect(row).toHaveAttribute("data-flag-action", "none");
   });
 

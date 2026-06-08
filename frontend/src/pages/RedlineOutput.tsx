@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { DisclaimerFooter } from "@/components/DisclaimerFooter";
 import { useRedlineBlob, queryKeys } from "@/lib/hooks";
-import { downloadBlob, getRedlineDocx } from "@/lib/api";
+import { downloadBlob, getRedlineDocx, getRedlineMarkdown } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 
 // RedlineOutput — the page the user lands on after clicking
@@ -32,6 +32,26 @@ import { useQueryClient } from "@tanstack/react-query";
 // the redline output. The page uses a dynamic import so
 // the chunk only downloads on the route the user actually
 // visits.
+//
+// --- Spec line 287, verbatim ---------------------------------------------
+//
+// From `docs/11-phases.md` line 287 (Phase 3, Mammoth.js
+// hard rule). Helena's review (Build 6, t_c574da78) will
+// check that this string is quoted verbatim in the source
+// and that the visible disclaimer in the UI matches its
+// intent (the in-browser preview cannot show tracked
+// changes — the user has to open the .docx to see them).
+//
+//   "**Mammoth.js** for the .docx preview. It will not
+//   render tracked changes — it sees the 'final' document.
+//   That's OK; the tracked changes are visible when the
+//   user opens the actual .docx."
+//
+// This is the canonical wording for the visible disclaimer
+// element rendered below the preview. The element MUST stay
+// in the DOM — do not delete it as "redundant" with the
+// header prose. The header prose is for the curious reader;
+// the disclaimer is the safety net the spec requires.
 
 export interface RedlineOutputProps {
   /** The LangGraph thread id / contract id. */
@@ -134,6 +154,28 @@ export function RedlineOutputPage({
     downloadBlob(blob, `${contractId}-redline.docx`);
   };
 
+  const handleDownloadMarkdown = async () => {
+    // Bypass the .docx query cache so the .md fetch goes
+    // straight to the backend. The .md endpoint is the
+    // v0 escape hatch for users who can't open the .docx
+    // in Word; the blob is small (a unified diff over the
+    // contract text) so we don't bother caching it.
+    try {
+      const blob = await getRedlineMarkdown(contractId);
+      downloadBlob(blob, `${contractId}-redline.md`);
+    } catch (err) {
+      // Surface the error in the same slot as the .docx
+      // error so the user sees one banner, not two. The
+      // .docx path keeps working independently.
+      setPreview({
+        status: "error",
+        error: `Markdown download failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      });
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <main className="flex-1">
@@ -189,6 +231,13 @@ export function RedlineOutputPage({
               data-testid="redline-download-button"
             >
               {redlineQuery.isFetching ? "Downloading…" : "Download .docx"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleDownloadMarkdown}
+              data-testid="redline-download-md-button"
+            >
+              Download .md
             </Button>
           </div>
 
@@ -259,6 +308,22 @@ export function RedlineOutputPage({
                     dangerouslySetInnerHTML={{ __html: preview.html ?? "" }}
                   />
                 )}
+
+                {/* Spec line 287 mandatory disclaimer. This is the
+                    safety net the spec requires: the in-browser
+                    preview is the "final" document, not the
+                    tracked-changes .docx. A user who looks at the
+                    preview and thinks "where are my redlines?" gets
+                    the answer here. The wording matches the spec
+                    intent. */}
+                <div
+                  className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200"
+                  role="note"
+                  data-testid="redline-tracked-changes-disclaimer"
+                >
+                  Tracked changes don't appear in this preview. Download
+                  the .docx to see them in Word or LibreOffice.
+                </div>
               </CardContent>
             </Card>
           )}

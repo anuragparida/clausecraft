@@ -112,6 +112,14 @@ class PipelineRunState:
         The rendered .docx. Set by
         :func:`process_decisions` after the redlines
         are computed.
+    output_markdown_bytes
+        The rendered markdown diff. Set by
+        :func:`process_decisions` alongside the .docx
+        as a v0 escape hatch (the markdown path is the
+        "tracked changes are visible in Word but not in
+        a browser preview" fallback; it is the same
+        contract text + accepted proposals, expressed
+        as a unified diff). Empty if no redlines.
     """
 
     __slots__ = (
@@ -124,6 +132,7 @@ class PipelineRunState:
         "decisions",
         "redlines",
         "output_docx_bytes",
+        "output_markdown_bytes",
     )
 
     def __init__(
@@ -143,6 +152,7 @@ class PipelineRunState:
         self.decisions: dict[str, dict[str, Any]] = {}
         self.redlines: dict[str, dict[str, Any]] = {}
         self.output_docx_bytes: bytes = b""
+        self.output_markdown_bytes: bytes = b""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -155,6 +165,7 @@ class PipelineRunState:
             "decisions": self.decisions,
             "redlines": self.redlines,
             "output_docx_bytes": self.output_docx_bytes,
+            "output_markdown_bytes": self.output_markdown_bytes,
         }
 
 
@@ -560,6 +571,7 @@ async def _render_docx_into_state(state: PipelineRunState) -> None:
 
     if not accepted:
         state.output_docx_bytes = b""
+        state.output_markdown_bytes = b""
         return
 
     clause_texts = [
@@ -570,7 +582,30 @@ async def _render_docx_into_state(state: PipelineRunState) -> None:
     baseline = "\n\n".join(clause_texts).strip()
     if not baseline:
         state.output_docx_bytes = b""
+        state.output_markdown_bytes = b""
         return
+
+    # The markdown path is the v0 escape hatch: same input
+    # (contract baseline + accepted proposals), different
+    # output format. We render it before the .docx so a
+    # docx-render failure still leaves the markdown
+    # available for download.
+    try:
+        from app.output.markdown_diff import render_markdown_diff
+
+        md_text = await asyncio.to_thread(
+            render_markdown_diff,
+            baseline,
+            accepted,
+        )
+        state.output_markdown_bytes = md_text.encode("utf-8")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "render_docx: markdown render failed for %s: %s",
+            state.filename,
+            exc,
+        )
+        state.output_markdown_bytes = b""
 
     try:
         from app.output.docx import render_redline_docx

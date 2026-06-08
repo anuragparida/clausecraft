@@ -306,6 +306,36 @@ export async function getRedlineDocx(contractId: string): Promise<Blob> {
   return res.blob();
 }
 
+// --- Endpoint: redline.md download (Build 5) ---------------------------
+
+/**
+ * Download the redline as a markdown-diff ``Blob``. The
+ * markdown path is the v0 escape hatch for users who cannot
+ * open the .docx in Word — it is the same contract text +
+ * accepted proposals, expressed as a unified diff. The
+ * backend renders the markdown from the same state the
+ * .docx was rendered from, so the two outputs are consistent.
+ *
+ * Returns a ``Blob`` (``text/markdown; charset=utf-8``). The
+ * caller hands the blob to ``downloadBlob`` with a sensible
+ * filename. We do not cache the blob because the .md path
+ * is rare and the bytes are small.
+ */
+export async function getRedlineMarkdown(contractId: string): Promise<Blob> {
+  const res = await fetch(
+    `/api/contracts/${encodeURIComponent(contractId)}/redline.md`,
+  );
+  if (!res.ok) {
+    const body = await readErrorBody(res);
+    throw new ApiError(
+      `/api/contracts/${contractId}/redline.md`,
+      res.status,
+      body,
+    );
+  }
+  return res.blob();
+}
+
 // --- Endpoint: audit-log (Build 4) ------------------------------------
 
 /**
