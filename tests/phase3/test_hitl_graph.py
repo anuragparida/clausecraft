@@ -132,20 +132,48 @@ def fixture_contract_bytes() -> bytes:
 async def test_graph_compiles(fresh_graph):
     """The compiled graph has the expected node set.
 
-    The spec says the graph is "ingest -> parse -> classify
-    -> spot -> interrupt -> redline -> output -> audit."
-    Our topology is 6 named nodes (ingest_parse_classify is
-    one merged node; finalize is the audit-summary node).
+    The card ``t_0671d337`` (Build 3 re-decomposition)
+    extends the 7-node Build 3 topology with three new
+    nodes:
+
+    - ``hitl_review`` — the typed-state HITL node (the
+      card's central deliverable). Replaces the legacy
+      ``interrupt_hitl`` node in the topology (the
+      legacy node still exists for backward compat
+      with external callers, but is not wired into
+      the graph).
+    - ``stage5_redline`` — the typed-state redline
+      stage. Reads from ``state.flag_decisions`` and
+      writes to ``state.redline_proposals``.
+    - ``flush_audit_log_writes`` — drains the queued
+      audit log writes (the spec's "audit log writes
+      are queued in state, not directly called" hard
+      rule). Runs immediately before the finalize
+      node.
+
+    The 9-node topology is::
+
+        ingest_parse_classify
+        -> spot_deviations
+        -> hitl_review            [NEW]
+        -> apply_decisions
+        -> draft_redlines
+        -> stage5_redline         [NEW]
+        -> assemble_output
+        -> flush_audit_log_writes [NEW]
+        -> finalize
     """
     nodes = list(fresh_graph.nodes.keys())
     expected = {
         "__start__",
         "ingest_parse_classify",
         "spot_deviations",
-        "interrupt_hitl",
+        "hitl_review",
         "apply_decisions",
         "draft_redlines",
+        "stage5_redline",
         "assemble_output",
+        "flush_audit_log_writes",
         "finalize",
     }
     assert expected.issubset(set(nodes)), (
