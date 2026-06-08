@@ -500,18 +500,45 @@ async def process_decisions(
         )
         redlines[cid] = result
 
-        # Per-redline audit event.
+        # Per-redline audit event. Per spec line 285, the
+        # self-check conflict case writes a ``redline_generated``
+        # row with ``payload_json.conflict = True`` and both
+        # attempts recorded. We honour that contract here:
+        # - on the ``ok`` path, we record ``attempt`` (1 or 2,
+        #   the drafter's cap-at-1-retry).
+        # - on the ``conflict`` path, we set ``conflict=True``
+        #   and copy the two attempt proposals into the payload
+        #   so the audit log is self-describing (the row alone
+        #   is enough to reconstruct what happened).
         attempt = 0
+        payload: dict[str, Any] = {"outcome": result.get("outcome")}
         if result.get("outcome") == "ok" and isinstance(result.get("proposal"), dict):
             attempt = int(result["proposal"].get("attempt", 0))
+            payload["attempt"] = attempt
+        elif result.get("outcome") == "conflict":
+            payload["conflict"] = True
+            payload["attempt"] = attempt
+            conflict = result.get("conflict") or {}
+            if isinstance(conflict, dict):
+                first = conflict.get("first_proposal") or {}
+                second = conflict.get("second_proposal") or {}
+                if isinstance(first, dict):
+                    payload["first_attempt"] = {
+                        "proposed_text": first.get("proposed_text"),
+                        "rationale": first.get("rationale"),
+                        "attempt": first.get("attempt"),
+                    }
+                if isinstance(second, dict):
+                    payload["second_attempt"] = {
+                        "proposed_text": second.get("proposed_text"),
+                        "rationale": second.get("rationale"),
+                        "attempt": second.get("attempt"),
+                    }
         await _audit_event(
             contract_id=contract_id,
             clause_id=cid,
             decision_type=DecisionType.REDLINE_GENERATED,
-            payload={
-                "outcome": result.get("outcome"),
-                "attempt": attempt,
-            },
+            payload=payload,
         )
 
     state.redlines = redlines
