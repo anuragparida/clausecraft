@@ -75,6 +75,44 @@ See [`docs/11-phases.md`](./docs/11-phases.md) for the full plan and
 
 ---
 
+## Audit trail
+
+Every decision the system makes and every action the user takes leaves a row.
+The audit log is an append-only Postgres table — a trigger rejects UPDATE and
+DELETE at the database level, so rows can be inserted but not edited or
+removed. The trigger is a defense against accidental modification, not against
+a determined adversary with shell on the box. If someone with root wants to
+rewrite history, the log will not stop them. For everything short of that, the
+log answers the question honestly.
+
+What gets recorded: every approval, rejection, severity override, context
+note, redline generation, and redline download — with `decided_by` (the
+operator id) and `decided_at` (server-set, not caller-supplied) for each. The
+schema is `(contract_id, clause_id, decision_type, payload_json, decided_by,
+decided_at)`.
+
+Who decides: the user. The system proposes; the human disposes. The HITL step
+is the product's thesis, not a checkbox — see
+[`docs/09-threat-model.md`](./docs/09-threat-model.md) for why this matters.
+
+What the export looks like: JSON for re-import and machine reading, PDF for
+humans. Both per-contract, both generated from the same row set, both
+downloadable from the AuditReplay page.
+
+What the audit log is *not*: it is not a multi-tenant system, not a SOC 2
+artifact, and not a substitute for the disclaimer in
+[`DISCLAIMER.md`](./DISCLAIMER.md). It is a row you can point at when someone
+asks why clause 7 was flagged severity 3 and what the operator did about it.
+The answer is a timestamp, not a guess.
+
+The string on the AuditReplay page, next to the download buttons:
+
+> Every approval, rejection, severity override, redline generation, and
+> download for this contract, with timestamps and the operator id. Not a
+> substitute for the disclaimer; a record of what happened.
+
+---
+
 ## How the eval works
 
 The eval harness is the spec's core claim, not a footnote. Four things to know
