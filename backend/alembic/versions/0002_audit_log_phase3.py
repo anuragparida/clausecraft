@@ -74,6 +74,14 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+# Spec reference: ``docs/11-phases.md`` line 286 — "Append-only
+# at the DB level needs more than a code convention. Either use
+# a Postgres trigger that rejects UPDATE/DELETE on the audit
+# table, or use a separate Postgres user with INSERT-only
+# permissions. The trigger is simpler." The trigger below is
+# the spec's chosen approach.
+
+
 #: SQL fragment for the trigger function. Matches the
 #: :mod:`app.audit.trigger_sql` constants — if you change one,
 #: change the other (the test suite imports the same constants).

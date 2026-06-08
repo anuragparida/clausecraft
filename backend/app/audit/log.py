@@ -46,8 +46,39 @@ from sqlalchemy.exc import DBAPIError
 from app.audit.schema import AuditEvent
 from app.config import settings
 from app.db import get_session_factory
+from app.observability import _NoopSpan, get_langfuse
 
 logger = logging.getLogger(__name__)
+
+
+def _finish_audit_span(span: Any, *, new_id: int | None, error: BaseException | None) -> None:
+    """Close out the Langfuse span for an audit-log write.
+
+    The trace update is wrapped in a broad except — a Langfuse
+    outage must never affect the audit log we return. The
+    pattern mirrors :func:`app.agents.deviation_spotter.spotter.
+    _finish_trace` so the two paths are visibly the same shape
+    when a reviewer greps for ``_finish_trace``.
+    """
+    try:
+        if hasattr(span, "update"):
+            if new_id is not None:
+                span.update(
+                    output={"id": new_id},
+                    metadata={"error": str(error)} if error else {},
+                )
+            else:
+                span.update(
+                    output={},
+                    metadata={"error": str(error)} if error else {},
+                )
+        if hasattr(span, "end"):
+            span.end()
+    except Exception:  # noqa: BLE001
+        # A Langfuse client failure is non-fatal for the
+        # audit-log write. The DB-level trigger is the real
+        # enforcement; the trace is observability only.
+        pass
 
 
 def _resolved_decided_by(override: str | None) -> str:
@@ -124,27 +155,61 @@ async def record_event(event: AuditEvent, *, decided_by: str | None = None) -> i
         for k, v in event.payload_json.items()
     }
 
-    factory = get_session_factory()
-    async with factory() as session:
-        async with session.begin():
-            result = await session.execute(
-                AuditEventRow.__table__.insert().values(
-                    contract_id=event.contract_id,
-                    clause_id=event.clause_id or "",
-                    decision_type=decision_type,
-                    payload_json=payload,
-                    decided_by=by,
+    # --- Langfuse trace wrap ----------------------------------
+    # The audit log is the "did the agent decide correctly"
+    # ledger. Every write is an observable event in Langfuse
+    # so the dashboard can show the decision chain alongside
+    # the LLM traces. The trace is wrapped in a broad except
+    # so a Langfuse outage never fails the audit-log write
+    # (the trigger is the real enforcement; the trace is
+    # observability only — same posture as the deviation
+    # spotter's _finish_trace).
+    span: Any = _NoopSpan()
+    new_id: int | None = None
+    error: BaseException | None = None
+    try:
+        langfuse = get_langfuse()
+        span = langfuse.trace(
+            name="audit_event_record",
+            input={
+                "contract_id": event.contract_id,
+                "clause_id": event.clause_id or "",
+                "decision_type": decision_type,
+                "decided_by": by,
+                "payload_keys": sorted(payload.keys()),
+            },
+        )
+    except Exception:  # noqa: BLE001
+        span = _NoopSpan()
+
+    try:
+        factory = get_session_factory()
+        async with factory() as session:
+            async with session.begin():
+                result = await session.execute(
+                    AuditEventRow.__table__.insert().values(
+                        contract_id=event.contract_id,
+                        clause_id=event.clause_id or "",
+                        decision_type=decision_type,
+                        payload_json=payload,
+                        decided_by=by,
+                    )
+                    .returning(AuditEventRow.__table__.c.id)
                 )
-                .returning(AuditEventRow.__table__.c.id)
-            )
-            row = result.first()
-            if row is None:
-                # Should be impossible — the trigger rejects
-                # UPDATE/DELETE, not INSERT. Defensive raise.
-                raise RuntimeError(
-                    "audit_events INSERT returned no row (DB is misconfigured?)"
-                )
-            new_id = int(row[0])
+                row = result.first()
+                if row is None:
+                    # Should be impossible — the trigger rejects
+                    # UPDATE/DELETE, not INSERT. Defensive raise.
+                    raise RuntimeError(
+                        "audit_events INSERT returned no row (DB is misconfigured?)"
+                    )
+                new_id = int(row[0])
+    except BaseException as e:  # noqa: BLE001
+        error = e
+        _finish_audit_span(span, new_id=None, error=e)
+        raise
+    else:
+        _finish_audit_span(span, new_id=new_id, error=None)
 
     logger.info(
         "audit event recorded id=%s contract=%s clause=%s type=%s by=%s",
@@ -154,7 +219,7 @@ async def record_event(event: AuditEvent, *, decided_by: str | None = None) -> i
         decision_type,
         by,
     )
-    return new_id
+    return new_id  # type: ignore[return-value]
 
 
 def is_audit_mutation_error(exc: BaseException) -> bool:
