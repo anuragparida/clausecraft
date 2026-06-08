@@ -196,6 +196,85 @@ def reset_state(contract_id: str) -> None:
     _STATE.pop(contract_id, None)
 
 
+# --- State snapshot (Build 7 — resume-after-pause UI hydration) --------
+
+
+def snapshot_state(contract_id: str) -> dict[str, Any]:
+    """Return a JSON-safe snapshot of a contract's resume-relevant state.
+
+    Built for the ``GET /contracts/{contract_id}/state`` endpoint
+    that the connected review page fetches on mount. The page
+    uses it to re-hydrate the clauses, flags, and prior
+    decisions when the user refreshes the URL mid-review (the
+    pipeline layer's state machine round-trips fine, but the
+    React page was rendering empty because the parent did not
+    pass the clauses prop).
+
+    Returned shape (stable; the frontend reads these keys)::
+
+        {
+          "contract_id": str,
+          "filename": str,
+          "has_state": bool,
+          "has_ingest": bool,        # clauses populated
+          "has_spot": bool,          # flags populated
+          "has_decisions": bool,     # decisions posted
+          "has_redline": bool,       # docx bytes rendered
+          "clauses": list[dict],
+          "flags": list[dict],
+          "decisions": list[dict],   # list, not dict — friendly
+                                     # for DeviationReview's
+                                     # ``initialDecisions`` prop
+          "redlines": list[dict],    # one entry per clause_id
+        }
+
+    ``has_state`` is the single boolean the UI checks to decide
+    whether to render the review surface or the "this contract
+    was not found" empty state. The narrower booleans
+    (``has_ingest`` etc.) are convenience flags the UI can use
+    for skeletons / error messages.
+
+    The endpoint returns 200 with this payload even when the
+    contract was never ingested — the page renders a friendly
+    "no contract found at this URL" state instead of a hard 404.
+    A 404 would force the user to navigate back to triage on a
+    refresh, which is exactly the broken behaviour F3 is meant
+    to fix.
+    """
+    if contract_id not in _STATE:
+        return {
+            "contract_id": contract_id,
+            "filename": contract_id,
+            "has_state": False,
+            "has_ingest": False,
+            "has_spot": False,
+            "has_decisions": False,
+            "has_redline": False,
+            "clauses": [],
+            "flags": [],
+            "decisions": [],
+            "redlines": [],
+        }
+    s = _STATE[contract_id]
+    return {
+        "contract_id": s.contract_id,
+        "filename": s.filename,
+        "has_state": True,
+        "has_ingest": bool(s.clauses),
+        "has_spot": bool(s.flags),
+        "has_decisions": bool(s.decisions),
+        "has_redline": bool(s.output_docx_bytes),
+        "clauses": list(s.clauses),
+        "flags": list(s.flags),
+        "decisions": [
+            {"clause_id": cid, **dec} for cid, dec in s.decisions.items()
+        ],
+        "redlines": [
+            {"clause_id": cid, **out} for cid, out in s.redlines.items()
+        ],
+    }
+
+
 # --- Decision validation ------------------------------------------------
 
 
@@ -656,6 +735,7 @@ __all__ = [
     "get_state",
     "has_state",
     "reset_state",
+    "snapshot_state",
     "normalise_decision",
     "process_decisions",
 ]

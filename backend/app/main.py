@@ -730,6 +730,76 @@ async def post_contracts_decisions(
     )
 
 
+# --- Phase 3 Build 7: state snapshot (resume-after-pause UI hydration) --
+
+
+class ContractStateResponse(BaseModel):
+    """Response body for ``GET /contracts/{contract_id}/state``.
+
+    The connected review page fetches this on mount when the
+    user navigates to ``#/contracts/{id}/review`` after a page
+    refresh. The page uses the clauses + flags to re-hydrate
+    DeviationReview, the prior decisions to restore the user's
+    per-flag choices, and the booleans to render a friendly
+    "contract not found" state when the URL points at a
+    contract that was never ingested.
+
+    All fields are always present (``[]`` / ``False`` when
+    missing) so the React side can render the page without
+    optional-chaining everywhere.
+    """
+
+    contract_id: str
+    filename: str
+    has_state: bool
+    has_ingest: bool
+    has_spot: bool
+    has_decisions: bool
+    has_redline: bool
+    clauses: list[dict[str, Any]]
+    flags: list[dict[str, Any]]
+    decisions: list[dict[str, Any]]
+    redlines: list[dict[str, Any]]
+
+
+@app.get(
+    "/contracts/{contract_id}/state",
+    response_model=ContractStateResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_contracts_state(contract_id: str) -> ContractStateResponse:
+    """Phase 3 Build 7 — snapshot of a contract's resume state.
+
+    Closes the F3 gap from the Phase 3 review: a user who
+    navigates to ``#/contracts/{id}/review`` after a page
+    refresh (or after copying the URL from a teammate) used
+    to land on a blank page because :class:`ReviewContractPage`
+    received no ``clauses`` prop from the hash router. The
+    pipeline's state machine round-trips fine (see
+    :mod:`tests.pipeline.test_hitl_state_machine`), but the
+    React layer could not see it. This endpoint is the seam
+    the React page fetches on mount.
+
+    Behaviour
+    ---------
+    - Returns 200 with a fully-populated payload when the
+      contract has state in the in-memory store. The
+      ``has_ingest`` / ``has_spot`` / ``has_decisions`` /
+      ``has_redline`` booleans let the UI render the right
+      skeleton / error message for partial progress.
+    - Returns 200 with ``has_state=False`` and empty lists
+      when no state exists. The UI renders a friendly
+      "this contract was not found" state instead of a
+      hard 404 — a 404 would force the user back to
+      triage on a refresh, which is exactly the broken
+      behaviour F3 is meant to fix.
+    """
+    from app.pipeline.phase3_pipeline import snapshot_state
+
+    snap = snapshot_state(contract_id)
+    return ContractStateResponse(**snap)
+
+
 @app.get(
     "/contracts/{contract_id}/redline.docx",
     response_class=Response,
