@@ -3,25 +3,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { DisclaimerFooter } from "@/components/DisclaimerFooter";
 import { TriagePage } from "@/components/TriagePage";
+import {
+  DeviationReviewPage,
+  SAMPLE_DEVIATION_REVIEW_DATA,
+} from "@/pages/DeviationReview";
 
-// The Phase 0 / Phase 1 home view. Shows the project name, a
-// "Triage contracts" entry point (the Phase 1 page), and a short
-// status panel. Wired with a backend healthz check via the API proxy
-// to prove the API ↔ UI connection works end-to-end.
+// The Phase 0 / Phase 1 home view. Shows the project name, the
+// navigation entry points to the real pages (Triage in Phase 1,
+// Deviation Review in Phase 2), and a short status panel.
 //
-// In Phase 1 the "Coming soon" panel is replaced by a "Triage
-// contracts" link that navigates to the real /triage page. The
-// Triage page is loaded via simple in-component state (no router)
-// to keep the dependency surface minimal — react-router-dom is not
-// needed yet.
+// Navigation is plain `useState` — no react-router-dom. The
+// view string is the source of truth; switch on it. Phase 3 may
+// swap to a real router if the page count grows.
 
-type View = "home" | "triage";
+type View = "home" | "triage" | "deviation";
 
 function App() {
   const [view, setView] = useState<View>("home");
 
   if (view === "triage") {
     return <TriagePage />;
+  }
+  if (view === "deviation") {
+    return (
+      <DeviationReviewPage
+        data={SAMPLE_DEVIATION_REVIEW_DATA}
+        onBackToHome={() => setView("home")}
+        onBackToTriage={() => setView("triage")}
+      />
+    );
   }
 
   return (
@@ -42,22 +52,45 @@ function App() {
               <CardTitle>Triage contracts</CardTitle>
               <CardDescription>
                 Phase 1 — ingest, parse, and classify an NDA. Returns a
-                typed clause list in a stable JSON schema. The deviation
-                spotter and playbook land in Phase 2.
+                typed clause list in a stable JSON schema.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Upload a PDF or DOCX NDA, see the typed clause list with
-                position, type, and a text excerpt. Classifier runs in
-                rule-based fallback mode (no LLM key required) until
-                Phase 2.
+                position, type, and a text excerpt.
               </p>
               <Button
                 onClick={() => setView("triage")}
                 data-testid="home-triage-link"
               >
                 Triage contracts
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="max-w-2xl">
+            <CardHeader>
+              <CardTitle>Deviation review</CardTitle>
+              <CardDescription>
+                Phase 2 — the main work surface. Color-coded flags with
+                citations, per-row Approve / Reject / Edit actions.
+                Buttons are wired to local state only; persistence
+                arrives in Phase 3.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Loads sample deviation flags (2 rows: one cited
+                material deviation, one no-baseline) so the page is
+                reachable without the backend. Phase 3 wires this to
+                the live spot endpoint.
+              </p>
+              <Button
+                onClick={() => setView("deviation")}
+                data-testid="home-deviation-link"
+              >
+                Open Deviation review
               </Button>
             </CardContent>
           </Card>
