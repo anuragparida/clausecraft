@@ -6,48 +6,39 @@ import { DisclaimerFooter } from "@/components/DisclaimerFooter";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { CitationPopover, type Citation } from "@/components/CitationPopover";
 import { cn } from "@/lib/utils";
+import type { Decision } from "@/lib/api";
 
-// DeviationReview — Phase 2 main work surface. Loads deviation
-// flags (from a stub API or props; Phase 3 wires to backend) and
-// renders a table with one row per flag. Each row carries:
+// DeviationReview — the main work surface. Renders one row per
+// deviation flag with per-row actions and a footer-level
+// "Generate redline" CTA.
 //
-//   - Clause reference + excerpt
-//   - Severity badge (color-coded 0..3)
-//   - Counterparty matrix verdict column (flat baseline verdict
-//     for now — Phase 5 looks up the actual (clause_type ×
-//     counterparty_type) verdict from the matrix loader)
-//   - Citation popover (with "no citation" placeholder for
-//     unverified flags)
-//   - Per-row actions: Approve / Reject / Edit (local state only
-//     in Phase 2; Phase 3 wires these to the audit log + LangGraph)
+// Phase 2 was local-state only. Phase 3 wires the buttons to a
+// real backend (the LangGraph HITL pipeline) and to the
+// append-only audit log. The page is **dual-mode**:
 //
-// "No baseline" handling: when a flag has ``unverified=True`` and
-// ``rationale="no matching playbook clause"`` we render the row
-// with a muted style (no severity badge, "no baseline" tag, the
-// action buttons stay enabled so a human can still approve/reject
-// the flag after reading it). The spec calls this out as
-// "graceful 'no baseline' handling, not a crash".
+// - **Uncontrolled** (default). When ``onFlagDecision`` and
+//   ``onSubmitDecisions`` are not provided, all decisions live
+//   in local React state. The Phase 2 tests exercise this path
+//   — the test suite never has to mock the API.
 //
-// State machine (per row, in `states[clause_id]`):
-//   - `action: "approved" | "rejected" | "edited" | null`
-//     Persists across re-renders; rendered as the row's
-//     `data-flag-action` attribute and as the action-button
-//     variant (the selected button uses the *filled* variant).
-//   - `editing: true` while the inline text input is open.
-//     Transient: cleared on Save and on Cancel.
-//   - `committedEdit: string | null` the rationale the user
-//     committed by clicking Save. Rendered in the rationale cell
-//     when present; falls back to the original flag rationale.
+// - **Controlled** (Phase 3 in production). The connected page
+//   (``pages/ReviewContract.tsx``) passes an ``onFlagDecision``
+//   callback that writes a single audit event for each click,
+//   plus an ``onSubmitDecisions`` callback that runs the resume
+//   mutation. The local state is still maintained for the UI
+//   (the spec says "pause-and-resume is testable" — the local
+//   state is the optimistic UI, the backend is the source of
+//   truth on refresh).
 //
-// Why split `editing` from `committedEdit`? Because the same
-// `action === "edited"` should *both* keep the row's data-flag
-// attribute as "edited" AND show the committed text in the
-// rationale cell, but should NOT keep the input open after save.
-// Treating "user is currently editing" as a separate flag keeps
-// the action row and the rationale cell in sync without either
-// fighting the other.
+// Why the dual-mode shape
+// -----------------------
+// The Phase 2 visual layout is approved (Helena's Review 1
+// passed). Build 5's hard rule is "wire the existing buttons,
+// don't replace them". Keeping the page headless (props in,
+// events out) means the visual layout file is testable in
+// isolation and the API plumbing lives in a connected wrapper.
 
-// --- API types ----------------------------------------------------------
+// --- API types ---------------------------------------------------------
 
 /** Shape of a single flag in the `flags[]` array of `SpotResponse`. */
 export interface DeviationFlag {
@@ -57,11 +48,6 @@ export interface DeviationFlag {
   citation: Citation | null;
   unverified: boolean;
   baseline_type: string;
-  // The API response may include the source URL on the
-  // citation; the backend usually doesn't, but the page is
-  // forward-compatible. (Phase 3 will populate this from the
-  // playbook store lookup.)
-  // source_url?: string;
 }
 
 /** Subset of `SpotResponse` this page consumes. */
@@ -86,16 +72,46 @@ export interface DeviationReviewProps {
   onBackToHome: () => void;
   /** Back-to-triage navigation. Optional but recommended. */
   onBackToTriage?: () => void;
+  /**
+   * Pre-existing decisions restored from a backend fetch
+   * (the "refresh the page" resume path). When present, the
+   * page hydrates its local state from this array instead of
+   * starting empty.
+   */
+  initialDecisions?: Decision[];
+  /**
+   * Fired on every flag-state change (approve / reject / save
+   * edit / cancel edit / add context). The connected page
+   * turns this into a per-flag audit event.
+   */
+  onFlagDecision?: (decision: Decision) => void;
+  /**
+   * Fired when the user clicks "Generate redline" (every
+   * flag has a decision). The connected page POSTs the
+   * decision batch to ``/contracts/{id}/decisions``.
+   */
+  onSubmitDecisions?: (decisions: Decision[]) => void;
+  /**
+   * Whether the "Generate redline" submission is in flight.
+   * Disables the button and shows a spinner label.
+   */
+  submitting?: boolean;
+  /**
+   * When true, the "Generate redline" button is rendered.
+   * The standalone home-view path doesn't show it (the
+   * connected review page does).
+   */
+  showGenerateRedline?: boolean;
 }
 
-// --- Constants ----------------------------------------------------------
+// --- Constants ---------------------------------------------------------
 
 /** Exact rationale string the spotter uses for "no matching playbook clause". */
 const NO_BASELINE_RATIONALE = "no matching playbook clause";
 
 const NO_BASELINE_LABEL = "no baseline";
 
-/** Action a user can take on a flag. Persisted to local state in Phase 2. */
+/** Action a user can take on a flag. Persisted to local state. */
 type FlagAction = "approved" | "rejected" | "edited" | null;
 
 /**
@@ -109,10 +125,20 @@ type FlagState = {
   action: FlagAction;
   editing: boolean;
   committedEdit: string | null;
+  /** Free-form context the user attached via "Add context". */
+  extraContext: string | null;
+  /** Transient: true only while the add-context textarea is open. */
+  addingContext: boolean;
 };
 
 function emptyFlagState(): FlagState {
-  return { action: null, editing: false, committedEdit: null };
+  return {
+    action: null,
+    editing: false,
+    committedEdit: null,
+    extraContext: null,
+    addingContext: false,
+  };
 }
 
 function isNoBaselineFlag(flag: DeviationFlag): boolean {
@@ -137,6 +163,64 @@ function scoreToVerdictLabel(score: number): string {
   }
 }
 
+/**
+ * Map the page's local ``FlagState`` to the wire-shape
+ * :class:`Decision` the backend expects.
+ *
+ * Returns ``null`` for the "no decision yet" case (the row
+ * hasn't been touched) so the caller can filter those out
+ * before building the decisions batch.
+ */
+function flagStateToDecision(
+  clauseId: string,
+  state: FlagState,
+  originalRationale: string,
+  originalScore: number,
+): Decision | null {
+  // The wire-shape maps one Decision per clause (Build 3's
+  // resume endpoint takes a flat ``decisions[]`` array).
+  // When the user has both an action AND a saved context,
+  // the more-recent one wins: the user can re-click
+  // "Add context" after an Approve to attach a note, and
+  // that note is the latest intent. (Reviewing a clause,
+  // the reviewer cares about "what's the most recent thing
+  // the user said about this row" — and a typed context is
+  // more recent than a button click.)
+  if (state.extraContext) {
+    return {
+      clause_id: clauseId,
+      decision: "add_context",
+      context: state.extraContext,
+    };
+  }
+  if (state.action === "approved") {
+    return { clause_id: clauseId, decision: "approve" };
+  }
+  if (state.action === "rejected") {
+    return { clause_id: clauseId, decision: "reject" };
+  }
+  if (state.action === "edited") {
+    return {
+      clause_id: clauseId,
+      decision: "edit_severity",
+      // The current page model only edits the rationale
+      // (text), not the numeric score. When the connected
+      // page exposes a numeric severity slider in Build 6
+      // it should pass the new value here. For Build 5 we
+      // round-trip the original score — the edit is a
+      // rationale change, not a score change, and the
+      // backend tolerates a same-value edit.
+      new_severity: originalScore,
+      old_severity: originalScore,
+    };
+  }
+  // No decision yet. (This branch is hit for a row that the
+  // user has not interacted with, or for an "edited" row
+  // whose committedEdit was cleared by a later "cancel".)
+  void originalRationale;
+  return null;
+}
+
 // --- Subcomponents ------------------------------------------------------
 
 interface ActionRowProps {
@@ -147,6 +231,9 @@ interface ActionRowProps {
   onEdit: () => void;
   onSaveEdit: (newRationale: string) => void;
   onCancelEdit: () => void;
+  onAddContext: () => void;
+  onSaveContext: (context: string) => void;
+  onCancelContext: () => void;
 }
 
 function ActionRow({
@@ -157,21 +244,36 @@ function ActionRow({
   onEdit,
   onSaveEdit,
   onCancelEdit,
+  onAddContext,
+  onSaveContext,
+  onCancelContext,
 }: ActionRowProps) {
   // The inline input's draft. Re-seeded via useEffect whenever
   // the parent flips `editing` back on (i.e. the user clicks Edit
   // again after a save). Without the effect, useState's
   // initialiser would only fire on the first mount of this row
   // instance and the second Edit click would show a stale draft.
-  const initialDraft =
-    state.committedEdit ?? flag.rationale;
-  const [draft, setDraft] = useState(initialDraft);
+  const initialEditDraft = state.committedEdit ?? flag.rationale;
+  const [editDraft, setEditDraft] = useState(initialEditDraft);
   useEffect(() => {
     if (state.editing) {
-      setDraft(state.committedEdit ?? flag.rationale);
+      setEditDraft(state.committedEdit ?? flag.rationale);
     }
   }, [state.editing, state.committedEdit, flag.rationale]);
 
+  // Same dance for the Add-context draft. The draft
+  // re-seeds whenever the parent flips ``addingContext``
+  // back on, so a "click Add context again to re-edit"
+  // path shows the previous text, not a stale empty
+  // string.
+  const [contextDraft, setContextDraft] = useState(state.extraContext ?? "");
+  useEffect(() => {
+    if (state.addingContext) {
+      setContextDraft(state.extraContext ?? "");
+    }
+  }, [state.addingContext, state.extraContext]);
+
+  // If the row's editing state flips open, show the edit UI.
   if (state.editing) {
     return (
       <div
@@ -180,8 +282,8 @@ function ActionRow({
       >
         <input
           type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          value={editDraft}
+          onChange={(e) => setEditDraft(e.target.value)}
           placeholder="Edited rationale…"
           className="w-full rounded-md border bg-background px-2 py-1 text-xs"
           data-testid={`flag-edit-input-${flag.clause_id}`}
@@ -189,7 +291,7 @@ function ActionRow({
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => onSaveEdit(draft)}
+            onClick={() => onSaveEdit(editDraft)}
             data-testid={`flag-save-edit-${flag.clause_id}`}
           >
             Save
@@ -199,6 +301,46 @@ function ActionRow({
             variant="outline"
             onClick={onCancelEdit}
             data-testid={`flag-cancel-edit-${flag.clause_id}`}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // The "add context" sub-UI. Triggered by a transient
+  // ``state.addingContext`` flag set by the parent when
+  // the user clicks the "Add context" button. Render the
+  // textarea with the previously-saved value (if any) as
+  // the draft.
+  if (state.addingContext) {
+    return (
+      <div
+        className="flex flex-col gap-2"
+        data-testid={`flag-action-row-context-${flag.clause_id}`}
+      >
+        <textarea
+          value={contextDraft}
+          onChange={(e) => setContextDraft(e.target.value)}
+          placeholder="Free-form context…"
+          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+          rows={3}
+          data-testid={`flag-context-input-${flag.clause_id}`}
+        />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => onSaveContext(contextDraft)}
+            data-testid={`flag-save-context-${flag.clause_id}`}
+          >
+            Save
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onCancelContext}
+            data-testid={`flag-cancel-context-${flag.clause_id}`}
           >
             Cancel
           </Button>
@@ -237,6 +379,22 @@ function ActionRow({
       >
         Edit
       </Button>
+      <Button
+        size="sm"
+        variant={state.extraContext ? "secondary" : "outline"}
+        onClick={onAddContext}
+        data-testid={`flag-add-context-${flag.clause_id}`}
+      >
+        Add context
+      </Button>
+      {state.extraContext && (
+        <span
+          className="text-xs text-muted-foreground"
+          data-testid={`flag-context-saved-${flag.clause_id}`}
+        >
+          context saved
+        </span>
+      )}
     </div>
   );
 }
@@ -249,6 +407,9 @@ interface FlagTableProps {
   onEdit: (clauseId: string) => void;
   onSaveEdit: (clauseId: string, newRationale: string) => void;
   onCancelEdit: (clauseId: string) => void;
+  onAddContext: (clauseId: string) => void;
+  onSaveContext: (clauseId: string, context: string) => void;
+  onCancelContext: (clauseId: string) => void;
 }
 
 function FlagTable({
@@ -259,6 +420,9 @@ function FlagTable({
   onEdit,
   onSaveEdit,
   onCancelEdit,
+  onAddContext,
+  onSaveContext,
+  onCancelContext,
 }: FlagTableProps) {
   if (flags.length === 0) {
     return (
@@ -345,6 +509,15 @@ function FlagTable({
                   data-testid={`flag-rationale-${flag.clause_id}`}
                 >
                   {state.committedEdit ?? flag.rationale}
+                  {state.extraContext && (
+                    <div
+                      className="mt-1 border-l-2 border-muted pl-2 text-[11px] text-muted-foreground"
+                      data-testid={`flag-context-cell-${flag.clause_id}`}
+                    >
+                      <span className="font-semibold">Context: </span>
+                      {state.extraContext}
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <ActionRow
@@ -357,6 +530,11 @@ function FlagTable({
                       onSaveEdit(flag.clause_id, newRationale)
                     }
                     onCancelEdit={() => onCancelEdit(flag.clause_id)}
+                    onAddContext={() => onAddContext(flag.clause_id)}
+                    onSaveContext={(context) =>
+                      onSaveContext(flag.clause_id, context)
+                    }
+                    onCancelContext={() => onCancelContext(flag.clause_id)}
                   />
                 </td>
               </tr>
@@ -372,8 +550,8 @@ function FlagTable({
 //
 // Used when the parent passes no `data` prop. Renders a small
 // fixture with 0/1/N flags so the page is reachable end-to-end
-// without the backend running. Phase 3 removes this in favour
-// of a real fetch.
+// without the backend running. Phase 3 keeps this as the
+// standalone-home-view's demo content.
 
 const SAMPLE_FLAG: DeviationFlag = {
   clause_id: "c1",
@@ -418,12 +596,58 @@ export function DeviationReviewPage({
   error = null,
   onBackToHome,
   onBackToTriage,
+  initialDecisions,
+  onFlagDecision,
+  onSubmitDecisions,
+  submitting = false,
+  showGenerateRedline = false,
 }: DeviationReviewProps) {
-  // Per-flag local state. Phase 2 only — Phase 3 wires this to
-  // a real audit log + LangGraph. The state is intentionally a
-  // Record (not a Map) so React diffing works naturally and so
-  // the parent can pass a pre-seeded state from props in tests.
+  // Per-flag local state. The page is a controlled/uncontrolled
+  // hybrid: the state is always local, but on every state
+  // change we also fire ``onFlagDecision`` so the connected
+  // page can persist. The Phase 2 tests use the page in
+  // uncontrolled mode (no onFlagDecision), which is why the
+  // existing assertions still hold.
   const [states, setStates] = useState<Record<string, FlagState>>({});
+
+  // Hydrate from ``initialDecisions`` on first mount. This is
+  // the "refresh the page" resume path: the connected page
+  // fetches prior decisions from the backend, then passes
+  // them in; the page converts them back to local state so
+  // the UI shows "what the user already decided".
+  useEffect(() => {
+    if (!initialDecisions || initialDecisions.length === 0) return;
+    setStates((prev) => {
+      const next: Record<string, FlagState> = { ...prev };
+      for (const d of initialDecisions) {
+        const existing = next[d.clause_id] ?? emptyFlagState();
+        if (d.decision === "approve") {
+          next[d.clause_id] = { ...existing, action: "approved", editing: false };
+        } else if (d.decision === "reject") {
+          next[d.clause_id] = { ...existing, action: "rejected", editing: false };
+        } else if (d.decision === "edit_severity") {
+          // The backend's edit decision maps to "edited" in
+          // the local UI; we don't restore the text (the
+          // page doesn't know what the new rationale was —
+          // Build 6 will fetch the audit payload to recover
+          // it).
+          next[d.clause_id] = { ...existing, action: "edited", editing: false };
+        } else if (d.decision === "add_context") {
+          next[d.clause_id] = {
+            ...existing,
+            extraContext: d.context ?? existing.extraContext,
+          };
+        }
+      }
+      return next;
+    });
+    // We deliberately do NOT re-run on every change of
+    // initialDecisions — the page should only hydrate
+    // once. The empty dep-array would be a lint error in
+    // strict mode; the `initialDecisions` dep is correct
+    // because the connected page passes a stable array
+    // (memoised) for the lifetime of the contract.
+  }, [initialDecisions]);
 
   const flags = data?.flags ?? [];
   const sortedFlags = useMemo(() => {
@@ -438,25 +662,60 @@ export function DeviationReviewPage({
     });
   }, [flags]);
 
-  const handleApprove = (clauseId: string) =>
+  // Helper that updates state AND fires the onFlagDecision
+  // callback (when present). This is the single chokepoint
+  // for every UI mutation so the connected page can persist
+  // without each handler re-implementing the dispatch.
+  const mutate = (
+    clauseId: string,
+    next: FlagState | ((s: FlagState) => FlagState),
+    emit: (d: Decision) => void,
+  ) => {
     setStates((s) => {
       const current = s[clauseId] ?? emptyFlagState();
-      return {
-        ...s,
-        [clauseId]: { ...current, action: "approved", editing: false },
-      };
+      const updated = typeof next === "function" ? next(current) : next;
+      const original = flags.find((f) => f.clause_id === clauseId);
+      const decision = flagStateToDecision(
+        clauseId,
+        updated,
+        original?.rationale ?? "",
+        original?.score ?? 0,
+      );
+      if (decision && onFlagDecision) {
+        // Only emit a decision when the state actually
+        // crossed into a "decided" configuration. The
+        // helper above always returns a Decision for
+        // approved/rejected/edited/extraContext, so this
+        // gate is a no-op for the happy path. (If a
+        // future refactor adds a "decision: null" return
+        // for transient states — e.g. opening the edit
+        // input — this gate suppresses the spurious
+        // emit.)
+        emit(decision);
+      }
+      return { ...s, [clauseId]: updated };
     });
+  };
+
+  const handleApprove = (clauseId: string) =>
+    mutate(
+      clauseId,
+      (s) => ({ ...s, action: "approved", editing: false }),
+      onFlagDecision ?? noop,
+    );
 
   const handleReject = (clauseId: string) =>
-    setStates((s) => {
-      const current = s[clauseId] ?? emptyFlagState();
-      return {
-        ...s,
-        [clauseId]: { ...current, action: "rejected", editing: false },
-      };
-    });
+    mutate(
+      clauseId,
+      (s) => ({ ...s, action: "rejected", editing: false }),
+      onFlagDecision ?? noop,
+    );
 
   const handleEdit = (clauseId: string) =>
+    // Open the edit input. This is a transient UI state;
+    // we do NOT emit a Decision here (the user's intent
+    // is "I want to type", not "I want to commit a
+    // change"). The emit happens on Save.
     setStates((s) => {
       const current = s[clauseId] ?? emptyFlagState();
       return {
@@ -466,18 +725,16 @@ export function DeviationReviewPage({
     });
 
   const handleSaveEdit = (clauseId: string, newRationale: string) =>
-    setStates((s) => {
-      const current = s[clauseId] ?? emptyFlagState();
-      return {
+    mutate(
+      clauseId,
+      (s) => ({
         ...s,
-        [clauseId]: {
-          ...current,
-          action: "edited",
-          editing: false,
-          committedEdit: newRationale.trim() || "(no rationale)",
-        },
-      };
-    });
+        action: "edited",
+        editing: false,
+        committedEdit: newRationale.trim() || "(no rationale)",
+      }),
+      onFlagDecision ?? noop,
+    );
 
   const handleCancelEdit = (clauseId: string) =>
     setStates((s) => {
@@ -488,9 +745,94 @@ export function DeviationReviewPage({
       // saved text and reopen Edit if they want).
       const next: FlagState = current.committedEdit
         ? { ...current, editing: false }
-        : { action: null, editing: false, committedEdit: null };
+        : {
+            action: null,
+            editing: false,
+            committedEdit: null,
+            extraContext: current.extraContext,
+            addingContext: current.addingContext,
+          };
       return { ...s, [clauseId]: next };
     });
+
+  const handleAddContext = (clauseId: string) =>
+    // Open the add-context input. We don't emit a
+    // Decision until the user clicks Save.
+    setStates((s) => {
+      const current = s[clauseId] ?? emptyFlagState();
+      return {
+        ...s,
+        [clauseId]: { ...current, addingContext: true },
+      };
+    });
+
+  const handleSaveContext = (clauseId: string, context: string) =>
+    mutate(
+      clauseId,
+      (s) => ({
+        ...s,
+        extraContext: context.trim() || null,
+        addingContext: false,
+      }),
+      onFlagDecision ?? noop,
+    );
+
+  const handleCancelContext = (clauseId: string) =>
+    setStates((s) => {
+      const current = s[clauseId] ?? emptyFlagState();
+      // Same dance as Edit-cancel: a previously-saved
+      // context stays; the transient input closes.
+      return {
+        ...s,
+        [clauseId]: { ...current, addingContext: false },
+      };
+    });
+
+  // --- Generate redline gating ---------------------------------------
+  //
+  // The button is enabled when every flag has a decision (an
+  // explicit "approved" / "rejected" / "edited" / "context
+  // added" — anything that maps to a Decision on the wire).
+  // We intentionally do NOT require every flag to be
+  // approved: a user may legitimately reject 4 of 5 flags
+  // and only want a redline for the 1 they approved. The
+  // graph handles "no redlines needed" gracefully.
+
+  const allDecided = useMemo(() => {
+    if (!data || data.flags.length === 0) return false;
+    return data.flags.every((flag) => {
+      const state = states[flag.clause_id];
+      if (!state) return false;
+      // "decided" means: any of the four actions is set, OR
+      // a context was added. (A row that's been "edited" but
+      // has no committedEdit is still decided — the edit
+      // intent counts.)
+      return (
+        state.action === "approved" ||
+        state.action === "rejected" ||
+        state.action === "edited" ||
+        (state.extraContext !== null && state.extraContext !== undefined)
+      );
+    });
+  }, [data, states]);
+
+  const handleGenerateRedline = () => {
+    if (!onSubmitDecisions) return;
+    if (!data) return;
+    const batch: Decision[] = [];
+    for (const flag of data.flags) {
+      const state = states[flag.clause_id];
+      if (!state) continue;
+      const d = flagStateToDecision(
+        flag.clause_id,
+        state,
+        flag.rationale,
+        flag.score,
+      );
+      if (d) batch.push(d);
+    }
+    onSubmitDecisions(batch);
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -501,10 +843,12 @@ export function DeviationReviewPage({
               Deviation review
             </h1>
             <p className="text-muted-foreground">
-              Phase 2 surface. Every flag the spotter emitted for the
-              current contract, color-coded by severity, with
-              citations and per-row actions. Buttons update local
-              state only — persistence lands in Phase 3.
+              Every flag the spotter emitted for the current
+              contract, color-coded by severity, with citations
+              and per-row actions. Approve / Reject / Edit /
+              Add-context each write a row to the append-only
+              audit log; "Generate redline" runs the redline
+              drafter on the accepted flags.
             </p>
           </header>
 
@@ -562,7 +906,32 @@ export function DeviationReviewPage({
                   onEdit={handleEdit}
                   onSaveEdit={handleSaveEdit}
                   onCancelEdit={handleCancelEdit}
+                  onAddContext={handleAddContext}
+                  onSaveContext={handleSaveContext}
+                  onCancelContext={handleCancelContext}
                 />
+                {showGenerateRedline && (
+                  <div
+                    className="flex items-center justify-between border-t pt-4"
+                    data-testid="generate-redline-bar"
+                  >
+                    <p
+                      className="text-xs text-muted-foreground"
+                      data-testid="generate-redline-status"
+                    >
+                      {allDecided
+                        ? "Every flag has a decision. You can generate the redline now."
+                        : "Decide every flag (approve / reject / edit / add context) before generating the redline."}
+                    </p>
+                    <Button
+                      onClick={handleGenerateRedline}
+                      disabled={!allDecided || submitting}
+                      data-testid="generate-redline-button"
+                    >
+                      {submitting ? "Generating…" : "Generate redline"}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -571,6 +940,10 @@ export function DeviationReviewPage({
       <DisclaimerFooter />
     </div>
   );
+}
+
+function noop(): void {
+  /* no-op fallback for the onFlagDecision prop */
 }
 
 export default DeviationReviewPage;

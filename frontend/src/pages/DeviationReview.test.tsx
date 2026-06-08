@@ -287,4 +287,162 @@ describe("DeviationReviewPage", () => {
     );
     expect(screen.queryByTestId("deviation-back-triage")).toBeNull();
   });
+
+  // --- Add-context flow -------------------------------------------------
+
+  it("Add context button opens a textarea; Save persists the context", async () => {
+    const user = userEvent.setup();
+    const data = makeData([makeFlag({ clause_id: "c1" })]);
+    render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+    const row = screen.getByTestId("deviation-row-c1");
+    await user.click(screen.getByTestId("flag-add-context-c1"));
+    const input = screen.getByTestId("flag-context-input-c1");
+    expect(input).toBeInTheDocument();
+    await user.type(input, "acceptable for our use case");
+    await user.click(screen.getByTestId("flag-save-context-c1"));
+    // The rationale cell renders the saved context in a
+    // dedicated block.
+    expect(
+      within(row).getByTestId("flag-context-cell-c1"),
+    ).toHaveTextContent("acceptable for our use case");
+    // The button now reads "context saved" (a small marker).
+    expect(
+      within(row).getByTestId("flag-context-saved-c1"),
+    ).toHaveTextContent("context saved");
+  });
+
+  it("Add context → Cancel reverts the row to no-context state", async () => {
+    const user = userEvent.setup();
+    const data = makeData([makeFlag({ clause_id: "c1" })]);
+    render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+    await user.click(screen.getByTestId("flag-add-context-c1"));
+    const input = screen.getByTestId("flag-context-input-c1");
+    await user.type(input, "should not stick");
+    await user.click(screen.getByTestId("flag-cancel-context-c1"));
+    expect(screen.queryByTestId("flag-context-input-c1")).toBeNull();
+    expect(
+      screen.queryByTestId("flag-context-cell-c1"),
+    ).not.toBeInTheDocument();
+  });
+
+  // --- Generate-redline gating -----------------------------------------
+
+  it("Generate redline button is hidden when showGenerateRedline=false (default)", () => {
+    const data = makeData([makeFlag()]);
+    render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+    expect(screen.queryByTestId("generate-redline-bar")).toBeNull();
+  });
+
+  it("Generate redline button is disabled while any flag is undecided", () => {
+    const data = makeData([
+      makeFlag({ clause_id: "c1" }),
+      makeFlag({ clause_id: "c2" }),
+    ]);
+    render(
+      <DeviationReviewPage
+        {...RENDER_PROPS}
+        data={data}
+        showGenerateRedline
+      />,
+    );
+    const button = screen.getByTestId("generate-redline-button");
+    expect(button).toBeDisabled();
+    expect(
+      screen.getByTestId("generate-redline-status"),
+    ).toHaveTextContent(/Decide every flag/);
+  });
+
+  it("Generate redline button is enabled once every flag is decided", async () => {
+    const user = userEvent.setup();
+    const data = makeData([
+      makeFlag({ clause_id: "c1" }),
+      makeFlag({ clause_id: "c2" }),
+    ]);
+    render(
+      <DeviationReviewPage
+        {...RENDER_PROPS}
+        data={data}
+        showGenerateRedline
+      />,
+    );
+    await user.click(screen.getByTestId("flag-approve-c1"));
+    await user.click(screen.getByTestId("flag-reject-c2"));
+    const button = screen.getByTestId("generate-redline-button");
+    expect(button).toBeEnabled();
+    expect(
+      screen.getByTestId("generate-redline-status"),
+    ).toHaveTextContent(/Every flag has a decision/);
+  });
+
+  it("Generate redline calls onSubmitDecisions with the user's batch", async () => {
+    const user = userEvent.setup();
+    const data = makeData([
+      makeFlag({ clause_id: "c1" }),
+      makeFlag({ clause_id: "c2" }),
+    ]);
+    let submitted: Array<{ clause_id: string; decision: string }> = [];
+    render(
+      <DeviationReviewPage
+        {...RENDER_PROPS}
+        data={data}
+        showGenerateRedline
+        onSubmitDecisions={(batch) => {
+          submitted = batch.map((b) => ({
+            clause_id: b.clause_id,
+            decision: b.decision,
+          }));
+        }}
+      />,
+    );
+    await user.click(screen.getByTestId("flag-approve-c1"));
+    await user.click(screen.getByTestId("flag-reject-c2"));
+    await user.click(screen.getByTestId("generate-redline-button"));
+    expect(submitted).toEqual([
+      { clause_id: "c1", decision: "approve" },
+      { clause_id: "c2", decision: "reject" },
+    ]);
+  });
+
+  // --- Controlled mode (onFlagDecision wiring) --------------------------
+
+  it("controlled mode: each state change fires onFlagDecision", async () => {
+    const user = userEvent.setup();
+    const data = makeData([makeFlag({ clause_id: "c1" })]);
+    const events: Array<{ clause_id: string; decision: string }> = [];
+    render(
+      <DeviationReviewPage
+        {...RENDER_PROPS}
+        data={data}
+        onFlagDecision={(d) =>
+          events.push({ clause_id: d.clause_id, decision: d.decision })
+        }
+      />,
+    );
+    await user.click(screen.getByTestId("flag-approve-c1"));
+    expect(events).toEqual([{ clause_id: "c1", decision: "approve" }]);
+    await user.click(screen.getByTestId("flag-add-context-c1"));
+    const input = screen.getByTestId("flag-context-input-c1");
+    await user.type(input, "ok");
+    await user.click(screen.getByTestId("flag-save-context-c1"));
+    expect(events).toContainEqual({
+      clause_id: "c1",
+      decision: "add_context",
+    });
+  });
+
+  it("controlled mode: initialDecisions hydrates the row state on mount", () => {
+    const data = makeData([makeFlag({ clause_id: "c1" })]);
+    render(
+      <DeviationReviewPage
+        {...RENDER_PROPS}
+        data={data}
+        initialDecisions={[{ clause_id: "c1", decision: "approve" }]}
+      />,
+    );
+    // The row's data-flag-action reflects the hydrated decision.
+    expect(screen.getByTestId("deviation-row-c1")).toHaveAttribute(
+      "data-flag-action",
+      "approved",
+    );
+  });
 });

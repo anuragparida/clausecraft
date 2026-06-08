@@ -23,7 +23,30 @@ export default defineConfig({
     // POST /api/contracts/ingest from the Triage page. The proxy is
     // dev-server only; the production build would put a reverse proxy
     // in front of both services.
+    //
+    // Phase 3 routing:
+    // - Most Phase 3 endpoints (Build 3's resume, Build 2/3's
+    //   ``.docx`` download, the spot/ingest endpoints) live at
+    //   ``/contracts/...`` on FastAPI. The Vite proxy strips the
+    //   ``/api`` prefix so the frontend can call them as
+    //   ``/api/contracts/...`` and the proxy turns it into
+    //   ``/contracts/...`` on the backend.
+    // - Build 4's audit-log export endpoints are registered on
+    //   FastAPI as ``/api/contracts/{id}/audit-log.{json,pdf}``
+    //   (the e2e test exercises the literal path). The proxy
+    //   passes those paths through unchanged.
+    //
+    // Concretely: the rewrite keeps the existing Triage flow
+    // (``/api/contracts/ingest`` → ``/contracts/ingest``) working,
+    // and a route-passthrough for the Build 4 audit-log paths.
+    // In production we'd put a single reverse proxy (nginx / Caddy
+    // / FastAPI middleware) in front and skip the rewrite entirely.
     proxy: {
+      "/api/contracts/.*/audit-log\\.(json|pdf)": {
+        target:
+          process.env.VITE_API_TARGET || "http://backend:8000",
+        changeOrigin: true,
+      },
       "/api": {
         target:
           process.env.VITE_API_TARGET || "http://backend:8000",
