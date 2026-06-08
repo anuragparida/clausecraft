@@ -23,6 +23,13 @@ the review UI calls. Two export formats:
 Both functions read-only. They do NOT touch the writer or
 the trigger; they are pure SELECT + serialise.
 
+User-facing description (button labels, file names, what is
+included) lives in the README ``§audit-trail`` section, owned
+by Athena's README card. The button labels in
+``frontend/src/pages/AuditReplay.tsx`` (Download JSON,
+Download PDF) are the contract — keep them in sync with the
+README if either side changes.
+
 Why "404 if no rows" instead of "empty export"
 -----------------------------------------------
 
