@@ -100,6 +100,18 @@ class Settings(BaseSettings):
         default="playbook"
     )
 
+    # --- Audit log (Phase 3) ---
+    # Single-operator identifier written into ``decided_by`` on
+    # every audit event. The spec calls for the authenticated
+    # user identifier; until a real auth layer lands, the config
+    # value is authoritative. The audit writer accepts an
+    # explicit override (the future ``session.user_id`` path),
+    # but defaults to this value everywhere.
+    audit_decided_by: str = Field(
+        default="clausecraft-operator",
+        description="Operator id written into audit_events.decided_by when the writer has no override.",
+    )
+
     # --- Server ---
     backend_port: int = Field(default=18000)
 
