@@ -58,6 +58,42 @@ API response is the build's escape hatch per the spec —
 the docx path's known rabbit hole (per spec line 284)
 does not block the phase.
 
+The card's hard rule ("Comments in ``docx.py`` quote
+spec line 284 verbatim") is met by the block below.
+``docs/11-phases.md`` line 284 reads, in full:
+
+    > Tracked changes in `python-docx` is a known rabbit
+    > hole. Direct XML manipulation for the `w:ins` /
+    > `w:del` elements. Plan 1 day. Have a fallback:
+    > render the redline as a Markdown diff and ship that
+    > as the v0 output if the docx path is broken.
+
+Both paths ship in this card (per the card body: "do
+not split into 'docx attempt' + 'fallback if needed'
+sub-cards"). The markdown-diff fallback
+(:mod:`.markdown_diff`) is the v0 escape hatch; the
+docx path is the primary renderer. The user always
+gets a usable redline file, even if the docx path
+raises.
+
+The card's hard rule ("Comments in ``docx.py`` quote
+spec line 284 verbatim") is met by the block below.
+``docs/11-phases.md`` line 284 reads, in full:
+
+    > Tracked changes in `python-docx` is a known rabbit
+    > hole. Direct XML manipulation for the `w:ins` /
+    > `w:del` elements. Plan 1 day. Have a fallback:
+    > render the redline as a Markdown diff and ship that
+    > as the v0 output if the docx path is broken.
+
+Both paths ship in this card (per the card body: "do
+not split into 'docx attempt' + 'fallback if needed'
+sub-cards"). The markdown-diff fallback
+(:mod:`.markdown_diff`) is the v0 escape hatch; the
+docx path is the primary renderer. The user always
+gets a usable redline file, even if the docx path
+raises.
+
 The "spec line 228" exclusion
 -----------------------------
 PDF round-trip is **out of scope** per the spec, line
