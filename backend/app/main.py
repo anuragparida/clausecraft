@@ -17,14 +17,20 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
+from app.audit.export import (
+    ContractNotFound,
+    export_audit_log_json,
+    export_audit_log_pdf,
+)
 from app.classify import ClauseList
 from app.classify.schema import Clause
 from app.config import settings
-from app.db import db_ping
+from app.db import db_ping, get_db_session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.graph.graph import run_echo
 from app.observability import init_langfuse
 from app.pipeline import Stage1Result, Stage3Result, run_stage1, run_stage3
@@ -411,3 +417,119 @@ async def post_contracts_spot(payload: SpotRequest) -> SpotResponse:
             detail=f"Spot stage failed: {exc}",
         ) from exc
     return _build_spot_response(result)
+
+
+# --- Phase 3 Build 4: audit log export ---------------------------------
+
+
+def _safe_filename_segment(contract_id: str) -> str:
+    """Sanitise ``contract_id`` for use in a Content-Disposition filename.
+
+    The contract_id is operator-supplied free-form text, so
+    we strip path-traversal characters and whitespace
+    before embedding it in the ``filename=`` field of the
+    response. The result is a single filename stem with
+    ``-`` replacing any non-alphanumeric / non-underscore
+    character.
+    """
+    return "".join(c if c.isalnum() or c in ("-", "_", ".") else "-" for c in contract_id)
+
+
+@app.get(
+    "/api/contracts/{contract_id}/audit-log.json",
+    response_class=Response,
+)
+async def get_audit_log_json(
+    contract_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """Phase 3 Build 4 — download the audit log as JSON.
+
+    Returns the full chain of decisions for a single
+    contract as a pretty-printed JSON blob. The schema
+    is stable:
+
+    ::
+
+        {
+          "contract_id": "...",
+          "exported_at": "<ISO-8601 UTC>",
+          "row_count": N,
+          "events": [ {id, contract_id, clause_id, decision_type,
+                       payload_json, decided_by, decided_at}, ... ]
+        }
+
+    Status codes:
+
+    - ``200`` — at least one audit event exists for the
+      contract; the body is the JSON.
+    - ``404`` — no audit events for the contract (the
+      spec's "contract must exist" rule, mapped from
+      :class:`ContractNotFound`).
+    """
+    try:
+        blob = await export_audit_log_json(session, contract_id)
+    except ContractNotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No audit log found for contract_id={contract_id!r}. "
+                f"The export endpoint requires the contract to have at "
+                f"least one audit event."
+            ),
+        )
+    safe = _safe_filename_segment(contract_id) or "contract"
+    return Response(
+        content=blob,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="audit-log-{safe}.json"'
+            ),
+        },
+    )
+
+
+@app.get(
+    "/api/contracts/{contract_id}/audit-log.pdf",
+    response_class=Response,
+)
+async def get_audit_log_pdf(
+    contract_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """Phase 3 Build 4 — download the audit log as PDF.
+
+    Returns a reportlab-rendered PDF with one block per
+    audit event (timestamp, decision type, decided by,
+    clause id, payload). The ``DISCLAIMER.md`` text is
+    rendered verbatim in the footer of every page (the
+    spec's hard rule).
+
+    Status codes:
+
+    - ``200`` — at least one audit event exists for the
+      contract; the body is the PDF.
+    - ``404`` — no audit events for the contract.
+    """
+    try:
+        blob = await export_audit_log_pdf(session, contract_id)
+    except ContractNotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No audit log found for contract_id={contract_id!r}. "
+                f"The export endpoint requires the contract to have at "
+                f"least one audit event."
+            ),
+        )
+    safe = _safe_filename_segment(contract_id) or "contract"
+    return Response(
+        content=blob,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="audit-log-{safe}.pdf"'
+            ),
+        },
+    )
