@@ -97,13 +97,22 @@ is the product's thesis, not a checkbox — see
 
 What the export looks like: JSON for re-import and machine reading, PDF for
 humans. Both per-contract, both generated from the same row set, both
-downloadable from the AuditReplay page.
+downloadable from the AuditReplay page. The JSON includes every decision in
+chronological order with `schema_version` and `exported_at` fields at the
+top; the PDF is the same chain rendered for a human reader, suitable for
+handing to a prospect's legal team. Files are named
+`audit-{contract_id}.json` and `audit-{contract_id}.pdf`.
 
 What the audit log is *not*: it is not a multi-tenant system, not a SOC 2
 artifact, and not a substitute for the disclaimer in
 [`DISCLAIMER.md`](./DISCLAIMER.md). It is a row you can point at when someone
 asks why clause 7 was flagged severity 3 and what the operator did about it.
 The answer is a timestamp, not a guess.
+
+The append-only guarantee is enforced by a Postgres trigger installed in
+[`backend/alembic/versions/0002_audit_log_phase3.py`](./backend/alembic/versions/0002_audit_log_phase3.py).
+The spec for this phase lives in
+[`docs/11-phases.md` § Phase 3](./docs/11-phases.md#phase-3-redline-drafter-hitl-state-machine-audit-log).
 
 The string on the AuditReplay page, next to the download buttons:
 
