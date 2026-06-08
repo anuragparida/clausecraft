@@ -114,18 +114,41 @@ EXPECTED_DIR: Path = REPO_ROOT / "examples" / "expected"
 RUNS_DIR: Path = EVALS_DIR / "runs"
 
 
-# --- 3-contract starter set (the spec's mandated minimum) ---------------
+# --- Eval set: 10 contracts (the spec's mandated Phase 2 set) ---------
 
 
-# The hard rule from the kanban card:
-#   "The 3 contracts are the spec-mandated starter set. Do NOT
-#    add 4-10 here. That's the gated grow-card."
+# The 10-contract eval set as of the 3→10 expansion (card
+# t_3050d680). The starter 3 are kept verbatim; 7 more were
+# added on 2026-06-08. Layout:
+#   public/      nda-001 .. nda-005  (5 public-template-style clean baselines)
+#   synthetic/   nda-001, nda-002    (2 stress contracts with hand-injected deviations)
+#   hand-curated/ nda-001 .. nda-003  (3 realistic deviation contracts)
+# 5 + 2 + 3 = 10.
 EVAL_CONTRACTS: list[tuple[str, str]] = [
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
+    ("examples/contracts/public/nda-003.pdf", "examples/expected/public-003.yaml"),
+    ("examples/contracts/public/nda-004.pdf", "examples/expected/public-004.yaml"),
+    ("examples/contracts/public/nda-005.pdf", "examples/expected/public-005.yaml"),
     (
         "examples/contracts/synthetic/nda-001.pdf",
         "examples/expected/synthetic-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/nda-002.pdf",
+        "examples/expected/synthetic-002.yaml",
+    ),
+    (
+        "examples/contracts/hand-curated/nda-001.pdf",
+        "examples/expected/hand-curated-001.yaml",
+    ),
+    (
+        "examples/contracts/hand-curated/nda-002.pdf",
+        "examples/expected/hand-curated-002.yaml",
+    ),
+    (
+        "examples/contracts/hand-curated/nda-003.pdf",
+        "examples/expected/hand-curated-003.yaml",
     ),
 ]
 
@@ -164,7 +187,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.fixture(scope="session")
 def eval_contracts() -> list[tuple[Path, Path]]:
-    """The 3 starter-set contracts as absolute paths.
+    """The 10 eval-set contracts as absolute paths.
 
     Returns a list of ``(contract_pdf, expected_yaml)`` tuples.
     """
@@ -173,13 +196,13 @@ def eval_contracts() -> list[tuple[Path, Path]]:
         contract_path = REPO_ROOT / contract_rel
         expected_path = REPO_ROOT / expected_rel
         assert contract_path.is_file(), (
-            f"Eval contract missing: {contract_path}. The 3-contract "
-            f"starter set is part of the spec; missing files are a "
+            f"Eval contract missing: {contract_path}. The 10-contract "
+            f"eval set is part of the spec; missing files are a "
             f"setup error."
         )
         assert expected_path.is_file(), (
-            f"Eval golden YAML missing: {expected_path}. The 3 "
-            f"starter-set golden YAMLs are hand-written; missing "
+            f"Eval golden YAML missing: {expected_path}. The 10 "
+            f"eval-set golden YAMLs are hand-written; missing "
             f"files are a setup error."
         )
         pairs.append((contract_path, expected_path))

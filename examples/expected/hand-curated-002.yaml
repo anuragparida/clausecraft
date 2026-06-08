@@ -1,0 +1,109 @@
+# Golden set — hand-curated/nda-002.pdf.
+#
+# Realistic deviations. Two deviations:
+#
+#   c2 (term) — minor: confidentiality term is 6 months
+#       vs the playbook's 2y + 3y survival. Short-term
+#       NDAs are common in specific verticals
+#       (creative agencies, marketing evaluations,
+#       early-stage product demos) but the playbook
+#       flags it. Minor because the deviation is the
+#       *duration*, not the structure — short terms
+#       are a valid business choice for
+#       time-bounded engagements.
+#   c3 — the return-of-materials clause is REMOVED
+#       entirely. The contract jumps from c2 (term)
+#       to c4 (governing law), so the parser
+#       assigns section "4" to c3 and there's no
+#       return-of-materials clause in the
+#       contract. This is a structural absence
+#       rather than a textual deviation — the
+#       contract is silent on what happens to
+#       Confidential Information at termination.
+#       Material because the obligation to return
+#       or destroy disappears entirely.
+#
+# Other 3 clauses (c1 definition, c4 governing law,
+# c5 entire agreement) are clean baselines.
+#
+# Note on clause numbering: the parser numbers clauses
+# by document-order section headings. Because the
+# contract has sections 1, 2, 4, 5, 6 (no 3), the
+# parser assigns c1=section 1, c2=section 2, c3=section
+# 4 (skipping the missing 3). The clause_id "c3" in
+# the golden is the *parser's* id, not the
+# contract's section number. The expected_deviation
+# references c3 (the third clause produced by the
+# parser), which corresponds to the contract's
+# section 4 (Governing Law) — but the deviation
+# flagged is the *absence* of section 3, not a
+# problem with section 4.
+
+contract: examples/contracts/hand-curated/nda-002.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any non-public information disclosed by one Party to the other Party"
+  - id: c2
+    type: term
+    text_excerpt: "Term. This Agreement shall remain in effect for a period of six (6) months from the Effective Date"
+  - id: c3
+    type: governing_law
+    # NOTE: c3 is Governing Law (section 4) in the
+    # parser's clause ordering because section 3
+    # (Return of Materials) is missing from the
+    # contract. The expected type is governing_law
+    # (the type of the clause that IS at c3), not
+    # return_of_materials (the type of the missing
+    # clause). The deviation flagged below is the
+    # absence of the return-of-materials clause.
+    text_excerpt: "Governing Law. This Agreement shall be governed by the laws of the State of California"
+  - id: c4
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement constitutes the entire agreement between the Parties"
+  - id: c5
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties acknowledge that monetary damages may be inadequate to remedy a breach of this Agreement"
+
+expected_deviations:
+  - clause_id: c2
+    severity: 1
+    category: confidentiality_term_too_short
+    rationale: >-
+      The confidentiality term is 6 months, vs the
+      playbook's 2y + 3y survival (5 years total)
+      for standard NDAs. Short terms are common in
+      specific verticals (creative agencies,
+      marketing evaluations, early-stage product
+      demos) and may be a valid business choice for
+      time-bounded engagements. The deviation is
+      flagged as minor because the structure is
+      correct (defined term, expiration language)
+      even if the duration is short.
+    citation:
+      playbook_clause_id: term-of-confidentiality
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c3
+    severity: 2
+    category: missing_return_of_materials_clause
+    rationale: >-
+      The return-of-materials clause is absent from
+      the contract. Sections jump from 2 (Term) to
+      4 (Governing Law), with no section 3. The
+      contract is silent on what happens to
+      Confidential Information at termination,
+      which means the Receiving Party's obligation
+      to return or destroy CI is not specified.
+      The deviation is flagged on c3 (the clause
+      the parser produces at that position) as a
+      proxy for the missing section. Material
+      because the obligation effectively
+      disappears — without the clause, the
+      Receiving Party has no contractual duty to
+      return or destroy.
+    citation:
+      playbook_clause_id: return-of-materials
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"

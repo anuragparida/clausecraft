@@ -1,0 +1,107 @@
+# Golden set — hand-curated/nda-001.pdf.
+#
+# Realistic deviations, hand-curated from the style of a
+# 2-page mutual NDA a US law firm might draft. Two
+# deviations:
+#
+#   c4 (governing_law) — minor: Texas substituted for the
+#       playbook's Delaware baseline. Texas is a perfectly
+#       valid US jurisdiction; the deviation is the
+#       *change* from the boilerplate Delaware clause
+#       to a Texas-specific clause. Real reviewers
+#       would flag this as minor (any US state is
+#       acceptable, but a specific-state pick should
+#       be intentional).
+#   c6 (definition_confidential_info) — material: the
+#       standard exclusions list has only (a) public,
+#       (b) prior knowledge, (c) source-other. The
+#       baseline requires (d) "lawfully required
+#       disclosure" (compelled-disclosure carve-out)
+#       too. Missing (d) exposes the Receiving Party
+#       to liability for compelled disclosures
+#       (subpoenas, court orders, government
+#       requests) because the contract doesn't
+#       carve out the obligation to disclose under
+#       legal compulsion.
+#
+# Other 5 clauses (c1, c2, c3, c5, c7) are clean baselines.
+#
+# Why "hand-curated" not "synthetic"
+# -----------------------------------
+# The synthetic contracts (nda-001, nda-002) are
+# algorithmically generated for stress-testing specific
+# deviation categories in isolation. The hand-curated
+# contracts are written to look like real-world NDAs a
+# reviewer might encounter in production — same clause
+# shape, same boilerplate, but with deviations that
+# blend into the surrounding text. The eval needs both:
+# synthetic for category coverage, hand-curated for
+# realism.
+
+contract: examples/contracts/hand-curated/nda-001.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any non-public information disclosed by one Party"
+  - id: c2
+    type: term
+    text_excerpt: "Term. This Agreement shall remain in effect for two (2) years from the Effective Date"
+  - id: c3
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination of this Agreement, the Receiving Party shall promptly return or destroy"
+  - id: c4
+    type: governing_law
+    text_excerpt: "Governing Law. This Agreement shall be governed by the laws of the State of Texas"
+  - id: c5
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties agree that monetary damages may be inadequate to remedy a breach of this Agreement"
+  - id: c6
+    type: definition_confidential_info
+    text_excerpt: "Exclusions. Confidential Information does not include information that (a) is or becomes generally available"
+  - id: c7
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement constitutes the entire agreement between the Parties"
+
+expected_deviations:
+  - clause_id: c4
+    severity: 1
+    category: governing_law_state_change
+    rationale: >-
+      Texas is substituted for the playbook's typical
+      Delaware governing law. Texas is a perfectly
+      valid US jurisdiction and not a material
+      deviation on its own, but the change from the
+      Delaware boilerplate should be a deliberate
+      choice (counterparty preference, choice-of-law
+      considerations, etc.). A reviewer would flag
+      this as minor to ensure the substitution is
+      intentional rather than a drafting error.
+    citation:
+      playbook_clause_id: governing-law
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c6
+    severity: 2
+    category: missing_compelled_disclosure_carveout
+    rationale: >-
+      The exclusions list omits the (d) "lawfully
+      required disclosure" carve-out. The Phase 2
+      playbook baseline for definition-of-confidential-
+      information includes 4 standard exclusions:
+      (a) public domain, (b) prior knowledge,
+      (c) independently received from a non-bound
+      third party, AND (d) lawfully required
+      disclosure (compelled by subpoena, court
+      order, or government request). This contract
+      has only (a)-(c). The missing (d) is material
+      because it exposes the Receiving Party to
+      liability for compelled disclosures — without
+      the carve-out, disclosing under a subpoena
+      would be a breach of the NDA's confidentiality
+      obligation, even though the disclosure is
+      legally required.
+    citation:
+      playbook_clause_id: definition-of-confidential-information
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"

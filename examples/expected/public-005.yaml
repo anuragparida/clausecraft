@@ -1,0 +1,67 @@
+# Golden set — public/nda-005.pdf (long-form mutual NDA w/
+# non-solicit, 12 clauses).
+#
+# Clean baseline. 12 clauses, exercises the full Phase 2
+# clause-type enum on a clean-baseline contract: c1
+# (definition), c2 (exclusions), c3 (term), c4 (return of
+# materials), c5 (governing law), c6 (entire agreement),
+# c7 (severability), c8 (notices), c9 (injunctive relief),
+# c10 (non-solicit), c11 (limitation of liability),
+# c12 (counterparts).
+#
+# Tests that the parser handles the full enum on a clean
+# baseline before we add more deviation-having contracts.
+#
+# Eval expectations:
+#   - retrieval F1 = 1.0
+#   - classification F1: c3 may be mislabeled by rule-based
+#     classifier (same body-keyword issue as public-003 c3).
+#   - deviation F1 = 1.0 trivially
+
+contract: examples/contracts/public/nda-005.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any non-public information disclosed by one Party to the other"
+  - id: c2
+    type: definition_confidential_info
+    text_excerpt: "Exclusions. Confidential Information does not include information that (a) is or becomes generally available"
+  - id: c3
+    type: term
+    # Rule-based classifier may label c3 as
+    # definition_confidential_info (body contains
+    # "obligations of confidentiality"). Intended type is term.
+    text_excerpt: "Term. This Agreement shall remain in effect for a period of two (2) years from the Effective Date"
+  - id: c4
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination of this Agreement, the Receiving Party shall promptly return or destroy"
+  - id: c5
+    type: governing_law
+    text_excerpt: "Governing Law. This Agreement shall be governed by the laws of the State of New York"
+  - id: c6
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement constitutes the entire agreement between the Parties"
+  - id: c7
+    type: severability
+    text_excerpt: "Severability. If any provision of this Agreement is held to be invalid or unenforceable"
+  - id: c8
+    type: notices
+    text_excerpt: "Notices. All notices, requests, consents, and other communications required or permitted under this Agreement"
+  - id: c9
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties acknowledge that monetary damages may be inadequate"
+  - id: c10
+    type: non_solicit
+    text_excerpt: "Non-Solicitation. For a period of twelve (12) months following termination of this Agreement"
+  - id: c11
+    type: limitation_of_liability
+    text_excerpt: "Limitation of Liability. In no event shall either Party be liable to the other for any indirect, incidental, special"
+  - id: c12
+    type: counterparts
+    text_excerpt: "Counterparts. This Agreement may be executed in one or more counterparts"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

@@ -1,0 +1,67 @@
+# Golden set — public/nda-004.pdf (unilateral NDA, 10 clauses).
+#
+# Clean baseline. 10 clauses from a one-way (unilateral) NDA
+# shape: c1 (definition), c2 (exclusions 1.1), c3 (obligations),
+# c4 (standard of care 2.1), c5 (permitted disclosures 2.2),
+# c6 (term), c7 (return of materials), c8 (governing law),
+# c9 (entire agreement), c10 (injunctive relief).
+#
+# Different in structure from the mutual NDAs in the starter
+# set: only one Party discloses, and the contract uses
+# "Disclosing Party" / "Receiving Party" language.
+#
+# Eval expectations:
+#   - retrieval F1 = 1.0
+#   - classification F1: c3-c6 may be mislabeled
+#     definition_confidential_info by the rule-based
+#     classifier (body contains "Confidential Information"
+#     keyword). c1, c2, c7, c8, c9, c10 should match
+#     correctly via the section_title signal.
+#   - deviation F1 = 1.0 trivially
+
+contract: examples/contracts/public/nda-004.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any non-public information disclosed by the Disclosing Party"
+  - id: c2
+    type: definition_confidential_info
+    text_excerpt: "Exclusions. Confidential Information does not include information that (a) is or becomes generally available"
+  - id: c3
+    type: definition_confidential_info
+    # Obligations of the Receiving Party — labeled correctly
+    # as definition_confidential_info because the body is
+    # about the obligations on disclosed information.
+    text_excerpt: "Obligations of the Receiving Party. The Receiving Party shall (a) hold the Confidential Information in strict confidence"
+  - id: c4
+    type: definition_confidential_info
+    # Standard of Care — also part of the obligations block.
+    # Section_title is "Standard of Care" which is not in the
+    # title_to_type map, so the classifier falls through to
+    # the rule-based body matcher.
+    text_excerpt: "Standard of Care. The Receiving Party shall protect the Confidential Information using at least the same degree of care"
+  - id: c5
+    type: definition_confidential_info
+    # Permitted Disclosures — body keyword match.
+    text_excerpt: "Permitted Disclosures. The Receiving Party may disclose Confidential Information only to its employees"
+  - id: c6
+    type: term
+    text_excerpt: "Term. This Agreement shall remain in effect for a period of three (3) years from the Effective Date"
+  - id: c7
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination of this Agreement, the Receiving Party shall promptly return or destroy"
+  - id: c8
+    type: governing_law
+    text_excerpt: "Governing Law. This Agreement shall be governed by the laws of the State of California"
+  - id: c9
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement constitutes the entire agreement between the Parties"
+  - id: c10
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties acknowledge that monetary damages may be inadequate"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

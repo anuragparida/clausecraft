@@ -1,10 +1,10 @@
-"""Phase 2 eval harness — 3-contract starter set, deterministic in mock mode.
+"""Phase 2 eval harness — 10-contract eval set, deterministic in mock mode.
 
 What this is
 ------------
 A custom pytest harness (~150 lines target per the spec) that
 runs the full clausecraft pipeline (ingest → parse → classify →
-dev-spot) on each test contract in the starter set, compares the
+dev-spot) on each test contract in the eval set, compares the
 output to a hand-written golden YAML, and reports:
 
 - **Retrieval F1** — top-k playbook clauses vs. expected (deterministic)
@@ -50,12 +50,16 @@ agreeing with itself.
 
 Hard rules from the kanban card
 --------------------------------
-- The 3 contracts are the spec-mandated starter set. Do NOT
-  add 4-10 here. That's the gated grow-card.
-- Parent card is the deviation spotter card. The harness must
-  run real flags to measure.
+- The 10 contracts are the spec-mandated eval set for Phase 2.
+  Layout: 5 public-template-style clean baselines (public/),
+  2 synthetic stress contracts (synthetic/), 3 hand-curated
+  realistic deviation contracts (hand-curated/).
+- Parent card is the deviation spotter card (t_ad038c19). The
+  harness must run real flags to measure.
 - Do NOT ship the README section here (Athena card).
 - Golden YAMLs must be hand-written, not LLM-generated.
+- Each new contract should expand the deviation *categories*
+  covered, not just duplicate existing ones.
 """
 
 from __future__ import annotations
@@ -98,9 +102,28 @@ RUNS_DIR = EVALS_DIR_PATH / "runs"
 EVAL_CONTRACTS: list[tuple[str, str]] = [
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
+    ("examples/contracts/public/nda-003.pdf", "examples/expected/public-003.yaml"),
+    ("examples/contracts/public/nda-004.pdf", "examples/expected/public-004.yaml"),
+    ("examples/contracts/public/nda-005.pdf", "examples/expected/public-005.yaml"),
     (
         "examples/contracts/synthetic/nda-001.pdf",
         "examples/expected/synthetic-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/nda-002.pdf",
+        "examples/expected/synthetic-002.yaml",
+    ),
+    (
+        "examples/contracts/hand-curated/nda-001.pdf",
+        "examples/expected/hand-curated-001.yaml",
+    ),
+    (
+        "examples/contracts/hand-curated/nda-002.pdf",
+        "examples/expected/hand-curated-002.yaml",
+    ),
+    (
+        "examples/contracts/hand-curated/nda-003.pdf",
+        "examples/expected/hand-curated-003.yaml",
     ),
 ]
 
@@ -594,8 +617,13 @@ def _write_run_report(
 # --- Constants used by the harness --------------------------------------
 
 
-CONTRACT_SET_VERSION = "0.1.0-phase2-starter-3"
-"""Version of the eval set itself. Bump when contracts / goldens change."""
+CONTRACT_SET_VERSION = "0.2.0-phase2-3to10"
+"""Version of the eval set itself. Bump when contracts / goldens change.
+
+History:
+  0.1.0-phase2-starter-3  — initial 3-contract starter set (card t_741f36a0)
+  0.2.0-phase2-3to10      — 3→10 expansion (card t_3050d680)
+"""
 
 CONTRACT_TYPE = "nda"
 """Phase 2 ships NDA only. The harness filters to this contract type."""
@@ -617,7 +645,7 @@ def test_eval_set_runs_end_to_end(
     session_event_loop: asyncio.AbstractEventLoop,
     no_cache_mode: bool,
 ) -> None:
-    """Run the full pipeline on the 3-contract starter set and assert the report.
+    """Run the full pipeline on the 10-contract eval set and assert the report.
 
     This is the **single** test the harness registers. It is
     not parametrised per-contract because we want a single
@@ -627,7 +655,7 @@ def test_eval_set_runs_end_to_end(
 
     The test:
 
-    1. Loads the 3 starter-set contracts and their golden YAMLs.
+    1. Loads the 10 eval-set contracts and their golden YAMLs.
     2. Runs the full pipeline (ingest → parse → classify →
        dev-spot) on each contract.
     3. Compares the output to the golden and computes
@@ -729,7 +757,7 @@ def test_contract_ingests_and_classifies(
     contract_rel: str,
     expected_rel: str,
 ) -> None:
-    """A minimal smoke test: every starter contract ingests and classifies.
+    """A minimal smoke test: every eval-set contract ingests and classifies.
 
     This is a cheap diagnostic that runs alongside the main
     harness test. It only exercises stage 1 (ingest + parse +

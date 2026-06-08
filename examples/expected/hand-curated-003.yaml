@@ -1,0 +1,112 @@
+# Golden set — hand-curated/nda-003.pdf.
+#
+# Realistic deviations. Two deviations:
+#
+#   c2 (definition_confidential_info) — minor: the
+#       obligations clause uses "best efforts to
+#       maintain confidentiality" instead of the
+#       playbook's "reasonable care" / "standard of
+#       care" language. "Best efforts" is a higher
+#       standard than reasonable care, so the
+#       Receiving Party has a *more* protective
+#       obligation than the baseline requires. Real
+#       reviewers flag this as minor because the
+#       standard differs from the playbook even
+#       though the direction of the deviation
+#       (more protective) is the favourable one
+#       for the Disclosing Party. The flag is
+#       useful for surfacing the language change
+#       to a human reviewer who may not have
+#       intended it.
+#   (structural absence) — the residual-knowledge
+#       clause is absent. The contract jumps from
+#       section 1 (Term) to section 3 (Obligations)
+#       to section 4 (Return) to section 5
+#       (Governing Law); section 2 (residual
+#       knowledge) is missing. As with
+#       hand-curated-002, the deviation is a
+#       structural absence rather than a textual
+#       one — the contract is silent on residual
+#       knowledge. Material because the absence
+#       removes the explicit carve-out that allows
+#       the Receiving Party's personnel to use
+#       residual knowledge retained in unaided
+#       memory.
+#
+# Other 4 clauses (c1 term, c3 return, c4 gov law,
+# c5 entire agreement, c6 injunctive relief) are
+# clean baselines.
+
+contract: examples/contracts/hand-curated/nda-003.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: term
+    text_excerpt: "Term. This Agreement shall remain in effect for a period of two (2) years from the Effective Date"
+  - id: c2
+    type: definition_confidential_info
+    # Section 3 (Obligations) is parsed as c2 because
+    # section 2 (residual knowledge) is missing from
+    # the contract. The type is the obligations
+    # clause's intended type — definition_confidential_info,
+    # since it's about the Receiving Party's
+    # confidentiality obligations.
+    text_excerpt: "Obligations of the Receiving Party. The Receiving Party shall use its best efforts to maintain the confidentiality"
+  - id: c3
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination of this Agreement, the Receiving Party shall promptly return or destroy"
+  - id: c4
+    type: governing_law
+    text_excerpt: "Governing Law. This Agreement shall be governed by the laws of the State of Delaware"
+  - id: c5
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement constitutes the entire agreement between the Parties"
+  - id: c6
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties acknowledge that monetary damages may be inadequate to remedy a breach of this Agreement"
+
+expected_deviations:
+  - clause_id: c2
+    severity: 1
+    category: best_efforts_language_substitution
+    rationale: >-
+      "Best efforts" substituted for the playbook's
+      "reasonable care" / "standard of care" baseline.
+      Best efforts is a higher standard (more
+      protective) than reasonable care, so the
+      Receiving Party has a *more* protective
+      obligation than the baseline requires.
+      Direction of the deviation is favourable for
+      the Disclosing Party. Flagged as minor
+      because the standard differs from the
+      playbook and a human reviewer should
+      confirm the language change is intentional
+      (some industries avoid "best efforts"
+      language because it's been litigated
+      extensively in M&A contexts and can create
+      open-ended obligations).
+    citation:
+      playbook_clause_id: definition-of-confidential-information
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c2
+    severity: 2
+    category: missing_residual_knowledge_clause
+    rationale: >-
+      The residual-knowledge clause (section 2 in
+      the playbook baseline structure) is absent.
+      The contract jumps from section 1 (Term) to
+      section 3 (Obligations), with no section 2.
+      The contract is silent on residual knowledge,
+      which means the playbook's permissive
+      default (residual knowledge retained in
+      unaided memory is allowed) is not explicitly
+      preserved. Material because the absence
+      could be read as prohibiting residual
+      knowledge use, which would be a substantive
+      expansion of the Receiving Party's
+      obligations.
+    citation:
+      playbook_clause_id: residual-knowledge
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"

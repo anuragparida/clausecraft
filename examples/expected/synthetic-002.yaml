@@ -1,0 +1,119 @@
+# Golden set — synthetic/nda-002.pdf.
+#
+# This is the SECOND synthetic stress contract of the Phase 2
+# eval set. The first (synthetic-001) covers
+# missing_exclusions + term_too_long + perpetual_without_qualifier.
+# This one diversifies to 3 different deviation categories:
+#
+#   c1 (term) — material: perpetual with no termination right
+#       ("may only be terminated by mutual written agreement")
+#       vs the playbook's 2y + 3y survival. The contract
+#       removes both the natural termination point and the
+#       right of either Party to terminate unilaterally.
+#   c2 (return_of_materials) — material: the obligation has
+#       been softened to "may" instead of "shall promptly".
+#       The Receiving Party now has discretion to retain
+#       Confidential Information under its own document
+#       retention policy. The playbook requires strict
+#       return-or-destroy.
+#   c5 (governing_law) — material: foreign jurisdiction
+#       (Republic of Singapore + SIAC arbitration) vs the
+#       playbook's US-state baselines (Delaware, California,
+#       New York). The deviation is the jurisdiction
+#       category shift, not the specific state.
+#
+# The other 4 clauses (c3 definition, c4 injunctive relief,
+# c6 residual knowledge, c7 entire agreement) are clean
+# baselines. No expected deviations on those.
+#
+# Why this contract complements synthetic-001
+# --------------------------------------------
+# synthetic-001 has deviations on definition_confidential_info
+# (c1), term (c2), residual_knowledge (c3). This one moves
+# the deviation *positions* (c1, c2, c5) and the *categories*
+# (perpetual_no_termination, soft_return, foreign_jurisdiction).
+# Together they exercise 6 distinct deviation categories.
+
+contract: examples/contracts/synthetic/nda-002.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: term
+    text_excerpt: "Term. This Agreement shall remain in effect in perpetuity from the Effective Date"
+  - id: c2
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination of this Agreement, the Receiving Party may, at its option, return or destroy"
+  - id: c3
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any information disclosed by one Party to the other Party"
+  - id: c4
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties acknowledge that monetary damages may be inadequate to remedy a breach of this Agreement"
+  - id: c5
+    type: governing_law
+    text_excerpt: "Governing Law. This Agreement shall be governed by and construed in accordance with the laws of the Republic of Singapore"
+  - id: c6
+    type: residual_knowledge
+    text_excerpt: "Residual Knowledge. Nothing herein shall restrict the use of residual knowledge retained in the unaided memory"
+  - id: c7
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement contains the entire agreement between the Parties"
+
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: perpetual_no_termination
+    rationale: >-
+      The clause locks the Agreement into perpetuity AND
+      removes the right of either Party to terminate
+      unilaterally — termination is only by mutual
+      written agreement. The Phase 2 playbook baseline
+      is 2y + 3y survival (5 years total) with the
+      implied right of either Party to terminate at
+      will after the term expires. The deviation is
+      material because the perpetual + bilateral-
+      termination-only structure eliminates the
+      Receiving Party's exit.
+    citation:
+      playbook_clause_id: term-of-confidentiality
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c2
+    severity: 2
+    category: soft_return_of_materials
+    rationale: >-
+      The return-of-materials obligation is softened
+      from "shall promptly return or destroy" to "may,
+      at its option, return or destroy ... or
+      alternatively, retain such information in
+      accordance with its document retention policies".
+      The baseline requires the Receiving Party to
+      actively return-or-destroy CI; this clause
+      converts the obligation into a discretionary
+      choice and explicitly allows retention under the
+      Receiving Party's own retention policies. The
+      deviation is material because the obligation
+      effectively disappears.
+    citation:
+      playbook_clause_id: return-of-materials
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c5
+    severity: 2
+    category: foreign_jurisdiction
+    rationale: >-
+      Governing law is the Republic of Singapore with
+      exclusive SIAC arbitration. The Phase 2 playbook
+      baselines (definition-of-confidential-information,
+      term-of-confidentiality, residual-knowledge,
+      governing-law, injunctive-relief) are sourced
+      from US-template NDAs (Delaware / California /
+      New York governing law, US-court jurisdiction).
+      A Singapore + SIAC jurisdiction is materially
+      outside the playbook's reference set. Real
+      reviewers would flag this as a structural
+      deviation even though the contract is otherwise
+      aligned.
+    citation:
+      playbook_clause_id: governing-law
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"

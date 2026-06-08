@@ -1,0 +1,61 @@
+# Golden set — public/nda-003.pdf (short-form mutual NDA, 7 clauses).
+#
+# Clean baseline. No deviations from the Phase 2 playbook.
+# 7 clauses: c1 (definition), c2 (exclusions — sub-section 1.1),
+# c3 (term), c4 (return of materials), c5 (governing law),
+# c6 (entire agreement), c7 (injunctive relief).
+#
+# The contract is shorter than public-001 (9 clauses) and
+# public-002 (21 clauses) — a 2-page mutual NDA in the style
+# of public-template NDAs.
+#
+# Eval expectations:
+#   - retrieval F1 = 1.0
+#   - classification F1: c3 is "term" but the rule-based
+#     classifier may label it "definition_confidential_info"
+#     because the body text contains "obligations of
+#     confidentiality" (a known keyword overlap on this
+#     specific body text). Other clauses match the playbook
+#     type directly via the section_title signal.
+#   - deviation F1 = 1.0 trivially
+#   - severity-mismatch = 0
+#
+# Source: written in build_phase2_contracts.py as a clean
+# short-form mutual NDA template. Stable since 2026-06-08.
+
+contract: examples/contracts/public/nda-003.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any non-public information disclosed by one Party"
+  - id: c2
+    type: definition_confidential_info
+    text_excerpt: "Exclusions. Confidential Information does not include information that (a) is or becomes generally available"
+  - id: c3
+    type: term
+    # Rule-based classifier may label c3 as
+    # definition_confidential_info because the body contains
+    # "obligations of confidentiality shall survive" — a
+    # keyword collision on Term clauses that mention
+    # confidentiality. The expected type is "term"; the
+    # section_title is "Term" but the rule-based fallback
+    # runs first and matches on body keywords.
+    text_excerpt: "Term. This Agreement shall remain in effect for a period of two (2) years from the Effective Date"
+  - id: c4
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination of this Agreement, the Receiving Party shall promptly return or destroy"
+  - id: c5
+    type: governing_law
+    text_excerpt: "Governing Law. This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware"
+  - id: c6
+    type: entire_agreement
+    text_excerpt: "Entire Agreement. This Agreement constitutes the entire agreement between the Parties"
+  - id: c7
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. The Parties acknowledge that monetary damages may be inadequate"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []
