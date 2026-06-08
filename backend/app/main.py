@@ -504,6 +504,7 @@ async def get_audit_log_json(
     ::
 
         {
+          "schema_version": "1",
           "contract_id": "...",
           "exported_at": "<ISO-8601 UTC>",
           "row_count": N,

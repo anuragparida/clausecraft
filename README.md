@@ -98,10 +98,11 @@ is the product's thesis, not a checkbox — see
 What the export looks like: JSON for re-import and machine reading, PDF for
 humans. Both per-contract, both generated from the same row set, both
 downloadable from the AuditReplay page. The JSON includes every decision in
-chronological order with `schema_version` and `exported_at` fields at the
-top; the PDF is the same chain rendered for a human reader, suitable for
-handing to a prospect's legal team. Files are named
-`audit-{contract_id}.json` and `audit-{contract_id}.pdf`.
+chronological order with `schema_version` (a major-version string,
+currently `"1"`, bumped on breaking format changes) and `exported_at`
+fields at the top; the PDF is the same chain rendered for a human
+reader, suitable for handing to a prospect's legal team. Files are
+named `audit-{contract_id}.json` and `audit-{contract_id}.pdf`.
 
 What the audit log is *not*: it is not a multi-tenant system, not a SOC 2
 artifact, and not a substitute for the disclaimer in

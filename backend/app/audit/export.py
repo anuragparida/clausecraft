@@ -269,6 +269,7 @@ async def export_audit_log_json(
         indent. The top-level shape is::
 
             {
+              "schema_version": "1",
               "contract_id": "...",
               "exported_at": "2026-...Z",
               "row_count": 7,
@@ -278,6 +279,16 @@ async def export_audit_log_json(
         The events list is ordered by ``decided_at`` ASC.
         No redaction, no field removal — this is a
         machine-readable copy of the log.
+
+        ``schema_version`` is a string of the form
+        ``"<major>"`` (currently ``"1"``) so a downstream
+        consumer can detect whether its parser matches the
+        producer's format. The first versioned export
+        contained the four legacy fields (``contract_id``,
+        ``exported_at``, ``row_count``, ``events``); any
+        future breaking change must bump this string and
+        document the diff in the README's audit-log
+        section.
 
     Raises
     ------
@@ -289,6 +300,7 @@ async def export_audit_log_json(
         raise ContractNotFound(contract_id)
 
     payload: dict[str, Any] = {
+        "schema_version": "1",
         "contract_id": contract_id,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "row_count": len(rows),
