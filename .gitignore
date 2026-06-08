@@ -44,5 +44,9 @@ clausecraft_postgres_data/
 evals/runs/*.json
 !evals/runs/.gitkeep
 
+# Eval cache (PDF text, embeddings, golden YAMLs — re-built from inputs)
+evals/.cache/*.json
+!evals/.cache/.gitkeep
+
 # Langfuse working data
 langfuse-data/

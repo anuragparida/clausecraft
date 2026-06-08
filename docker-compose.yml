@@ -34,8 +34,36 @@ services:
       LANGFUSE_HOST: http://langfuse-web:3000
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-placeholder}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-placeholder}
+      # Phase 2: the playbook YAMLs and the counterparty matrix
+      # live in the repo root, NOT in the backend image. The
+      # bind-mount below puts them at /playbook inside the
+      # container. The default COUNTERPARTY_MATRIX_PATH below
+      # is the absolute in-container path; the seed script and
+      # the matrix loader both accept overrides.
+      COUNTERPARTY_MATRIX_PATH: /playbook/counterparty_matrix.yaml
+      PLAYBOOK_BASELINES_ROOT: /playbook
+      # Phase 2 routing (2026-06-07, per Anurag): LLM via the
+      # MiniMax subscription, embeddings via OpenRouter
+      # qwen/qwen3-embedding-8b. Real keys live in the root
+      # ``.env`` (which docker compose interpolates from). The
+      # defaults below preserve the offline-fallback behaviour
+      # so the pipeline still produces non-null outputs when
+      # the keys are placeholders.
+      LLM_API_KEY: ${LLM_API_KEY:-placeholder-not-a-real-key}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.minimax.io/v1}
+      LLM_MODEL: ${LLM_MODEL:-MiniMax-M3}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-placeholder-not-a-real-key}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://openrouter.ai/api/v1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-qwen/qwen3-embedding-8b}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
     ports:
       - "${BACKEND_PORT:-18000}:8000"
+    # Phase 2: bind-mount the playbook directory so the seed
+    # script can read the YAML baselines and the counterparty
+    # loader can read the matrix. Read-only; the container only
+    # reads from these files.
+    volumes:
+      - ./playbook:/playbook:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -175,6 +175,24 @@ def _embed_via_openai_compatible(
         model=settings.embedding_model,
         input=list(texts),
         encoding_format="float",
+        # Pin the output dimension. The qwen3-embedding family
+        # supports a user-defined ``dimensions`` parameter in the
+        # range 32–4096. We pin to ``settings.embedding_dim``
+        # (default 1024) because:
+        #   (a) pgvector's HNSW index refuses columns over 2000
+        #       dimensions ("column cannot have more than 2000
+        #       dimensions for hnsw index"). 1024 is well under
+        #       that limit.
+        #   (b) the model's natural default is 4096, which would
+        #       blow past the HNSW limit and force us to drop the
+        #       index (or use halfvec, which needs pgvector 0.7+).
+        #   (c) pgvector cosine similarity is well-behaved for any
+        #       uniform dimension; we trade a small amount of
+        #       semantic headroom for HNSW-friendly storage.
+        # If the gateway ignores ``dimensions`` the store's
+        # dim-mismatch assertion will surface a clean error
+        # pointing at the right knob.
+        dimensions=settings.embedding_dim,
     )
     out: list[EmbeddingResult] = []
     for item in response.data:

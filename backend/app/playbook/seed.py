@@ -289,18 +289,29 @@ def _split_dir_name(name: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def _resolve_playbook_root(playbook_root: Optional[Path] = None) -> Path:
-    """Locate the playbook root, defaulting to the repo root.
+    """Locate the playbook root, defaulting to the configured setting.
 
-    The repo root is two directories up from this file
-    (backend/app/playbook/seed.py → repo root). The contract is
-    that the playbook directory sits at the repo root and
-    contains ``baselines/`` and ``counterparty_matrix.yaml``.
+    Resolution order:
+
+    1. Explicit ``playbook_root`` argument (used by tests).
+    2. ``settings.playbook_baselines_root`` env var
+       (``PLAYBOOK_BASELINES_ROOT``). In the docker container
+       this is set to ``/playbook`` (the bind-mount of the repo's
+       ``playbook/`` directory).
+    3. The repo root computed from this file's path. Works for
+       ``python -m backend.app.playbook.seed`` run from the repo
+       root and for tests that have the backend on sys.path.
     """
     if playbook_root is not None:
         return Path(playbook_root).resolve()
-    # The playbook directory is `<repo>/playbook/`. This file is at
-    # `<repo>/backend/app/playbook/seed.py`, so the playbook
-    # directory is 3 levels up + "playbook".
+    if settings.playbook_baselines_root:
+        configured = Path(settings.playbook_baselines_root)
+        if configured.is_absolute():
+            return configured.resolve()
+        # Relative path — resolve against the file's repo root
+        # (3 levels up from this file). This is the dev/CI case.
+        return (Path(__file__).resolve().parents[3] / configured).resolve()
+    # No setting — fall back to the historical default.
     return Path(__file__).resolve().parents[3] / "playbook"
 
 

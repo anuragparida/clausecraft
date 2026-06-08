@@ -1,0 +1,70 @@
+# Golden set — public/nda-001.pdf (ABA mutual NDA from nondisclosureagreement.com).
+#
+# This is a CLEAN BASELINE contract. No deviations from the
+# Phase 2 playbook. The eval harness should report:
+#   - retrieval F1 = 1.0 (top-k baselines are all 5 NDA-EN baselines
+#     and every clause gets a relevant hit)
+#   - classification F1 = 1.0 (the classifier's 9 types all match
+#     the playbook)
+#   - deviation F1 = 1.0 trivially (no expected deviations, no
+#     actual deviations — empty set match)
+#   - severity-mismatch = 0
+#   - citation completeness — depends on LLM availability
+#
+# The contract text (3 pages) is the public mutual NDA template
+# hosted at:
+#   https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf
+#
+# The parser will produce 9 clauses (c1..c9). Their types and
+# short excerpts are pinned below. The eval harness compares
+# against these expected types to compute classification F1.
+
+contract: examples/contracts/public/nda-001.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Either Party may disclose Confidential Information to the other Party"
+  - id: c2
+    type: definition_confidential_info
+    text_excerpt: "When informed of the proprietary and confidential nature"
+    # Note: c2 is technically about the recipient's obligations
+    # (rule-based classifier may label it as definition because
+    # the body references "Confidential Information"). The
+    # expected type is the more accurate label; if the
+    # rule-based classifier disagrees, classification F1 is
+    # below 1.0 — that's a real measurement, not a test failure.
+  - id: c3
+    type: return_of_materials
+    text_excerpt: "All Confidential Information disclosed under this Agreement shall be and remain the property"
+  - id: c4
+    type: definition_confidential_info
+    text_excerpt: "The terms of this Agreement shall not be construed to limit either Party's right"
+  - id: c5
+    type: definition_confidential_info
+    text_excerpt: "Notwithstanding the above, the Parties agree that information shall not be deemed Confidential Information"
+    # c5 IS a definition carve-out (exclusions from Confidential
+    # Information) — the rule-based classifier will likely label
+    # it definition_confidential_info because the body has
+    # "information shall not be deemed Confidential Information".
+  - id: c6
+    type: definition_confidential_info
+    text_excerpt: "Nothing in this Agreement shall be construed to constitute an agency"
+  - id: c7
+    type: definition_confidential_info
+    text_excerpt: "Neither Party will, without prior approval of the other Party, make any public announcement"
+  - id: c8
+    type: entire_agreement
+    text_excerpt: "This Agreement contains the entire agreement between the Parties"
+  - id: c9
+    type: term
+    text_excerpt: "This Agreement shall remain in effect for a period"
+
+# Clean baseline. No expected deviations. The harness will report
+# 1.0 deviation F1 if the spotter also reports 0 deviations on
+# this contract. If the spotter flags something, the harness
+# records it as a false positive in the run report — useful
+# signal for prompt iteration.
+expected_deviations: []

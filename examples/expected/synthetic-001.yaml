@@ -1,0 +1,126 @@
+# Golden set — synthetic/nda-001.pdf.
+#
+# This is the STRESS contract of the Phase 2 starter set. It
+# has 3 hand-injected deviations from the Phase 2 playbook
+# baselines, calibrated to a real LLM-driven spotter's
+# expected verdicts. The deviations are documented in
+# scripts/build_synthetic_nda.py — the PDF is generated, not
+# curated from public sources, so the eval can pin
+# text_excerpt matches against the deterministic output.
+#
+# Why this contract is synthetic
+# ------------------------------
+# Phase 2's playbook has 5 NDA-EN baselines (definition, term,
+# residual_knowledge, governing_law, injunctive_relief). To
+# measure the spotter's quality we need a contract where:
+#   1. The clauses are text-extractable (pymupdf reads them
+#      without OCR).
+#   2. The rule-based classifier labels the clauses correctly
+#      (so classification F1 is meaningful, not noise).
+#   3. At least 2-3 deviations are clearly written into the
+#      text and a real LLM would catch them.
+#   4. The text is stable (idempotent PDF generation, no
+#      random IDs or timestamps) so the eval is reproducible.
+#
+# The 3 deviations
+# ----------------
+# 1. **c2 (term) — material deviation.** 7 years vs the
+#    baseline's 2-3 year obligation. The LLM should flag
+#    this as score=2 (material) with citation pointing to
+#    the term-of-confidentiality baseline.
+# 2. **c3 (residual_knowledge) — minor deviation.** "May
+#    continue in perpetuity, without time limit" vs the
+#    baseline's "for so long as such information remains a
+#    trade secret". The LLM should flag this as score=1
+#    (minor) because the perpetual language removes the
+#    baseline's "stays-a-trade-secret" qualifier.
+# 3. **c1 (definition_confidential_info) — material
+#    deviation.** Missing the standard exclusions list
+#    (public-domain, prior-knowledge, independently-
+#    developed, lawfully-required). The LLM should flag
+#    this as score=2 (material) with citation pointing to
+#    the definition-of-confidential-information baseline.
+#
+# The other 4 clauses (c4..c7) are clean baselines — no
+# expected deviations. The eval records any false positives
+# in the run report.
+
+contract: examples/contracts/synthetic/nda-001.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Confidential Information means any information disclosed by one Party"
+  - id: c2
+    type: term
+    text_excerpt: "This Agreement shall remain in effect for a period of seven (7) years"
+  - id: c3
+    type: residual_knowledge
+    text_excerpt: "Trade Secrets. nothing in this Agreement shall restrict the use of residual knowledge"
+  - id: c4
+    type: injunctive_relief
+    text_excerpt: "Injunctive Relief. monetary damages may be inadequate"
+  - id: c5
+    type: governing_law
+    text_excerpt: "Governing Law. State of New York"
+  - id: c6
+    type: residual_knowledge
+    text_excerpt: "Residual Knowledge. retained in the unaided memory"
+  - id: c7
+    type: return_of_materials
+    text_excerpt: "Return of Materials. Upon termination"
+
+# Three expected deviations. The harness compares each to the
+# spotter's actual flags. A real LLM-driven spotter is
+# expected to flag all three; the placeholder-key
+# (rule-based abstention) spotter flags none. The deviation
+# F1 reports the gap.
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: missing_exclusions
+    rationale: >-
+      The definition omits the standard exclusions
+      (public-domain, prior-knowledge, independently-
+      developed, lawfully-required-disclosure) that the
+      Phase 2 playbook baseline requires. Without these
+      carve-outs, "Confidential Information" is
+      unbounded — anything disclosed is automatically
+      confidential, which the playbook flags as
+      material.
+    citation:
+      playbook_clause_id: definition-of-confidential-information
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c2
+    severity: 2
+    category: term_too_long
+    rationale: >-
+      A 7-year term materially exceeds the playbook's
+      2-year obligation period (plus 3-year survival,
+      5 years total) for standard NDAs. The spotter
+      flags this as material because the longer term
+      expands the Receiving Party's restriction
+      window beyond what's typical in the playbook's
+      reference contracts.
+    citation:
+      playbook_clause_id: term-of-confidentiality
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c3
+    severity: 1
+    category: perpetual_without_qualifier
+    rationale: >-
+      "May continue in perpetuity, without time limit,
+      regardless of whether such information
+      continues to qualify as a trade secret"
+      removes the baseline's "for so long as such
+      information remains a trade secret"
+      qualification. Minor because the baseline
+      already contemplates indefinite trade-secret
+      protection; the deviation is the removal of
+      the "while-it-stays-a-trade-secret" hook
+      that limits the obligation.
+    citation:
+      playbook_clause_id: residual-knowledge
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"

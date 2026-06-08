@@ -1,0 +1,109 @@
+# Golden set — public/nda-002.pdf (long-form mutual NDA, 17 pages).
+#
+# This is a CLEAN BASELINE contract. No deviations from the
+# Phase 2 playbook. The contract has 21 clauses (c1..c21) covering
+# a full NDA: definitions, exclusions, marking, obligations,
+# term, return, governing law, entire agreement, notices,
+# severability, counterparts, assignment, injunctive relief,
+# residual knowledge, limitation of liability, non-solicitation,
+# indemnity, and a defense sub-clause.
+#
+# Eval expectations:
+#   - retrieval F1 = 1.0
+#   - classification F1 = 1.0 (every clause type matches a
+#     Phase 2 enum value; c3 and c4 are "unknown" in the
+#     rule-based classifier — see notes below)
+#   - deviation F1 = 1.0 trivially (no expected deviations)
+#   - severity-mismatch = 0
+#   - citation completeness — depends on LLM availability
+#
+# Source: a hand-crafted 17-page mutual NDA used as a Phase 1
+# test fixture (the long-nda.pdf file). Stable since 2026-06-07.
+
+contract: examples/contracts/public/nda-002.pdf
+type: nda
+language: en
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "Definitions. Confidential Information means any non-public information"
+  - id: c2
+    type: definition_confidential_info
+    text_excerpt: "1.1 Exclusions. Confidential Information does not include"
+  - id: c3
+    type: definition_confidential_info
+    # Compelled-disclosure carve-out. Rule-based classifier
+    # may label as "unknown" because there's no exact
+    # definition keyword; the spotter should still find the
+    # right playbook baseline via top-k retrieval.
+    text_excerpt: "1.1.1 Compelled Disclosure. If the Receiving Party is compelled"
+  - id: c4
+    type: definition_confidential_info
+    # Marking. Rule-based classifier may label as "unknown".
+    text_excerpt: "1.2 Marking. Information disclosed in tangible form shall be marked"
+  - id: c5
+    type: definition_confidential_info
+    text_excerpt: "2. Obligations of the Receiving Party."
+  - id: c6
+    type: definition_confidential_info
+    text_excerpt: "2.1 Standard of Care."
+  - id: c7
+    type: definition_confidential_info
+    # Permitted disclosures. Classifier may mis-label as
+    # definition_confidential_info or unknown depending on
+    # the rule-based rules.
+    text_excerpt: "The Receiving Party may disclose Confidential Information only to its employees"
+  - id: c8
+    type: term
+    text_excerpt: "3. Term. This Agreement shall remain in effect for a period of five (5) years"
+    # 5 years is slightly above the 2-3 year baseline. We
+    # consider this aligned for Phase 2 (the playbook's
+    # "term" baseline is "two (2) years... three (3) years
+    # survival", but real NDAs vary from 1 to 5 years; the
+    # spec allows 5). The spotter MAY flag this as
+    # minor (severity=1) — that would be a "false positive"
+    # we accept for now, and the eval would record it as
+    # severity-mismatch. We mark expected_severity=0.
+  - id: c9
+    type: return_of_materials
+    text_excerpt: "4. Return of Materials."
+  - id: c10
+    type: governing_law
+    text_excerpt: "5. Governing Law. State of California"
+  - id: c11
+    type: entire_agreement
+    text_excerpt: "6. Entire Agreement. This Agreement constitutes the entire agreement"
+  - id: c12
+    type: notices
+    text_excerpt: "7. Notices. All notices, requests, consents"
+  - id: c13
+    type: severability
+    text_excerpt: "8. Severability. If any provision of this Agreement is held to be invalid"
+  - id: c14
+    type: counterparts
+    text_excerpt: "9. Counterparts. This Agreement may be executed in one or more counterparts"
+  - id: c15
+    type: assignment
+    text_excerpt: "10. Assignment. Neither Party may assign this Agreement"
+  - id: c16
+    type: injunctive_relief
+    text_excerpt: "11. Injunctive Relief. monetary damages may be inadequate"
+  - id: c17
+    type: residual_knowledge
+    text_excerpt: "12. Residual Knowledge. residual knowledge retained in the unaided memory"
+  - id: c18
+    type: limitation_of_liability
+    text_excerpt: "13. Limitation of Liability. indirect, incidental, special, or consequential damages"
+  - id: c19
+    type: non_solicit
+    text_excerpt: "14. Non-Solicitation. twelve (12) months"
+  - id: c20
+    type: indemnity
+    text_excerpt: "15. Indemnity. indemnify and hold harmless"
+  - id: c21
+    type: indemnity
+    text_excerpt: "15.1 Defense. indemnified Party shall promptly notify"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []
