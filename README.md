@@ -75,6 +75,56 @@ See [`docs/11-phases.md`](./docs/11-phases.md) for the full plan and
 
 ---
 
+## How the eval works
+
+The eval harness is the spec's core claim, not a footnote. Four things to know
+about it: what F1 means here, the contract set, the citation rule, and the
+exit gate.
+
+### What F1 means here
+
+F1 is a deviation set match. Precision is `flagged-but-not-expected / all-flagged`.
+Recall is `expected-but-not-flagged / all-expected`. The harness also reports
+classification F1, retrieval F1, severity-mismatch count, and citation
+completeness — see [`docs/07-eval-strategy.md`](./docs/07-eval-strategy.md) for
+the full rubric philosophy.
+
+### The contract set
+
+10 NDA contracts (EN). 5 from public templates, 5 with hand-injected deviations.
+3 sit in `examples/contracts/public/`, 2 in `examples/contracts/synthetic/`.
+Hand-written expected deviations in `examples/expected/*.yaml`. Phase 2 ships
+with a 3-contract starter (2 public + 1 synthetic) to keep the iteration loop
+fast; the spec calls for growing to 10 after the prompt is stable.
+
+### The citation rule
+
+The deviation spotter returns
+`{score: 0|1|2|3, rationale, citation: {playbook_clause_id, contract_text_excerpt}, unverified: bool}`.
+The "show your work" rule is enforced here — no citation means `unverified=True`,
+and the UI renders unverified flags differently.
+
+### The exit gate
+
+Per the spec, Phase 2 is done when:
+
+- Eval set runs in CI. F1 numbers are reported and saved.
+- Citation completeness ≥ 95% (every flag has a citation or is marked unverified).
+- Deviation spotter handles "no baseline" cases gracefully.
+- The "show your work" rule is documented in the README. (This section.)
+
+### How to run it
+
+```bash
+pytest evals/                  # run the harness
+cat evals/runs/<timestamp>.json # the per-contract F1, classification, severity, citation report
+```
+
+The harness is content-addressed cached (PDF text, embeddings, golden YAMLs,
+mocked LLM responses), so re-runs are sub-second once the cache is warm.
+
+---
+
 ## Layout
 
 ```
