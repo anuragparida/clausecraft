@@ -95,6 +95,11 @@ INSERT_SQL = (
 )
 UPDATE_SQL = "UPDATE audit_events SET decided_by = 'tampered' WHERE id = %(id)s"
 DELETE_SQL = "DELETE FROM audit_events WHERE id = %(id)s"
+# TRUNCATE has no WHERE clause — it targets the whole table. The
+# ``FOR EACH STATEMENT`` BEFORE TRUNCATE trigger in migration
+# ``0002_audit_log_phase3`` must raise so the table survives.
+TRUNCATE_SQL = "TRUNCATE audit_events"
+COUNT_SQL = "SELECT count(*) FROM audit_events"
 
 
 def _emit(step, ok, error=None, row_id=None):
@@ -165,6 +170,39 @@ def main():
         except Exception as e:
             conn.rollback()
             _emit("delete", False, error=str(e))
+
+        # --- 4. TRUNCATE (must RAISE) ----------------------------
+        # Row-level UPDATE/DELETE triggers do NOT fire on
+        # TRUNCATE — TRUNCATE is statement-level only. The
+        # ``BEFORE TRUNCATE FOR EACH STATEMENT`` trigger in
+        # ``0002_audit_log_phase3`` is what stops the table
+        # from being wiped in one statement. Without it the
+        # whole append-only guarantee is bypassable.
+        #
+        # We then count rows after to prove the sentinel (and
+        # the rest of the table) survived — a successful
+        # TRUNCATE returning row count 0 would be the
+        # headline regression the test must catch.
+        try:
+            cur.execute(TRUNCATE_SQL)
+            conn.commit()
+            _emit("truncate", True, error=None)
+            return 5
+        except psycopg2.errors.RaiseException as e:
+            conn.rollback()
+            _emit("truncate", False, error=str(e))
+            # Count survivors: the sentinel must still be
+            # there because (a) INSERT committed earlier and
+            # (b) the trigger rolled back the TRUNCATE.
+            cur.execute(COUNT_SQL)
+            survivors = int(cur.fetchone()[0])
+            _emit("truncate_count", True, error=None, row_id=survivors)
+        except Exception as e:
+            conn.rollback()
+            _emit("truncate", False, error=str(e))
+            cur.execute(COUNT_SQL)
+            survivors = int(cur.fetchone()[0])
+            _emit("truncate_count", True, error=None, row_id=survivors)
 
         return 0
     finally:
@@ -356,6 +394,71 @@ def test_delete_is_rejected(smoke_subprocess_result):
     assert "DELETE" in (delete_step["error"] or ""), (
         "Trigger rejected the DELETE but did not name the "
         f"operation in the error. Step: {delete_step!r}"
+    )
+
+
+def test_truncate_is_rejected(smoke_subprocess_result):
+    """The raw-SQL TRUNCATE must raise the trigger exception.
+
+    TRUNCATE is a separate statement-level operation — the
+    row-level UPDATE/DELETE triggers do not fire on it, and a
+    missing TRUNCATE trigger would let ``TRUNCATE audit_events;``
+    wipe the table in a single statement, defeating the
+    append-only guarantee the spec mandates. The migration
+    installs a ``BEFORE TRUNCATE FOR EACH STATEMENT`` trigger
+    that calls the same ``reject_audit_mutation()`` function
+    used by the UPDATE / DELETE triggers; ``TG_OP`` resolves
+    to ``'TRUNCATE'`` on that path, so the error string is
+    ``audit_events is append-only; TRUNCATE not allowed``.
+    """
+    truncate_steps = [
+        s for s in smoke_subprocess_result["steps"] if s["step"] == "truncate"
+    ]
+    assert len(truncate_steps) == 1, (
+        f"expected exactly one truncate step, got {truncate_steps!r}"
+    )
+    truncate_step = truncate_steps[0]
+    assert truncate_step["ok"] is False, (
+        "TRUNCATE succeeded against audit_events — the "
+        "statement-level trigger is missing or misconfigured. "
+        "The spec requires the trigger to RAISE EXCEPTION on "
+        f"TRUNCATE. Step: {truncate_step!r}"
+    )
+    assert _TRIGGER_REJECT_PREFIX in (truncate_step["error"] or ""), (
+        "TRUNCATE was rejected, but the exception text did not "
+        f"match {_TRIGGER_REJECT_PREFIX!r}. Step: {truncate_step!r}"
+    )
+    assert "TRUNCATE" in (truncate_step["error"] or ""), (
+        "Trigger rejected the TRUNCATE but did not name the "
+        "operation in the error. The spec requires the "
+        f"exception to include TG_OP. Step: {truncate_step!r}"
+    )
+
+    # Survivor count: after the trigger raises, the sentinel
+    # row (and the rest of the table) must still exist. A
+    # ``truncate_count`` step that reports 0 would mean the
+    # TRUNCATE slipped through and wiped the table even
+    # though the trigger raised — which would be its own
+    # bug (e.g. trigger exception swallowed somewhere).
+    count_steps = [
+        s for s in smoke_subprocess_result["steps"]
+        if s["step"] == "truncate_count"
+    ]
+    assert len(count_steps) == 1, (
+        f"expected one truncate_count step (post-trigger row count), "
+        f"got {count_steps!r}"
+    )
+    count_step = count_steps[0]
+    assert count_step["ok"] is True, (
+        "truncate_count step did not succeed — the subprocess "
+        "did not run the survivor count after the TRUNCATE "
+        f"rejection. Step: {count_step!r}"
+    )
+    assert isinstance(count_step["id"], int) and count_step["id"] >= 1, (
+        "TRUNCATE was rejected, but the table was empty "
+        "afterwards — the trigger raised but the row was "
+        "still lost. Expected at least 1 survivor (the "
+        f"sentinel). Got: {count_step['id']!r}"
     )
 
 

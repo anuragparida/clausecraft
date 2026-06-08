@@ -146,8 +146,20 @@ def upgrade() -> None:
     )
 
     # --- Append-only enforcement ------------------------------
-    # The function first (idempotent), then the two triggers
+    # The function first (idempotent), then the three triggers
     # (also idempotent: DROP IF EXISTS before CREATE).
+    #
+    # Three triggers, not two, because TRUNCATE is a
+    # statement-level operation and the row-level UPDATE/DELETE
+    # triggers do NOT fire on TRUNCATE. ``BEFORE TRUNCATE`` with
+    # ``FOR EACH STATEMENT`` is the only way to make the audit
+    # log append-only at the DB level — row-level ``BEFORE
+    # TRUNCATE`` triggers do not exist in Postgres (TRUNCATE is
+    # statement-level only). The trigger calls the same
+    # ``reject_audit_mutation()`` function; ``TG_OP`` resolves
+    # to ``'TRUNCATE'`` on this path so the same exception
+    # template produces ``audit_events is append-only; TRUNCATE
+    # not allowed``.
     op.execute(REJECT_FUNCTION_SQL)
     op.execute(
         "DROP TRIGGER IF EXISTS audit_events_no_update ON audit_events"
@@ -165,6 +177,14 @@ def upgrade() -> None:
         "BEFORE DELETE ON audit_events "
         "FOR EACH ROW EXECUTE FUNCTION reject_audit_mutation()"
     )
+    op.execute(
+        "DROP TRIGGER IF EXISTS audit_events_no_truncate ON audit_events"
+    )
+    op.execute(
+        "CREATE TRIGGER audit_events_no_truncate "
+        "BEFORE TRUNCATE ON audit_events "
+        "FOR EACH STATEMENT EXECUTE FUNCTION reject_audit_mutation()"
+    )
 
 
 def downgrade() -> None:
@@ -173,6 +193,7 @@ def downgrade() -> None:
     # the DELETE trigger. The function is left in place — it's
     # reusable across other append-only tables in the future
     # and is harmless without a table that uses it.
+    op.execute("DROP TRIGGER IF EXISTS audit_events_no_truncate ON audit_events")
     op.execute("DROP TRIGGER IF EXISTS audit_events_no_update ON audit_events")
     op.execute("DROP TRIGGER IF EXISTS audit_events_no_delete ON audit_events")
     op.execute("DROP INDEX IF EXISTS audit_events_payload_json_gin")
