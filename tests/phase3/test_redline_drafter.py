@@ -587,3 +587,117 @@ async def test_async_draft_redline_matches_sync():
     assert async_proposal.rationale == sync_proposal.rationale
     assert async_proposal.diff_summary == sync_proposal.diff_summary
     assert async_proposal.attempt == 1
+
+
+# --- Test 8: Langfuse traces on every LLM call ------------------------
+
+
+@pytest.mark.asyncio
+async def test_langfuse_trace_annotated_for_drafter_and_self_check():
+    """Spy on ``get_langfuse().trace()`` and confirm both the
+    drafter and the self-check loop emit annotations.
+
+    Per the spec: "Langfuse trace annotations on every LLM
+    call (drafter call + spotter self-check call)." The
+    self-check loop wraps the spotter's re-run on the
+    drafter's output, so both agents need to surface their
+    work to Langfuse. We patch ``get_langfuse`` to return a
+    fake client that records every ``trace()`` call, then
+    assert both names appear.
+    """
+    from app.observability import _NoopSpan
+
+    class _RecordingLangfuse:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        def trace(self, *, name: str = "", tags=None, input=None, **_kwargs):
+            self.calls.append({"name": name, "tags": tags, "input": input})
+            return _NoopSpan()
+
+        def span(self, *_args, **_kwargs):
+            return _NoopSpan()
+
+        def generation(self, *_args, **_kwargs):
+            return _NoopSpan()
+
+        def flush(self) -> None:
+            return None
+
+    recorder = _RecordingLangfuse()
+
+    di = _drafter_input()
+    draft_raw_1 = _stub_draft_payload(
+        proposed_text="first attempt — too aggressive",
+        rationale="first try",
+    )
+    draft_raw_2 = _stub_draft_payload(
+        proposed_text="second attempt — closer to baseline",
+        rationale="second try",
+    )
+    spot_clean = DeviationFlag(
+        clause_id=di.flag.clause_id,
+        score=0,
+        rationale="aligned",
+        citation=None,
+        unverified=False,
+        baseline_type="term",
+    )
+    spot_dirty = DeviationFlag(
+        clause_id=di.flag.clause_id,
+        score=2,
+        rationale="still deviates",
+        citation=Citation(
+            playbook_clause_id="term-of-confidentiality",
+            contract_text_excerpt="still too long",
+        ),
+        unverified=False,
+        baseline_type="term",
+    )
+
+    draft_call_log: list[int] = []
+
+    def _draft_side_effect(*_args, **_kwargs):
+        draft_call_log.append(len(draft_call_log) + 1)
+        if len(draft_call_log) == 1:
+            return draft_raw_1
+        return draft_raw_2
+
+    spot_call_log: list[int] = []
+
+    async def _spot_side_effect(**_kwargs):
+        spot_call_log.append(len(spot_call_log) + 1)
+        if len(spot_call_log) == 1:
+            return spot_dirty
+        return spot_clean
+
+    with patch(
+        "app.agents.redline_drafter.drafter.get_langfuse", return_value=recorder
+    ), patch(
+        "app.agents.redline_drafter.self_check.get_langfuse", return_value=recorder
+    ), patch(
+        "app.agents.redline_drafter.drafter._looks_like_real_key",
+        return_value=True,
+    ), patch(
+        "app.agents.redline_drafter.drafter._call_llm_for_draft",
+        side_effect=_draft_side_effect,
+    ), patch(
+        "app.agents.redline_drafter.self_check._run_spotter_on_proposed_text",
+        side_effect=_spot_side_effect,
+    ):
+        result = await run_with_self_check(di, contract_filename="test.pdf")
+
+    assert isinstance(result, RedlineProposal)
+    assert result.attempt == 2
+
+    # 1 trace for the self-check loop wrapper, 2 traces for
+    # the drafter calls (one per attempt), 2 traces for the
+    # spotter re-runs (one per attempt). At minimum we need
+    # the drafter + self-check-loop names.
+    names = [c["name"] for c in recorder.calls]
+    assert names.count("redline_draft") == 2, (
+        f"Expected 2 drafter traces (one per attempt). Got: {names}"
+    )
+    assert "redline_draft_with_self_check" in names, (
+        f"Self-check loop wrapper trace missing. Got: {names}"
+    )

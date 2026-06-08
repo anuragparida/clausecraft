@@ -8,9 +8,11 @@ with both attempts and the conflicting flags.
 
 Hard rules (from the spec, non-negotiable):
 
-1. **Cap retries at 1.** Spec line 285. No third attempt, no
-   temperature swap, no escalation through the model. The
-   loop makes at most 2 drafter calls per accepted flag.
+1. **Cap retries at 1.** Spec line 285, verbatim: "Cap retries
+   at 1; on the second failure, surface to the user with both
+   attempts and the conflict." No third attempt, no temperature
+   swap, no escalation through the model. The loop makes at most
+   2 drafter calls per accepted flag.
 2. **Reuse the deviation spotter, not a separate "spotter in
    self-check mode."** Same code path, same prompt, same
    behavior. The self-check loop calls
