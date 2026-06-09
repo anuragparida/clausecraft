@@ -1,0 +1,60 @@
+# Playbook-Baseline — DPA (EN) — dpa_subprocessor_consent
+#
+# Source: European Data Protection Board, "Guidelines 07/2020 on the
+# concepts of controller and processor in the GDPR", Version 2.0,
+# adopted 7 July 2021, § 6 ("Sub-processing") and the related
+# discussion of the general-written-authorisation mechanism under
+# Art. 28(2) GDPR. EDPB Guidelines are public, non-binding
+# authoritative interpretations of GDPR adopted by the national
+# supervisory authorities. The PDF (51 pages, version 2.0) is
+# hosted on the EDPB's system-files CDN.
+#
+# This baseline captures the consent *gate* (does the processor
+# need to ask before engaging a sub-processor?) — distinct from
+# dpa_subprocessor_flowdown, which captures the *contract terms*
+# (what obligations must the sub-processor be bound by?). The two
+# together form a complete sub-processor governance story; either
+# alone is incomplete and the matrix should flag it.
+clause_id: sub-processor-prior-written-authorisation-art-28-2
+type: dpa_subprocessor_consent
+language: en
+title: Sub-processor prior specific or general written authorisation
+text: >-
+  The Processor shall not engage another processor for carrying
+  out specific processing activities on behalf of the Controller
+  without prior specific written authorisation of the Controller.
+  Where the Controller gives general written authorisation, the
+  Processor shall inform the Controller of any intended changes
+  concerning the addition or replacement of other processors,
+  thereby giving the Controller the opportunity to object to
+  such changes. The Processor shall not engage a sub-processor
+  if the Controller objects to the engagement on reasonable
+  grounds related to data protection. Where the Processor engages
+  another processor for carrying out specific processing
+  activities on behalf of the Controller, the same data
+  protection obligations as set out in this Agreement shall be
+  imposed on that other processor by way of a contract, in
+  particular providing sufficient guarantees to implement
+  appropriate technical and organisational measures. The
+  Processor shall remain fully liable to the Controller for the
+  performance of that other processor's obligations.
+source_url: https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-072020-concepts-controller-and-processor-gdpr_en
+retrieval_date: 2026-06-09
+license: >-
+  EDPB Guidelines 07/2020, Version 2.0 (2021-07-07). Published
+  by the European Data Protection Board under the EU's
+  open-access policy (Decision 2011/833/EU); reusable with
+  attribution to "EDPB Guidelines 07/2020, v2.0". The baseline
+  text is a paraphrased summary of § 6, not a verbatim quote.
+notes: >-
+  Two consent mechanisms are recognised under Art. 28(2) GDPR:
+  (a) prior *specific* written authorisation (one-off, named
+  sub-processor), and (b) prior *general* written authorisation
+  (standing approval, with a notification-and-objection right).
+  The baseline above captures the general-authorisation path,
+  which is the more common drafting choice in commercial
+  templates (Big-4 templates, IAPP model contracts) and the
+  one the EDPB Guidelines § 6 discusses in detail. The matrix
+  should treat a DPA that requires *only* specific authorisation
+  (no general path) as a stricter-but-still-acceptable variant,
+  not a deviation.

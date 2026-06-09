@@ -1,0 +1,65 @@
+# Playbook-Baseline — DPA (EN) — dpa_transfer_mechanism
+#
+# Source: Commission Implementing Decision (EU) 2021/914 of 4 June
+# 2021 on Standard Contractual Clauses for the transfer of personal
+# data to third countries, Module Two: Transfer controller to
+# processor. Official journal reference: OJ L 199, 7.6.2021,
+# p. 31–61. EUR-Lex identifier: CELEX:32021D0914. The SCCs
+# replaced the 2001/497/EC and 2010/87/EU controller-to-processor
+# clauses on 27 December 2022; new transfers after that date
+# require the 2021/914 SCCs.
+#
+# Module Two is selected when a controller established in the
+# EEA engages a processor established in a third country.
+# Clauses 7.1–7.7 of the SCCs set out the processor's
+# obligations, and the appendix to the SCCs is the
+# mechanism-specific configuration (annexes I–III). The
+# baseline here captures the Module Two *selection* language
+# (a meta-clause — "we use SCCs Module Two") rather than the
+# full operative text of clauses 7.1–7.7, which is too long
+# to be a useful deviation spotter target.
+clause_id: sccs-module-two-controller-to-processor
+type: dpa_transfer_mechanism
+language: en
+title: EU Standard Contractual Clauses — Module Two selection
+text: >-
+  The parties incorporate by reference and agree to be bound by
+  the Standard Contractual Clauses adopted by the European
+  Commission in Implementing Decision (EU) 2021/914 of 4 June
+  2021 (the "SCCs"), Module Two (Transfer controller to
+  processor). The SCCs apply to any transfer of Personal Data
+  from the Controller (established in the European Economic
+  Area) to the Processor (or any sub-processor established in
+  a third country for which an adequacy decision has not been
+  adopted by the European Commission). The annexes to the SCCs
+  (Annex I: list of parties; Annex II: technical and
+  organisational measures; Annex III: sub-processor list) are
+  set out in Schedule 2 to this Agreement. In the event of
+  any conflict between the SCCs and any other provision of
+  this Agreement, the SCCs shall prevail as regards the
+  processing of Personal Data transferred to a third country.
+source_url: https://eur-lex.europa.eu/eli/dec_impl/2021/914/oj
+retrieval_date: 2026-06-09
+license: >-
+  Commission Implementing Decision (EU) 2021/914. Reproduced
+  under the EU's open-access policy (Decision 2011/833/EU);
+  free to reuse with attribution to the European Commission.
+  Baseline text is a paraphrased Module-Two-selection clause,
+  not a verbatim quote of the SCCs themselves.
+notes: >-
+  Three related transfer mechanisms are NOT covered by this
+  baseline and would be separate baselines in a fuller
+  taxonomy: (a) Module One (controller-to-controller), (b)
+  Module Three (processor-to-processor), and (c) Module Four
+  (processor-to-controller). The 2021/914 SCCs also include
+  a Docking Clause (Clause 7) that allows additional parties
+  to accede to the SCCs after signature. The matrix verdict
+  for a DPA that *names* SCCs 2021/914 but selects the wrong
+  Module (e.g. Module One for a controller-to-processor
+  transfer) is "unacceptable" for every counterparty type
+  because the wrong Module misallocates the processor
+  obligations. The matrix verdict for a DPA that omits the
+  Module designation entirely (relies on SCCs 2001/497/EC or
+  2010/87/EU, both pre-Schrems II) is also "unacceptable"
+  since 27 December 2022 per the Commission's transition
+  regime.

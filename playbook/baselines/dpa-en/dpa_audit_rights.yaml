@@ -1,0 +1,87 @@
+# Playbook-Baseline — DPA (EN) — dpa_audit_rights
+#
+# Source: Datenschutzkonferenz (DSK), "Kurzpapier Nr. 13 —
+# Auftragsverarbeitung, Abgrenzung und Hinweise für die Praxis",
+# Stand 17.12.2018, pp. 4–5 (sections on Kontrollrechte /
+# audit rights and Nachweispflichten / documentation
+# obligations). The DSK Kurzpapiere are the joint publications
+# of the German federal and state data-protection authorities;
+# they are the authoritative practitioner-level interpretation
+# of the GDPR for the German-speaking market. The Kurzpapier is
+# distributed by the DSK as a free, open-access PDF and is
+# routinely cited by German-speaking DPOs and Big-4 DPA
+# templates. 5 pages.
+#
+# Cross-references: Art. 28(3)(h) GDPR (the controller's right
+# of audit is the eighth mandatory-contents item on the Art.
+# 28(3) checklist), and EDPB Guidelines 07/2020 § 6 (which
+# confirms that audit rights extend down the sub-processor
+# chain). The baseline text below combines the statutory
+# anchor (Art. 28(3)(h) GDPR) with the DSK's practitioner-level
+# elaboration of *how* the audit right is typically exercised
+# (on-site inspections, written information requests,
+# inspection of relevant certifications such as ISO 27001 or
+# SOC 2 Type II).
+clause_id: controller-audit-rights-art-28-3-h
+type: dpa_audit_rights
+language: en
+title: Audit rights of the Controller under Art. 28(3)(h) GDPR
+text: >-
+  The Processor shall make available to the Controller all
+  information necessary to demonstrate compliance with the
+  obligations laid down in this Agreement and in Article 28
+  of the GDPR, and shall allow for and contribute to audits,
+  including inspections, conducted by the Controller or
+  another auditor mandated by the Controller. The Controller
+  shall give the Processor reasonable prior notice of an
+  audit, which shall not be less than thirty (30) calendar
+  days, except where there is a specific data protection
+  incident or regulatory investigation that justifies
+  shorter notice. The audit shall be conducted during
+  normal business hours and in a manner that does not
+  unreasonably interfere with the Processor's operations.
+  The Controller's right to audit shall include the right
+  to (a) inspect the Processor's relevant records,
+  policies, and procedures relating to the processing of
+  Personal Data; (b) review the Processor's relevant
+  certifications, including ISO/IEC 27001, ISO/IEC 27701,
+  SOC 2 Type II, and similar information-security
+  certifications, where available; and (c) interview the
+  Processor's relevant personnel regarding the processing
+  of Personal Data. The Processor shall, at the
+  Controller's option, satisfy the audit obligation by
+  providing a current SOC 2 Type II report (or equivalent
+  third-party assurance report) covering the processing
+  system used to process the Controller's Personal Data,
+  and by making the relevant personnel available for
+  follow-up questions. The audit rights set out in this
+  clause shall apply equally to the Processor's
+  sub-processors, and the Processor shall procure that
+  each sub-processor contract contains equivalent audit
+  rights in favour of the Controller.
+source_url: https://www.datenschutzkonferenz-online.de/media/kp/dsk_kpnr_13.pdf
+retrieval_date: 2026-06-09
+license: >-
+  DSK Kurzpapier Nr. 13 (Stand 17.12.2018). Published by the
+  Datenschutzkonferenz (the joint body of the German federal
+  and state data-protection authorities) as an open-access
+  practitioner guidance document; reusable with attribution
+  to the Datenschutzkonferenz. Baseline text is a
+  paraphrased combination of Art. 28(3)(h) GDPR (statutory
+  anchor) and the DSK's practitioner-level elaboration of
+  typical audit mechanisms, not a verbatim quote.
+notes: >-
+  Three audit-mechanism variants are common in commercial
+  templates and all are acceptable: (a) on-site audit with
+  prior notice (the strictest, captured above), (b)
+  third-party-certification-only audit (ISO 27001 / SOC 2),
+  and (c) information-request-only audit (a written
+  questionnaire, no on-site visit). The matrix verdict
+  treats variant (a) as the gold standard and variants
+  (b) and (c) as acceptable-conditional on the
+  counterparty type: healthcare and public-sector
+  counterparties typically require on-site rights; SMB
+  counterparties often accept certification-only. A DPA
+  that omits audit rights entirely is a structural
+  failure under Art. 28(3)(h) GDPR and is "unacceptable"
+  for every counterparty type.

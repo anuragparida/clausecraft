@@ -1,0 +1,70 @@
+# Playbook-Baseline — DPA (EN) — dpa_breach_notification
+#
+# Source: Art. 33 Regulation (EU) 2016/679 (GDPR), consolidated
+# text published by the Publications Office of the European
+# Union (EUR-Lex CELEX:32016R0679), as elaborated by the
+# European Data Protection Board in "Guidelines 9/2022 on
+# personal data breach notification under GDPR", Version 2.0,
+# adopted 28 March 2023. The 72-hour rule is the most-cited
+# DPA fact and the one most often deviated from in commercial
+# templates (Big-4 templates and SaaS standard terms frequently
+# stretch the deadline to "without undue delay" or to 48/96
+# hours to give the processor more processing time).
+#
+# This baseline captures the controller-faces-supervisory-authority
+# 72-hour deadline as it should flow through the DPA — the DPA
+# must require the processor to notify the controller *in time*
+# for the controller to meet its own 72-hour obligation. The
+# notification-to-data-subjects obligation (Art. 34 GDPR) is
+# related but distinct and would be covered by a separate
+# clause in a fuller taxonomy.
+clause_id: processor-to-controller-breach-notification-72-hours
+type: dpa_breach_notification
+language: en
+title: Personal data breach notification — 72-hour controller window
+text: >-
+  The Processor shall notify the Controller of a Personal Data
+  Breach without undue delay and in any event within
+  twenty-four (24) hours of becoming aware of the Personal
+  Data Breach. The notification shall describe the nature of
+  the Personal Data Breach, the categories and approximate
+  number of data subjects and records concerned, the likely
+  consequences of the Personal Data Breach, and the measures
+  taken or proposed to be taken to address it, including,
+  where appropriate, measures to mitigate its possible adverse
+  effects. The Processor shall provide the Controller with
+  all information reasonably necessary to enable the
+  Controller to (a) notify the competent supervisory
+  authority of the Personal Data Breach within seventy-two
+  (72) hours of the Controller becoming aware of the Personal
+  Data Breach, as required by Article 33(1) of the GDPR, and
+  (b) where required, communicate the Personal Data Breach to
+  the affected data subjects in accordance with Article 34 of
+  the GDPR. The Processor shall not disclose the Personal
+  Data Breach to any third party (including the affected
+  data subjects) without the prior written consent of the
+  Controller, except as required by applicable law.
+source_url: https://gdpr-info.eu/art-33-gdpr/
+retrieval_date: 2026-06-09
+license: >-
+  Public-domain legal text (Art. 8(1) Berne Convention; EU
+  open-data policy, Decision 2011/833/EU). The 24-hour
+  processor-to-controller inner window is the recommended
+  practice in EDPB Guidelines 9/2022 § 3.4; Art. 33(1) GDPR
+  itself imposes only the 72-hour window on the controller.
+  Baseline is a paraphrase, not a verbatim quote.
+notes: >-
+  The 24-hour processor inner window in the baseline above
+  is a stricter drafting choice than the GDPR strictly
+  requires; "without undue delay" (with a target of 24–48
+  hours) is the looser-but-still-acceptable variant. The
+  matrix verdict for a DPA that omits the breach-notification
+  clause entirely is "unacceptable" for healthcare and
+  public-sector counterparties (regulatory exposure under
+  Art. 33(5) GDPR), and "material" for SMB and enterprise
+  counterparties. A DPA that uses 72 hours as the
+  processor-to-controller window (rather than the
+  controller-to-supervisory-authority window) is a common
+  drafting mistake and should be flagged as a "high"
+  deviation regardless of counterparty type — it eliminates
+  the controller's reaction time.
