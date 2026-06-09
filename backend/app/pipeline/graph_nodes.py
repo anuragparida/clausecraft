@@ -455,6 +455,7 @@ async def _draft_one(
     baseline: BaselineForSpotter,
     extra_context: str,
     contract_filename: str,
+    clause_language: str = "en",
 ) -> dict[str, Any]:
     """Draft + self-check a single accepted flag.
 
@@ -468,12 +469,19 @@ async def _draft_one(
     The three outcomes map to three UI states
     ("here's the redline", "we couldn't auto-draft, pick
     one", "the LLM is down, please retry").
+
+    The ``clause_language`` parameter is the per-clause language
+    code (``"en"`` or ``"de"``). It is propagated to the
+    :class:`DrafterInput` so the drafter's prompt dispatch picks
+    the matching variant (Phase 4). Defaults to ``"en"`` for
+    backwards compatibility.
     """
     drafter_input = DrafterInput(
         flag=flag,
         clause_text=clause_text,
         baseline=baseline,
         extra_context=extra_context,
+        clause_language=clause_language,
     )
     try:
         outcome = await run_with_self_check(
@@ -594,6 +602,7 @@ async def draft_redlines_node(state: PipelineState) -> PipelineState:
                 baseline=baseline,
                 extra_context=extra_context,
                 contract_filename=contract_filename,
+                clause_language=clause.language,
             )
             return clause_id, result
 

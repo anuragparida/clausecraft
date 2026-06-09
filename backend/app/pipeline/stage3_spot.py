@@ -183,6 +183,12 @@ def _baselines_to_spot_inputs(
     Converts the store's :class:`PlaybookTopKHit` list to the
     agent's :class:`BaselineForSpotter` shape and looks up the
     counterparty matrix verdict for the clause's type.
+
+    The clause's ``language`` field is propagated to
+    :class:`SpotInput.clause_language` so the spotter's prompt
+    builder (Phase 4) can dispatch per-clause. The matrix verdict
+    is the language-agnostic default; the spotter's prompt is the
+    language-specific reasoning layer on top.
     """
     baselines = [
         BaselineForSpotter(
@@ -202,6 +208,7 @@ def _baselines_to_spot_inputs(
         clause_id=clause.id,
         clause_text=clause.text,
         clause_type=clause.type.value,
+        clause_language=clause.language,
         baselines=baselines,
         counterparty_verdict=verdict_label,
         counterparty_type=cp_type,

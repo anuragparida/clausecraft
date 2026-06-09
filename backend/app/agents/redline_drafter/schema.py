@@ -114,6 +114,15 @@ class DrafterInput(BaseModel):
     clause_text: str = Field(..., min_length=1)
     baseline: BaselineForSpotter = Field(...)
     extra_context: str = Field(default="", max_length=2_000)
+    clause_language: str = Field(
+        default="en",
+        max_length=8,
+        description=(
+            "Per-clause language code. Drives the drafter's prompt "
+            "dispatch (see app.agents.redline_drafter.prompt). "
+            "Defaults to 'en' for backwards compatibility."
+        ),
+    )
 
 
 # --- Outputs ------------------------------------------------------------

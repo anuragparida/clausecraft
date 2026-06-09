@@ -369,6 +369,7 @@ async def _draft_one_redline(
     flag: DeviationFlag,
     extra_context: str,
     contract_filename: str,
+    clause_language: str = "en",
 ) -> dict[str, Any]:
     """Run the drafter + self-check for one accepted flag.
 
@@ -398,6 +399,7 @@ async def _draft_one_redline(
         clause_text=clause_text,
         baseline=baseline,
         extra_context=extra_context,
+        clause_language=clause_language,
     )
     try:
         outcome = await run_with_self_check(
@@ -576,6 +578,7 @@ async def process_decisions(
             flag=flag,
             extra_context=extra_context,
             contract_filename=state.filename,
+            clause_language=clause.language,
         )
         redlines[cid] = result
 

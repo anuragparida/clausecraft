@@ -223,6 +223,7 @@ async def _draft_one_for_flag(
     flag: DeviationFlag,
     extra_context: str,
     contract_filename: str,
+    clause_language: str = "en",
 ) -> dict[str, Any]:
     """Run the drafter + self-check for one approved flag.
 
@@ -237,6 +238,16 @@ async def _draft_one_for_flag(
     rule. The conflict path is the spec's "self-check
     fail-both" path (line 285) — we do NOT silently retry a
     third time.
+
+    The ``clause_language`` parameter is the per-clause language
+    code (``"en"`` or ``"de"``). It is propagated to the
+    :class:`DrafterInput` so the drafter's prompt dispatch (Phase 4)
+    picks the matching variant — DE clauses get a DE system
+    prompt, a DE user-message wrapper, and a DE rationale in the
+    returned :class:`RedlineProposal`. The dispatch is per-clause:
+    a mixed-language contract passes the right language for each
+    approved flag. Defaults to ``"en"`` for backwards
+    compatibility.
     """
     baseline = BaselineForSpotter(
         clause_id="unknown",
@@ -251,6 +262,7 @@ async def _draft_one_for_flag(
         clause_text=clause_text,
         baseline=baseline,
         extra_context=extra_context,
+        clause_language=clause_language,
     )
     try:
         outcome = await run_with_self_check(
@@ -423,6 +435,7 @@ async def run_stage5(state: PipelineState) -> PipelineState:
                 flag=flag,
                 extra_context=extra_context_map.get(flag_id, ""),
                 contract_filename=contract_filename,
+                clause_language=clause.language,
             )
 
     tasks = [_bounded(fid) for fid in selected]

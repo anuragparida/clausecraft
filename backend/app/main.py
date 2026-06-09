@@ -188,14 +188,17 @@ async def post_contracts_ingest(
     file: UploadFile = File(..., description="PDF or DOCX NDA contract"),
     language: str = Form(
         default="en",
-        description='Contract language. Phase 1 supports "en" only.',
+        description='Contract language. Phase 4 supports "en" and "de".',
     ),
 ) -> IngestResponse:
     """Phase 1 — ingest + parse + classify an uploaded NDA.
 
     Accepts a multipart upload (``file=@contract.pdf``) and an optional
-    ``language`` form field. The pipeline returns the typed clause list
-    in a stable JSON schema; the frontend renders it in the Triage page.
+    ``language`` form field (``"en"`` or ``"de"``). The pipeline
+    returns the typed clause list in a stable JSON schema; the
+    frontend renders it in the Triage page. The ``language`` form
+    field is threaded through to the classifier so the matching
+    prompt variant (EN or DE) is used.
 
     Failure modes:
 
@@ -206,15 +209,12 @@ async def post_contracts_ingest(
       endpoint still returns 200 with the partially-classified list.
     """
     if language not in ("en", "de"):
-        # Phase 1 = en only. We accept "de" as a form value so the
-        # field is forward-compatible, but the classifier still treats
-        # it as English for now.
+        # Phase 4 — bilingual EN + DE.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"Unsupported language {language!r}. Phase 1 supports 'en' "
-                f"only. The 'de' value is accepted as a forward-compatible "
-                f"placeholder but is classified as English."
+                f"Unsupported language {language!r}. "
+                f"Phase 4 supports 'en' and 'de'."
             ),
         )
 
@@ -230,6 +230,7 @@ async def post_contracts_ingest(
             filename=file.filename or "upload.bin",
             content_type=file.content_type or "application/octet-stream",
             data=data,
+            language=language,
         )
     except ValueError as exc:
         # Unsupported format / parse failure — return 400.

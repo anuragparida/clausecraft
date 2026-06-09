@@ -199,6 +199,15 @@ class SpotInput(BaseModel):
     clause_id: str = Field(..., min_length=1, max_length=64)
     clause_text: str = Field(..., min_length=1)
     clause_type: str = Field(..., min_length=1, max_length=64)
+    clause_language: str = Field(
+        default="en",
+        max_length=8,
+        description=(
+            "Per-clause language code. Drives the spotter's prompt "
+            "dispatch (see app.agents.deviation_spotter.prompt). "
+            "Defaults to 'en' for backwards compatibility."
+        ),
+    )
     baselines: list["BaselineForSpotter"] = Field(..., min_length=0)
     counterparty_verdict: str = Field(default="aligned", max_length=32)
     counterparty_type: str = Field(default="any", max_length=64)
