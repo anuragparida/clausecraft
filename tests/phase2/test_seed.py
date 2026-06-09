@@ -465,3 +465,168 @@ async def test_seed_dpa_en_baselines_idempotent(cleanup_playbook):
         )
     assert count2 == 5, "second EN DPA seed created duplicate rows!"
 
+# DE DPA baselines (Phase 5 card t_70c2599d) — lock the 6-baseline DE DPA
+# coverage in CI. Mirrors the EN pattern (5 baselines) but adds
+# dpa_subprocessor_flowdown (the 6th DE-only baseline, per the EN card's
+# GAP.md decision that DE gets the flow-down obligation since BDSG § 62
+# Abs. 4 is a stronger source for it than the DSK Kurzpapier).
+#
+# Source spread (4 distinct hosts, 6 distinct URLs):
+#   - eur-lex.europa.eu (Art 28 DSGVO, Art 33 DSGVO, EU SCCs 2021/914 DE)
+#   - edpb.europa.eu (EDPB Leitlinien 07/2020 DE Fassung)
+#   - datenschutzkonferenz-online.de (DSK Kurzpapier Nr. 13)
+#   - gesetze-im-internet.de (BDSG 2018 § 62)
+#
+# The "no single document covers more than one clause type" rule holds:
+# Art 28 and Art 33 DSGVO are different articles of the same consolidated
+# text (same URL is OK because they are anchored to different article
+# anchors and represent different content); the EU SCCs 2021/914 DE is
+# a different document hosted on the same EUR-Lex domain.
+# ---------------------------------------------------------------------------
+
+DPA_DE_EXPECTED_TYPES = {
+    "dpa_controller_processor_designation",
+    "dpa_subprocessor_consent",
+    "dpa_subprocessor_flowdown",
+    "dpa_transfer_mechanism",
+    "dpa_breach_notification",
+    "dpa_audit_rights",
+}
+
+# Expected source-URL host per clause_type. Three of the six
+# (Art 28, Art 33, EU SCCs 2021/914) live on eur-lex.europa.eu because
+# the consolidated GDPR text and the SCCs implementing decision are all
+# published on EUR-Lex; the spec's diversity rule is "no single document
+# covers more than one clause type", which is satisfied (Art 28 ≠ Art 33
+# ≠ SCCs).
+DPA_DE_EXPECTED_HOSTS = {
+    "dpa_controller_processor_designation": "eur-lex.europa.eu",                       # Art. 28 DSGVO (statute, DE Sonderausgabe)
+    "dpa_subprocessor_consent": "www.edpb.europa.eu",                                  # EDPB Leitlinien 07/2020 v2.0 (DE) § 6
+    "dpa_subprocessor_flowdown": "www.gesetze-im-internet.de",                        # § 62 Abs. 4 BDSG 2018 (Bundesgesetz)
+    "dpa_transfer_mechanism": "eur-lex.europa.eu",                                    # EU SCCs 2021/914 Modul Zwei (DE Amtsblatt)
+    "dpa_breach_notification": "eur-lex.europa.eu",                                    # Art. 33 DSGVO (statute, DE Sonderausgabe)
+    "dpa_audit_rights": "www.datenschutzkonferenz-online.de",                         # DSK Kurzpapier Nr. 13
+}
+
+
+@pytest.mark.asyncio
+async def test_seed_dpa_de_baselines_load(cleanup_playbook):
+    """All 6 DE DPA baselines parse and seed into the store with real provenance.
+
+    This locks the Phase 5 card t_70c2599d so a future change to
+    ``playbook/baselines/dpa-de/`` cannot silently drop a clause
+    type, swap a source for a non-public one, or collapse the
+    source spread back to a single document.
+    """
+    version = _unique_version()
+    summaries = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="dpa",
+        language="de",
+    )
+    assert len(summaries) == 1
+    assert summaries[0].contract_type == "dpa"
+    assert summaries[0].language == "de"
+    assert summaries[0].clause_count == 6
+
+    factory = get_session_factory()
+    async with factory() as session:
+        rows = list(
+            (
+                await session.execute(
+                    text(
+                        "SELECT c.clause_id, c.type, c.source_url, "
+                        "c.retrieval_date, c.license, c.language "
+                        "FROM playbook_clauses c "
+                        "JOIN playbook_versions v ON v.id = c.playbook_id "
+                        "WHERE v.version = :v"
+                    ),
+                    {"v": version},
+                )
+            ).mappings()
+        )
+    assert len(rows) == 6, f"expected 6 DE DPA baselines, got {len(rows)}"
+    seen_types: set[str] = set()
+    seen_hosts: set[str] = set()
+    for r in rows:
+        # Every row must be a DE DPA baseline with a valid type and a real URL.
+        assert r["language"] == "de"
+        assert r["type"] in DPA_DE_EXPECTED_TYPES, (
+            f"unexpected DPA-DE type {r['type']!r}; expected one of "
+            f"{sorted(DPA_DE_EXPECTED_TYPES)}"
+        )
+        assert r["source_url"].startswith("http")
+        assert r["retrieval_date"] is not None
+        assert r["license"]
+        seen_types.add(r["type"])
+        # Track the source host so we can assert provenance is spread
+        # across multiple distinct public sources.
+        host = r["source_url"].split("/")[2] if "/" in r["source_url"] else ""
+        seen_hosts.add(host)
+        # Per-clause-type host check: the expected host map pins each
+        # baseline to a specific public source.
+        expected_host = DPA_DE_EXPECTED_HOSTS[r["type"]]
+        assert host == expected_host, (
+            f"DE DPA baseline {r['clause_id']} (type={r['type']}) is "
+            f"hosted at {host!r}, expected {expected_host!r}. Update "
+            f"DPA_DE_EXPECTED_HOSTS if the source change is intentional."
+        )
+    assert seen_types == DPA_DE_EXPECTED_TYPES
+    # The 6 baselines must come from 6 distinct source URLs — no
+    # single document covers more than one clause type. (Hosts may
+    # repeat: Art 28 + Art 33 + EU SCCs all live on eur-lex.europa.eu.)
+    assert len({r["source_url"] for r in rows}) == 6
+    # Source-spread cross-check: the union of hosts covers the
+    # 4-source spread (eur-lex, EDPB, DSK, gesetze-im-internet).
+    assert len(seen_hosts) >= 4, (
+        f"DE DPA baselines should come from at least 4 distinct "
+        f"hosts (Art 28+33+SCCs share eur-lex.europa.eu); got "
+        f"{len(seen_hosts)}: {seen_hosts}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_seed_dpa_de_baselines_idempotent(cleanup_playbook):
+    """Re-seeding the DE DPA baselines produces no duplicate rows.
+
+    The seeder is documented as idempotent at the row level; the
+    DE DPA coverage is no exception. The (playbook_id, clause_id)
+    PK should reject any second insert.
+    """
+    version = _unique_version()
+    first = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="dpa",
+        language="de",
+    )
+    assert first[0].clause_count == 6
+    factory = get_session_factory()
+    async with factory() as session:
+        count1 = await session.scalar(
+            text(
+                "SELECT COUNT(*) FROM playbook_clauses c "
+                "JOIN playbook_versions v ON v.id = c.playbook_id "
+                "WHERE v.version = :v"
+            ),
+            {"v": version},
+        )
+    assert count1 == 6
+    second = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="dpa",
+        language="de",
+    )
+    assert second[0].clause_count == 6
+    async with factory() as session:
+        count2 = await session.scalar(
+            text(
+                "SELECT COUNT(*) FROM playbook_clauses c "
+                "JOIN playbook_versions v ON v.id = c.playbook_id "
+                "WHERE v.version = :v"
+            ),
+            {"v": version},
+        )
+    assert count2 == 6, "second DE DPA seed created duplicate rows!"

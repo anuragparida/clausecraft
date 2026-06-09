@@ -1,0 +1,77 @@
+# Playbook-Baseline — DPA (DE) — dpa_transfer_mechanism
+#
+# Quelle: Durchführungsbeschluss (EU) 2021/914 der Kommission
+# vom 4. Juni 2021 über Standardvertragsklauseln für die
+# Übermittlung personenbezogener Daten an Drittländer gemäß
+# der Verordnung (EU) 2016/679, Modul Zwei: Übermittlung
+# Verantwortlicher an Auftragsverarbeiter. Amtliche
+# Veröffentlichung im Amtsblatt L 199 vom 7.6.2021, S. 31–61.
+# EUR-Lex-Kennung: CELEX:32021D0914. Die deutsche Fassung
+# dieses Beschlusses (Veröffentlichung im deutschen Amtsblatt
+# der EU, Amtsblatt L 199 DE) ist die offizielle deutsche
+# Übersetzung und wird hier als Quelle für die deutsche
+# DPA-Baseline verwendet. Die SCCs haben die Klauseln
+# 2001/497/EG und 2010/87/EU am 27. Dezember 2022 abgelöst;
+# neue Übermittlungen nach diesem Datum erfordern die
+# SCCs 2021/914.
+#
+# Modul Zwei ist einschlägig, wenn ein im EWR niedergelassener
+# Verantwortlicher einen in einem Drittland niedergelassenen
+# Auftragsverarbeiter beauftragt. Die Klauseln 7.1–7.7 der SCCs
+# regeln die Pflichten des Auftragsverarbeiters; der Anhang zu
+# den SCCs enthält die mechanismusspezifische Konfiguration
+# (Anhänge I–III). Die Baseline erfasst die *Modul-Zwei-Wahl*-
+# Sprache (eine Meta-Klausel — „wir verwenden SCCs Modul Zwei"),
+# nicht den vollen operativen Text der Klauseln 7.1–7.7, der
+# als Deviation-Spotter-Ziel zu lang wäre.
+clause_id: sccs-modul-zwei-verantwortlicher-an-auftragsverarbeiter
+type: dpa_transfer_mechanism
+language: de
+title: EU-Standardvertragsklauseln — Modul Zwei (Verantwortlicher an Auftragsverarbeiter)
+text: >-
+  Die Parteien nehmen die Standardvertragsklauseln, die von der
+  Europäischen Kommission im Durchführungsbeschluss (EU) 2021/914
+  vom 4. Juni 2021 (die „SCCs") angenommen wurden, Modul Zwei
+  (Übermittlung Verantwortlicher an Auftragsverarbeiter), durch
+  Verweis auf und zum Bestandteil dieser Vereinbarung und
+  verpflichten sich, an diese gebunden zu sein. Die SCCs gelten
+  für jede Übermittlung personenbezogener Daten vom
+  Verantwortlichen (niedergelassen im Europäischen Wirtschaftsraum)
+  an den Auftragsverarbeiter (oder an einen Unterauftragsverarbeiter,
+  der in einem Drittland niedergelassen ist, für das die
+  Europäische Kommission keinen Angemessenheitsbeschluss erlassen
+  hat). Die Anhänge zu den SCCs (Anhang I: Liste der Parteien;
+  Anhang II: technische und organisatorische Maßnahmen; Anhang III:
+  Liste der Unterauftragsverarbeiter) sind in Anlage 2 zu dieser
+  Vereinbarung aufgeführt. Im Falle eines Konflikts zwischen den
+  SCCs und einer anderen Bestimmung dieser Vereinbarung gehen die
+  SCCs hinsichtlich der Verarbeitung der in ein Drittland
+  übermittelten personenbezogenen Daten vor.
+source_url: https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32021D0914
+retrieval_date: 2026-06-09
+license: >-
+  Durchführungsbeschluss (EU) 2021/914 der Kommission,
+  deutsche Fassung (Amtsblatt L 199 DE vom 7.6.2021, S. 31–61).
+  Wiedergabe gemäß der EU-Open-Data-Politik (Beschluss
+  2011/833/EU); frei wiederverwendbar mit Quellenangabe der
+  Europäischen Kommission. Die Baseline-Sprache ist eine
+  paraphrasierte Modul-Zwei-Wahl-Klausel, keine wortgetreue
+  Übernahme der SCCs.
+notes: >-
+  Drei verwandte Übermittlungsmechanismen sind NICHT von dieser
+  Baseline erfasst und würden in einer vollständigeren Taxonomie
+  eigene Baselines erfordern: (a) Modul Eins (Verantwortlicher an
+  Verantwortlichen), (b) Modul Drei (Auftragsverarbeiter an
+  Auftragsverarbeiter) und (c) Modul Vier (Auftragsverarbeiter an
+  Verantwortlichen). Die SCCs 2021/914 enthalten ferner eine
+  Beitrittsklausel (Klausel 7), die es weiteren Parteien erlaubt,
+  den SCCs nach Unterzeichnung beizutreten. Das Matrix-Verdikt für
+  einen Vertrag, der SCCs 2021/914 *benennt*, aber das falsche
+  Modul wählt (z. B. Modul Eins für eine Verantwortlicher-an-
+  Auftragsverarbeiter-Übermittlung), ist „nicht akzeptabel" für
+  jeden Vertragspartnertyp, da das falsche Modul die Pflichten
+  des Auftragsverarbeiters fehlzuordnet. Das Matrix-Verdikt für
+  einen Vertrag, der die Modulbezeichnung vollständig weglässt
+  (sich auf SCCs 2001/497/EG oder 2010/87/EU stützt, beide
+  vor Schrems II), ist seit dem 27. Dezember 2022 ebenfalls
+  „nicht akzeptabel" gemäß der Übergangsregelung der Kommission.
