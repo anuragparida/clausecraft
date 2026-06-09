@@ -1,0 +1,59 @@
+# Golden set — public-de/nda-002.pdf (DIHK-Mustervertrag-anchored NDA).
+#
+# This is a CLEAN BASELINE contract anchored to the DIHK-Mustervertrag
+# (Dachmuster aller deutschen IHKs, erarbeitet vom DIHK-Rechtsausschuss).
+# No deviations from the Phase 4.1 DE playbook. The eval harness
+# should report 1.0 deviation F1 on this contract.
+#
+# The contract text is hand-authored following the structure of
+# the DIHK-Mustervertrag Ziff. 1-8. The DIHK is the umbrella body
+# of all German IHKs and publishes the Dachmuster that the
+# regional IHKs (incl. IHK Hessen, IHK München) reuse in der
+# Sache. See examples/contracts/public-de/SOURCES.md for full
+# provenance.
+#
+# The parser will produce 8 clauses (c1..c8). Their types and
+# short excerpts are pinned below.
+
+contract: examples/contracts/public-de/nda-002.pdf
+type: nda
+language: de
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "1. Vertrauliche Informationen"
+  - id: c2
+    type: residual_knowledge
+    text_excerpt: "2. Ausnahmen"
+  - id: c3
+    type: definition_confidential_info
+    text_excerpt: "3. Verpflichtungen der empfangenden Partei"
+    # Note: c3 is the "obligations of the receiving party" body.
+    # The clause body anchors in the residual_knowledge carve-out
+    # ("durch angemessene Geheimhaltungsmaßnahmen sichern") which
+    # is a definition-side qualification, so the expected label
+    # is definition_confidential_info. The rule-based classifier
+    # may flag it as residual_knowledge because the body has
+    # "Sicherung" language; the expected type is the more
+    # accurate label. If the classifier disagrees, classification
+    # F1 is below 1.0 — that's a real measurement, not a test
+    # failure.
+  - id: c4
+    type: term
+    text_excerpt: "4. Vertragslaufzeit"
+  - id: c5
+    type: return_of_materials
+    text_excerpt: "5. Rückgabe"
+  - id: c6
+    type: injunctive_relief
+    text_excerpt: "6. Vertragsstrafe"
+  - id: c7
+    type: governing_law
+    text_excerpt: "7. Rechtswahl und Gerichtsstand"
+  - id: c8
+    type: entire_agreement
+    text_excerpt: "8. Schlussbestimmungen"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

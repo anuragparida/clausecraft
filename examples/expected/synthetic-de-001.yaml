@@ -1,0 +1,151 @@
+# Golden set — synthetic-de/nda-001.pdf.
+#
+# This is the DE stress contract of the Phase 4.1 eval starter.
+# It has 3 hand-injected deviations from the DE playbook
+# baselines, calibrated to a German-lawyer reviewer's expected
+# verdict. The deviations are documented in
+# scripts/build_de_eval_contracts.py — the PDF is generated,
+# not curated from a public source, so the eval can pin
+# text_excerpt matches against the deterministic output.
+#
+# Why this contract is synthetic
+# ------------------------------
+# Phase 4.1's playbook has 5 NDA-DE baselines (definition,
+# term, residual_knowledge, governing_law, injunctive_relief).
+# To measure the spotter's quality we need a contract where:
+#   1. The clauses are text-extractable (pymupdf reads them
+#      without OCR).
+#   2. The DE stopword heuristic labels every clause
+#      language="de" (post-card-3 parser — see
+#      backend/app/parse/language.py).
+#   3. At least 2-3 deviations are clearly written into the
+#      text and a real LLM-driven spotter (or a German-lawyer
+#      reviewer) would catch them.
+#   4. The text is stable (idempotent PDF generation, no
+#      random IDs or timestamps) so the eval is reproducible.
+#
+# The 3 deviations
+# ----------------
+# 1. **c2 (term) — material deviation.** 10-year Laufzeit + 10-year
+#    nachvertragliche Geheimhaltungspflicht vs the DIHK-baseline's
+#    2-year term + 3-year survival (5 years total). The spotter
+#    flags this as material because (a) the 10-year term is more
+#    than 2x the DIHK-Baseline's range (2-5 years) and (b) the
+#    10-year survival obligation is more than 2x the DIHK-baseline
+#    (3-5 years). Real German reviewers would flag this.
+# 2. **c4 (residual_knowledge) — minor deviation.** Drops the
+#    "Die empfangende Partei trägt die Beweislast für das
+#    Vorliegen einer dieser Ausnahmen" Beweislast allocation
+#    that the WKO FEEI baseline requires. The WKO FEEI Muster
+#    (Stand Oktober 2025) and the IHK-Hessen Muster both
+#    explicitly allocate the Beweislast to the empfangende
+#    Partei; removing it shifts a near-impossible proof burden
+#    onto the offenlegende Partei. Minor because the four
+#    exclusion categories are still listed — only the
+#    Beweislast allocation is missing.
+# 3. **c6 (definition_confidential_info) — material deviation.**
+#    Drops the GeschGehG § 2 Nr. 1 statutory anchor. The
+#    GeschGehG-anchored baseline (public-de/nda-001.pdf c1)
+#    and the IHK-Hessen Muster Ziff. II both require the
+#    explicit GeschGehG-Bezugnahme. The deviation is the
+#    "Eine Bezugnahme auf das GeschGehG erfolgt nicht" sentence
+#    at the end of c6, which removes the statutory anchor.
+#    Material because a German reviewer would treat the
+#    loss of the statutory anchor as a structural deviation
+#    — the GeschGehG § 2 Nr. 1 three-prong test is the
+#    load-bearing definition.
+#
+# The other 4 clauses (c1, c3, c5, c7) are clean baselines —
+# no expected deviations. The eval records any false positives
+# in the run report.
+
+contract: examples/contracts/synthetic-de/nda-001.pdf
+type: nda
+language: de
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "1. Vertrauliche Informationen"
+  - id: c2
+    type: term
+    text_excerpt: "2. Vertragslaufzeit"
+  - id: c3
+    type: return_of_materials
+    text_excerpt: "3. Rückgabe"
+  - id: c4
+    type: residual_knowledge
+    text_excerpt: "4. Ausnahmen"
+  - id: c5
+    type: injunctive_relief
+    text_excerpt: "5. Vertragsstrafe und Unterlassung"
+  - id: c6
+    type: definition_confidential_info
+    text_excerpt: "6. Erweiterte Vertraulichkeitsverpflichtung"
+  - id: c7
+    type: governing_law
+    text_excerpt: "7. Rechtswahl und Gerichtsstand"
+
+# Three expected deviations. The harness compares each to the
+# spotter's actual flags. A real LLM-driven spotter (or a
+# German-lawyer reviewer) is expected to flag all three.
+expected_deviations:
+  - clause_id: c2
+    severity: 2
+    category: term_too_long
+    rationale: >-
+      A 10-year Laufzeit + 10-year nachvertragliche
+      Geheimhaltungspflicht materially exceeds the DIHK-baseline's
+      2-year term + 3-year survival (5 years total). The
+      10-year term is more than 2x the DIHK-Baseline's range
+      (2-5 years) and the 10-year survival is more than 2x
+      the DIHK-baseline (3-5 years). The spotter flags this
+      as material because the obligation window expands
+      the empfangende Partei restriction beyond what's typical
+      in the DE playbook's reference contracts.
+    citation:
+      playbook_clause_id: vertragslaufzeit-und-nachvertragliche-geheimhaltungspflicht
+      source_url: "https://www.dihk.de/resource/blob/28616/feb67178384bc90cb80b27abd04ae7e3/recht-praktische-vertragsinformationen-zu-geschaeftsgeheimnissen-deutsch-data.pdf"
+  - clause_id: c4
+    severity: 1
+    category: missing_beweislast_allocation
+    rationale: >-
+      The clause omits the "Die empfangende Partei trägt die
+      Beweislast für das Vorliegen einer dieser Ausnahmen"
+      Beweislast allocation that the WKO FEEI baseline
+      (Stand Oktober 2025, Art. 2) requires. The four-prong
+      exclusion list is intact (vorheriger-Besitz,
+      unabhängige-Entwicklung, Dritt-Offenlegung,
+      allgemein-bekannt), but the burden allocation is
+      dropped. Minor because the substantive exclusions
+      are present — only the Beweislast allocation is
+      missing. A German reviewer would flag this because
+      the missing Beweislast allocation shifts a
+      near-impossible proof burden onto the offenlegende
+      Partei (the empfangende Partei can rely on a
+      "vorheriger Besitz" claim without producing records).
+    citation:
+      playbook_clause_id: ausnahmen-von-der-vertraulichkeit
+      source_url: "https://www.wko.at/oe/agb/feei-muster-geheimhaltungsvereinbarung.pdf"
+  - clause_id: c6
+    severity: 2
+    category: missing_geschaeftsgeheimnis_anchor
+    rationale: >-
+      The clause drops the GeschGehG § 2 Nr. 1 statutory
+      anchor. The GeschGehG-anchored baseline
+      (public-de/nda-001.pdf c1) cites the statute verbatim
+      and the IHK-Hessen Muster Ziff. II explicitly
+      references the GeschGehG (verbatim: "im Sinne des
+      Geschäftsgeheimnisgesetzes"). The c6 clause ends
+      with "Eine Bezugnahme auf das GeschGehG erfolgt
+      nicht" — an explicit disavowal of the statutory
+      anchor. Material because the GeschGehG § 2 Nr. 1
+      three-prong test is the load-bearing statutory
+      definition; removing it leaves "vertrauliche
+      Informationen" unbounded in the German-law sense
+      and signals the empfangende Partei is being asked
+      to assume an open-ended obligation outside the
+      GeschGehG regime.
+    citation:
+      playbook_clause_id: definition-des-geschaeftsgeheimnisses
+      source_url: "https://www.gesetze-im-internet.de/geschgehg/__2.html"

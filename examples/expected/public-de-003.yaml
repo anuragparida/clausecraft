@@ -1,0 +1,68 @@
+# Golden set — public-de/nda-003.pdf (IHK-Hessen-anchored NDA).
+#
+# This is a CLEAN BASELINE contract anchored to the IHK Hessen
+# Mustervertrag (Stand 01.01.2025, 9 sections Ziff. I-VIII).
+# No deviations from the Phase 4.1 DE playbook. The eval
+# harness should report 1.0 deviation F1 on this contract.
+#
+# The IHK Hessen Muster is the closest match to what a real
+# IHK-mediated NDA looks like in der Praxis — it has the full
+# 9-section layout (Vertragsgegenstand, Vertrauliche
+# Informationen, Verpflichtungen des Interessenten, Rückgabe,
+# Vertragsstrafe, Vertragslaufzeit, Rechtswahl, Schlussbestimmungen)
+# with the BGH 5%-Auftragssumme clause explicitly written
+# into Ziff. VI. See examples/contracts/public-de/SOURCES.md
+# for full provenance.
+#
+# The parser will produce 8 clauses (c1..c8). The text uses
+# Roman-numeral section headings (I-VIII), which the chunker
+# pattern-matches via the "ALL_CAPS:VERTRAGSGEGENSTAND" / "I."
+# section detector.
+
+contract: examples/contracts/public-de/nda-003.pdf
+type: nda
+language: de
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "I. Vertragsgegenstand"
+    # c1 is the "purpose / Vertragsgegenstand" body. It defines
+    # the scope of the NDA and the disclosure context. The
+    # section is labelled definition_confidential_info because
+    # it pins the disclosure channel that subsequent clauses
+    # reference ("die Entwicklung", "Zweck"). A rule-based
+    # classifier may label it as entire_agreement because of
+    # the "Vertragsgegenstand" framing — the expected type is
+    # the more accurate label.
+  - id: c2
+    type: definition_confidential_info
+    text_excerpt: "II. Vertrauliche Informationen"
+  - id: c3
+    type: residual_knowledge
+    text_excerpt: "III. Verpflichtungen des Interessenten"
+    # c3 contains the residual_knowledge carve-out language
+    # verbatim ("im Gedächtnis der Mitarbeiter ... verbleibende
+    # allgemeine Erfahrung") which is the DE functional
+    # equivalent of the EN "residual knowledge retained in the
+    # unaided memory" carve-out. The section is labelled
+    # residual_knowledge because the carve-out text is the
+    # load-bearing clause.
+  - id: c4
+    type: return_of_materials
+    text_excerpt: "IV. Rückgabe und Vernichtung"
+  - id: c5
+    type: injunctive_relief
+    text_excerpt: "V. Vertragsstrafe und Unterlassung"
+  - id: c6
+    type: term
+    text_excerpt: "VI. Vertragslaufzeit"
+  - id: c7
+    type: governing_law
+    text_excerpt: "VII. Rechtswahl und Gerichtsstand"
+  - id: c8
+    type: entire_agreement
+    text_excerpt: "VIII. Schlussbestimmungen"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

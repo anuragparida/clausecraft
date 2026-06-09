@@ -1,0 +1,145 @@
+# Golden set — synthetic-de/nda-002.pdf.
+#
+# This is the SECOND DE synthetic stress contract of the
+# Phase 4.1 eval set. The first (synthetic-de-001) covers
+# term_too_long + missing_beweislast_allocation +
+# missing_geschaeftsgeheimnis_anchor. This one diversifies
+# to 3 different deviation categories across 3 different
+# ClauseType values:
+#
+#   c1 (definition_confidential_info) — material: no exclusions
+#       list (a/b/c/d carve-outs entirely missing) vs the
+#       IHK-Hessen baseline (Ziff. II "Keine Vertraulichen
+#       Informationen sind solche Informationen, die der
+#       Öffentlichkeit ... bekannt waren, die dem Interessenten
+#       bereits ... bekannt waren, die ohne Nutzung
+#       Vertraulicher Informationen selbst gewonnen wurden,
+#       oder die von einem berechtigten Dritten übergeben
+#       wurden"). The WKO FEEI baseline (Art. 2) carries the
+#       same four-prong exclusion list with explicit
+#       Beweislast allocation. The deviation is the entire
+#       "Keine Vertraulichen Informationen" block being
+#       dropped.
+#   c3 (injunctive_relief) — material: Vertragsstrafe
+#       25 % der Auftragssumme vs the IHK-Hessen baseline's
+#       BGH 5% AGB cap (Ziff. VI "fünf Prozent (5 %) der
+#       Auftragssumme"). The deviation is the
+#       Vertragsstrafe-Satz increase. Material because
+#       BGH ständige Rechtsprechung holds AGB clauses
+#       with Vertragsstrafen > 5 % der Auftragssumme
+#       regelmäßig nichtig (per BGH Bauvertragsrechtsprechung
+#       cited in the IHK-Hessen "Ergänzende Erläuterungen"
+#       block). A 25%-Vertragsstrafe in an AGB context is
+#       unenforceable.
+#   c7 (governing_law) — minor: Schweizer Recht + ICC
+#       arbitration vs the IHK-München baseline's deutsches
+#       Recht + Gerichtsstand am Sitz des Erfinders. The
+#       IHK-München baseline notes that parties CAN deviate
+#       to a Schiedsgerichtsvereinbarung, but the baseline
+#       strongly favors deutsches Recht for B2B-NDAs in
+#       Germany; a foreign jurisdiction (CH + ICC) is
+#       structurally outside the playbook's reference set.
+#       Minor because the IHK-München baseline explicitly
+#       contemplates Schiedsgerichtsvereinbarung as an
+#       option; the deviation is the foreign law + foreign
+#       arbitration body, not the arbitration mechanism
+#       itself.
+#
+# The other 5 clauses (c2 return_of_materials, c4
+# residual_knowledge, c5 term, c6 entire_agreement) are
+# clean baselines. No expected deviations on those.
+#
+# Why this contract complements synthetic-de-001
+# ----------------------------------------------
+# synthetic-de-001 has deviations on term (c2),
+# residual_knowledge (c4), and definition_confidential_info
+# (c6). This one moves the deviation *positions* (c1, c3, c7)
+# and the *categories* (missing_exclusions,
+# over_limit_vertragsstrafe, foreign_jurisdiction). Together
+# they exercise 6 distinct deviation categories.
+
+contract: examples/contracts/synthetic-de/nda-002.pdf
+type: nda
+language: de
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "1. Vertrauliche Informationen"
+  - id: c2
+    type: return_of_materials
+    text_excerpt: "2. Rückgabe"
+  - id: c3
+    type: injunctive_relief
+    text_excerpt: "3. Vertragsstrafe"
+  - id: c4
+    type: residual_knowledge
+    text_excerpt: "4. Ausnahmen"
+  - id: c5
+    type: term
+    text_excerpt: "5. Vertragslaufzeit"
+  - id: c6
+    type: entire_agreement
+    text_excerpt: "6. Schlussbestimmungen"
+  - id: c7
+    type: governing_law
+    text_excerpt: "7. Rechtswahl und Gerichtsstand"
+
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: missing_exclusions_list
+    rationale: >-
+      The clause omits the four-prong exclusion list
+      (vorheriger-Besitz, unabhängige-Entwicklung,
+      Dritt-Offenlegung, allgemein-bekannt) that the
+      IHK-Hessen baseline (Ziff. II "Keine Vertraulichen
+      Informationen") and the WKO FEEI baseline (Art. 2)
+      both require. The c1 clause defines "Vertrauliche
+      Informationen" without any "Keine Vertraulichen
+      Informationen" carve-out block. Material because
+      the exclusions are structural — without them,
+      "Vertrauliche Informationen" is unbounded, which
+      the playbook flags as material.
+    citation:
+      playbook_clause_id: ausnahmen-von-der-vertraulichkeit
+      source_url: "https://www.wko.at/oe/agb/feei-muster-geheimhaltungsvereinbarung.pdf"
+  - clause_id: c3
+    severity: 2
+    category: vertragsstrafe_over_bgh_5pct_cap
+    rationale: >-
+      The Vertragsstrafe is set at fünfundzwanzig Prozent
+      (25 %) der Auftragssumme vs the IHK-Hessen baseline's
+      BGH 5 % AGB cap ("fünf Prozent (5 %) der Auftragssumme").
+      Per BGH ständige Rechtsprechung (Bauvertragsrecht),
+      AGB clauses with Vertragsstrafen exceeding 5 % der
+      Auftragssumme are regelmäßig nichtig. The deviation
+      is 5x the BGH cap. Material because the
+      Vertragsstrafe-Klausel is unenforceable in an AGB
+      context, and a German reviewer would flag the gap
+      between the contractual Satz and the BGH ceiling.
+    citation:
+      playbook_clause_id: vertragsstrafe-und-unterlassung
+      source_url: "https://www.ihk.de/blueprint/servlet/resource/blob/1253072/b762ba443380da31da40f7d992a5c080/mustervertrag-geheimhaltungsvereinbarung-data.pdf"
+  - clause_id: c7
+    severity: 1
+    category: foreign_jurisdiction
+    rationale: >-
+      Governing law is Schweizer Recht with ICC arbitration
+      (Schiedsgerichtsordnung der International Chamber of
+      Commerce) vs the IHK-München baseline's deutsches
+      Recht + Gerichtsstand am Sitz des Erfinders. The
+      IHK-München baseline notes that parties CAN deviate
+      to a Schiedsgerichtsvereinbarung, but the baseline
+      strongly favors deutsches Recht for B2B-NDAs in
+      Germany. The deviation is the foreign law (CH) +
+      foreign arbitration body (ICC) — minor because the
+      Schiedsgerichtsmechanismus itself is contemplated
+      by the baseline, but the foreign jurisdiction is
+      structurally outside the playbook's reference set.
+      A real German reviewer would flag the loss of the
+      § 38 ZPO kaufmännischer-Gerichtsstand and the
+      CISG-Ausschlussklausel.
+    citation:
+      playbook_clause_id: rechtswahl-und-gerichtsstand
+      source_url: "https://www.ihk-muenchen.de/ratgeber/recht/vertragsrecht/mustervertraege/geheimhaltungsvereinbarung.html"
