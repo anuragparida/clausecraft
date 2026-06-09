@@ -1,20 +1,22 @@
 # clausecraft — counterparty matrix
 #
-# Phase 2 ships the loader and a *flat* verdict lookup. The
-# counterparty-aware overrides land in Phase 5 (see docs/11-phases.md
-# Phase 5 scope: "the matrix is the source of truth for
-# (clause_type, counterparty_type) → acceptable_range").
+# Phase 5 expansion. The matrix is the source of truth for
+# ``(clause_type, counterparty_type) → acceptable_range`` lookups
+# across all 3 contract types (NDA + DPA + Employment) and 4
+# counterparty axes (enterprise / smb / public_sector / healthcare).
 #
-# Phase 4 adds a sibling language axis: a few DE-specific entries
-# become stricter when the contract is in German AND the
-# counterparty is a German entity. The shape is:
+# This is an *opinionated* matrix. Per the spec sharp-edge in
+# ``docs/11-phases.md`` § "Phase 5" (lines 380-385):
 #
-#   language_overrides[language][counterparty_type][clause_type] = verdict
+#   "The counterparty matrix is opinionated. Different lawyers
+#    will disagree on what's acceptable for an SMB vs an
+#    enterprise."
 #
-# This mirrors the existing 2D `counterparty_overrides` shape
-# (`counterparty_type → clause_type → verdict`) and stacks the
-# language axis on top. The DE column only NARROWS verdicts for
-# DE counterparty types — the EN path is unchanged.
+# The README will say "this is our judgment, based on common
+# public-source templates, you can override per-counterparty."
+# Per-cell ``# source:`` comments below name the public sources
+# the verdicts are anchored against — Helena's review (card
+# ``t_d23d222d``) is the gating signal.
 #
 # Verdict scale (matches the spotter's score scale in Phase 2):
 #   0 = aligned (matches baseline)
@@ -22,28 +24,41 @@
 #   2 = material deviation (worth flagging, negotiate)
 #   3 = unacceptable (hard blocker for this counterparty type)
 #
-# When the matrix is flat, every (clause_type) is treated as
-# "counterparty_type=any" and the verdict is the default.
-version: "0.1.0-de"
-contract_type: nda
+# Lookup chain (per ``backend/app/playbook/counterparty.py``):
+#   1. language_overrides[de][counterparty_type][clause_type]
+#      (Phase 4 DE column — only narrows verdicts, never relaxes)
+#   2. counterparty_overrides[counterparty_type][clause_type]
+#      (Phase 5 — the 4-axis matrix; this file's main body)
+#   3. clause_verdicts[clause_type]
+#      (Phase 2 flat default — mostly ``aligned``)
+#   4. default_verdict
+#      (final fallback)
+#
+# The strictest non-relaxing verdict wins. The result's
+# ``sources`` field lists which cells contributed, in order of
+# strictness — the UI's "matrix verdict" tooltip renders it.
+#
+# Default verdict is ``aligned`` for every clause type *unless*
+# an explicit cell below changes it. This is the Phase 2 default
+# behavior; the matrix layers overrides on top.
+version: "0.2.0-phase5"
+contract_type: multi
 language: en
 default_counterparty_type: any
-# The default verdict for any (clause_type) that does NOT have an
-# explicit override below. The spotter will produce a score; the
-# matrix is consulted to *re-classify* the score into a verdict
-# (acceptable / material / unacceptable) for the UI. In Phase 2
-# the matrix is loaded but the verdict column is rendered as
-# "flat: <verdict>" so reviewers can see the matrix is wired in
-# but not yet counterparty-aware.
 default_verdict: aligned
-# Per-clause-type verdict overrides. Keyed by ClauseType enum value
-# (lowercase snake_case, matches backend/app/classify/schema.py).
+# Flat Phase 2 default verdicts. Phase 5 keeps every cell at
+# ``aligned`` here — the real work happens in
+# ``counterparty_overrides`` below. The flat table stays so the
+# Phase 2 ``lookup_verdict`` call sites (e.g.
+# ``stage3_spot._matrix_verdict_for_clause``) keep working
+# unchanged.
 clause_verdicts:
+  # === Phase 1: NDA (15 values) ===
   definition_confidential_info: aligned
   term: aligned
-  residual_knowledge: aligned
   governing_law: aligned
   injunctive_relief: aligned
+  residual_knowledge: aligned
   return_of_materials: aligned
   non_solicit: aligned
   non_compete: aligned
@@ -54,42 +69,379 @@ clause_verdicts:
   severability: aligned
   notices: aligned
   counterparts: aligned
+  # === Phase 5: DPA (9 values) ===
+  dpa_controller_processor_designation: aligned
+  dpa_subprocessor_consent: aligned
+  dpa_subprocessor_flowdown: aligned
+  dpa_transfer_mechanism: aligned
+  dpa_international_transfer: aligned
+  dpa_breach_notification: aligned
+  dpa_data_subject_rights: aligned
+  dpa_audit_rights: aligned
+  dpa_data_return_deletion: aligned
+  # === Phase 5: Employment (11 values) ===
+  employment_probation: aligned
+  employment_notice_period: aligned
+  employment_garden_leave: aligned
+  employment_non_compete: aligned
+  employment_non_solicitation: aligned
+  employment_ip_assignment: aligned
+  employment_confidentiality_survival: aligned
+  employment_remuneration: aligned
+  employment_working_hours: aligned
+  employment_leave_entitlements: aligned
+  employment_termination_for_cause: aligned
+  # === safety net ===
   unknown: aligned
-# Phase 5 will add a section like:
-#   counterparty_overrides:
-#     enterprise:
-#       term: { max_years: 5, acceptable: true }
-#       governing_law: { restrict_to: [DE, US-DE] }
-#     healthcare:
-#       term: { max_years: 1, acceptable: false }
-# and `lookup_verdict(clause_type, counterparty_type, score)` will
-# apply the override. For Phase 2 this entire section is ignored.
-counterparty_overrides: {}
-# Phase 4: language axis as a sibling of `counterparty_overrides`.
-# Shape: `language → { counterparty_type → { clause_type → verdict } }`.
-# The DE column is *additive* — only narrows verdicts for DE
-# counterparty types. EN lookup is unchanged.
+
+# --- Phase 5: 4-axis counterparty overrides -------------------------------
 #
-# The current DE counterparty types are intentionally coarse — the
-# spec calls out that the counterparty matrix is a Phase 5 feature;
-# Phase 4 only adds a single language axis. We surface one DE
-# counterparty type for now (`de_german_entity`) and leave the
-# schema open for the Phase 5 expansion.
+# Shape: ``counterparty_type → clause_type → verdict``.
 #
-# DE-specific stricter verdicts (per docs/11-phases.md Phase 4 spec):
-#   - governing_law: when counterparty is a German entity, deviation
-#     from "German courts" jurisdiction is more material. The EN
-#     default is `aligned`; for DE counterparty types we escalate
-#     any non-German-law deviation to `material` (negotiate) — the
-#     German party will push back hard on US/NY/England jurisdiction.
-#   - limitation_of_liability: German `Haftungsbeschränkung` norms
-#     differ; missing or one-sided limitation becomes `material`.
-#   - term: DE BGB notice periods have a specific shape (Kündigungs­
-#     frist); non-standard terms become `material` for DE counterparties.
+# Only the cells where the verdict *changes* from the flat
+# default (``aligned``) are listed. Everything else falls through.
+# The total is ~60 explicit cells: 17 NDA + 19 DPA + 15 Employment.
+# This matches the spec's "~60-80 entries" estimate.
+#
+# Per-cell comments are written for Helena's review (and for
+# future operators tweaking the matrix). They name the legal
+# regime, the public source, and *why* a non-aligned verdict is
+# the right call. Override the value at the cell level if your
+# counterparty doesn't match the typical template; the structure
+# is a *judgment*, not a regulation.
+counterparty_overrides:
+  # --- enterprise --------------------------------------------------------
+  # Large corporations with in-house counsel. Most likely to negotiate
+  # broad language; most able to absorb standard risk. Verdict narrows
+  # to material only when the legal regime is non-negotiable (e.g.
+  # BGB Karenzentschädigung, HIPAA Business Associate Agreement).
+  enterprise:
+    # NDA cells that change for enterprise:
+    residual_knowledge: minor
+    # source: Phase 4 / common US enterprise NDA practice; broader
+    # residual-rights clauses are common in tech firms. "minor"
+    # because a missing residual-rights clause is workable, not a
+    # deal-breaker.
+    non_solicit: minor
+    # source: ABA Model NDA § 6 / typical enterprise NDA. One-sided
+    # non-solicit is the norm; deviations to mutual are minor.
+    non_compete: minor
+    # source: ABA Model NDA. Enterprise counterparties often accept
+    # a non-compete sidebar; missing is the norm in NDAs so this
+    # is a "minor" deviation when present, not a "missing is bad."
+    assignment: minor
+    # source: common. Change-of-control is a procurement event for
+    # large vendors; the clause's exact wording matters less.
+
+  # --- smb ---------------------------------------------------------------
+  # Small/medium businesses, no in-house counsel, often standard-form
+  # contracts. Asymmetric risk bearing — broad language that an
+  # enterprise can absorb is materially different for an SMB.
+  smb:
+    # NDA cells that change for SMB:
+    term: minor
+    # source: Vertragsmuster.de / IHK Musterverträge. SMB NDAs often
+    # use shorter terms (1-2y vs the 2-3y enterprise norm); deviations
+    # in either direction are minor.
+    indemnity: material
+    # source: common public-source NDA templates. Broad indemnity is
+    # asymmetric — an SMB cannot absorb uncapped indemnity the way
+    # an enterprise can. "material" because this is a negotiation
+    # point worth flagging.
+    limitation_of_liability: material
+    # source: common. Mutual cap on liability is the SMB norm; a
+    # one-sided LoL (or no cap at all) is material. Mutual cap with
+    # reasonable carve-outs is the expected baseline.
+    non_compete: minor
+    # source: ABA / Vertragsmuster. Non-compete in NDAs is rare
+    # anyway; for SMB it's even rarer. "minor" because the
+    # deviation is workable.
+    non_solicit: minor
+    # source: common. One-sided non-solicit is the SMB norm;
+    # mutual is workable but unusual.
+    # DPA cells that change for SMB:
+    dpa_subprocessor_consent: minor
+    # source: EDPB Guidelines 07/2020 § 6 / common DPA templates.
+    # SMBs often have general consent language; specific consent
+    # is workable but a negotiation point.
+    dpa_transfer_mechanism: minor
+    # source: EU SCCs (2021/914). SMB DPAs often lack full SCC
+    # machinery; this is a known gap. "minor" because the spotter
+    # should flag the gap, not reject the contract outright.
+    dpa_international_transfer: minor
+    # source: Art 44-49 GDPR. SMB cross-border transfers are
+    # common; missing transfer mechanism is minor because it's
+    # a common omission, not a deal-breaker.
+    dpa_breach_notification: minor
+    # source: Art 33(1) GDPR (72h baseline). SMB DPAs often have
+    # 72h-or-longer windows; deviations from the GDPR norm are
+    # minor at the SMB scale.
+    dpa_audit_rights: minor
+    # source: Art 28(3)(h) GDPR. SMBs often negotiate
+    # self-attestation in lieu of on-site audit; "comparable
+    # assurance" wording is the SMB norm. "minor" deviation
+    # when an enterprise counterparty pushes for full audit.
+    dpa_data_return_deletion: minor
+    # source: Art 28(3)(g) GDPR. SMB data-return is often
+    # "commercially reasonable" rather than certified; deviation
+    # is minor at the SMB scale.
+    # Employment cells that change for SMB:
+    employment_garden_leave: minor
+    # source: UK ERA 1996 s.20(8). SMB garden leave is rare in
+    # practice; deviation to "not used" is the norm for SMB.
+    employment_non_compete: material
+    # source: BGB §§ 74 ff. HGB (DE). The Karenzentschädigung
+    # (compensation) requirement makes non-compete economically
+    # infeasible for SMB; an SMB cannot afford to pay 50%+ of
+    # the employee's last salary during the restricted period.
+    # "material" because a non-compete without proper
+    # consideration is unenforceable in DE — flagging this is
+    # protecting the SMB from signing away rights.
+    employment_non_solicitation: minor
+    # source: BGB § 138 AGB-Kontrolle. SMB no-poach clauses are
+    # common in EN but require consideration in DE; deviation
+    # is minor because most SMBs accept the unenforceability.
+    employment_notice_period: minor
+    # source: BGB § 622. SMB notice periods are often at the
+    # statutory minimum; deviation to longer is minor.
+
+  # --- public_sector -----------------------------------------------------
+  # Government / municipal / federal agencies. Statutory constraints
+  # (administrative law, public procurement, FOIA-equivalent
+  # transparency, civil-service protections, Datenlokation in DE).
+  # The matrix narrows most aggressively here — public-sector
+  # contracts have hard statutory floors that the spotter should
+  # always flag.
+  public_sector:
+    # NDA cells that change for public-sector:
+    governing_law: material
+    # source: public-procurement law (Vergaberecht DE / FAR US).
+    # Government contracts often must use state/federal courts;
+    # deviations are material because they trigger procurement
+    # review.
+    indemnity: minor
+    # source: sovereign immunity + public-procurement caps. Many
+    # public-sector counterparties have statutory caps on
+    # indemnity; deviations are minor.
+    injunctive_relief: minor
+    # source: sovereign immunity. Government counterparties may
+    # have sovereign-immunity complications; deviations are
+    # minor but worth noting.
+    assignment: minor
+    # source: public procurement. Change-of-control of a
+    # government vendor often triggers a new procurement
+    # process; assignment-without-consent is a procurement
+    # violation in many jurisdictions.
+    return_of_materials: minor
+    # source: FOIA / IFG / transparency laws. Public-sector
+    # records may be subject to disclosure; "destroy all
+    # materials" language may conflict with retention
+    # requirements.
+    non_compete: minor
+    # source: state-law restrictions on government non-compete
+    # (varies by jurisdiction); minor.
+    # DPA cells that change for public-sector:
+    dpa_subprocessor_consent: material
+    # source: public procurement + Datenlokation. Government
+    # agencies often cannot delegate data processing to
+    # sub-processors without explicit prior consent; deviation
+    # is material.
+    dpa_subprocessor_flowdown: material
+    # source: full chain-of-custody requirement. Public-sector
+    # data requires demonstrable flow-down to every
+    # sub-processor; "comparable" obligations are insufficient.
+    dpa_transfer_mechanism: material
+    # source: Art 46 GDPR + Datenlokation. Public-sector data
+    # often restricted to adequacy-decision countries; BCRs
+    # and certifications are scrutinized heavily. Missing
+    # transfer mechanism is material.
+    dpa_international_transfer: material
+    # source: Datenlokation (DE) / FedRAMP (US). Public-sector
+    # data often cannot leave the jurisdiction at all;
+    # international transfer is a material deviation.
+    dpa_breach_notification: material
+    # source: 24-72h public-sector breach windows (often shorter
+    # than GDPR's 72h); deviation from the agency's specific
+    # window is material.
+    dpa_audit_rights: material
+    # source: full audit trail required for public-sector data.
+    # "Self-attestation" is insufficient; on-site or
+    # independent-audit is the norm.
+    dpa_data_return_deletion: material
+    # source: certified deletion required. Public-sector
+    # counterparties often require demonstrable, certified
+    # destruction; "commercially reasonable" is insufficient.
+    dpa_data_subject_rights: material
+    # source: statutory DSR response deadlines differ from GDPR
+    # for public-sector data; deviations are material.
+    # Employment cells that change for public-sector:
+    employment_probation: material
+    # source: civil-service rules / KSchG / Beamtenrecht.
+    # Probation for civil servants is often prohibited or
+    # tightly capped; deviation is material.
+    employment_notice_period: material
+    # source: KSchG / Kündigungsfrist statutory rules. Public-
+    # sector notice periods are statutory; deviations are
+    # material.
+    employment_garden_leave: material
+    # source: no-DE-equivalent in BGB; merit-system protections
+    # in US public sector. Garden leave for civil servants is
+    # generally not applicable; deviation is material.
+    employment_non_compete: material
+    # source: no-DE-equivalent; statutory restrictions on
+    # government employees (Beamte have lifelong restrictions
+    # under BBG). "material" because deviation may be
+    # unenforceable.
+    employment_non_solicitation: minor
+    # source: statutory restrictions on public-sector
+    # employment; minor at the deviation level.
+    employment_ip_assignment: material
+    # source: civil-service IP rules (DE: § 5 UrhG, BBG;
+    # US: 35 USC § 202 for federal contractors). Public-sector
+    # IP is often vested in the agency; deviation is material.
+    employment_remuneration: material
+    # source: TVöD / TV-L (DE) / GS-pay-scale (US). Public-
+    # sector pay is statutory; deviation is material.
+    employment_working_hours: material
+    # source: ArbZG strict applicability; civil-service rules
+    # in DE / US. Working-hours deviations for public-sector
+    # employees are material.
+    employment_leave_entitlements: material
+    # source: statutory minimum + often extra entitlements for
+    # public-sector employees. Deviation is material.
+    employment_termination_for_cause: material
+    # source: KSchG + civil-service protections. Public-sector
+    # termination requires specific cause; "at-will" is
+    # generally not applicable. Deviation is material.
+
+  # --- healthcare --------------------------------------------------------
+  # HIPAA-bound entities (US) / healthcare providers (DE:
+  # Krankenhäuser, Pflegeeinrichtungen, Kassenärztliche
+  # Vereinigungen). Sector-specific data-protection regimes
+  # (HIPAA BAA, GDPR Art 9 special-category data), shift-work,
+  # mandatory indemnities, professional secrecy, sector-specific
+  # IP carve-outs.
+  healthcare:
+    # NDA cells that change for healthcare:
+    term: material
+    # source: HIPAA 45 CFR § 164. The HIPAA Privacy Rule allows
+    # shorter NDA terms because the underlying obligations are
+    # statutory; a 2-3y NDA term is often incompatible with
+    # HIPAA-aware data-handling. Deviation is material.
+    governing_law: minor
+    # source: HIPAA federal floor + state medical-privacy
+    # laws. State-law deviations from HIPAA baseline are
+    # common; minor.
+    definition_confidential_info: material
+    # source: HIPAA 45 CFR § 164.514. "Confidential
+    # Information" in a healthcare NDA must include a HIPAA
+    # "Protected Health Information" carve-out; deviations
+    # from the HIPAA-aware definition are material.
+    non_compete: minor
+    # source: industry norm. Non-compete in healthcare NDAs
+    # is rare; deviation is minor.
+    injunctive_relief: minor
+    # source: HIPAA enforcement. Injunctive relief is the
+    # primary HIPAA enforcement mechanism; deviations are
+    # minor but worth flagging.
+    indemnity: material
+    # source: HIPAA breach exposure is asymmetric and often
+    # uncapped; a one-sided indemnity is material.
+    limitation_of_liability: material
+    # source: HIPAA breach liability is uncapped by statute
+    # in some jurisdictions; a mutual cap is material because
+    # it limits the data subject's recourse.
+    # DPA cells that change for healthcare:
+    dpa_subprocessor_consent: material
+    # source: HIPAA 45 CFR § 164.502(e) (Business Associate
+    # Agreement requires prior specific consent for
+    # sub-processors). Deviation is material.
+    dpa_subprocessor_flowdown: material
+    # source: HIPAA BAA requires "same" obligations for
+    # sub-processors, not "comparable"; deviation is
+    # material.
+    dpa_transfer_mechanism: material
+    # source: HIPAA + GDPR SCCs both required for cross-
+    # border healthcare data; deviation is material.
+    dpa_international_transfer: material
+    # source: HIPAA + GDPR both apply; special-category data
+    # (Art 9 GDPR) requires explicit consent and
+    # country-specific transfer mechanism. Deviation is
+    # material.
+    dpa_breach_notification: material
+    # source: HIPAA 60-day rule (45 CFR § 164.404) +
+    # GDPR 72h. Healthcare DPAs need both windows; deviation
+    # is material.
+    dpa_audit_rights: material
+    # source: HIPAA audit logs (45 CFR § 164.312) required;
+    # deviation is material.
+    dpa_data_return_deletion: material
+    # source: HIPAA demonstrable destruction (45 CFR §
+    # 164.310) required; deviation is material.
+    dpa_data_subject_rights: minor
+    # source: HIPAA carve-outs apply; not strictly a
+    # deviation. minor.
+    # Employment cells that change for healthcare:
+    employment_probation: minor
+    # source: at-will is the US healthcare norm; probation
+    # is rare. minor.
+    employment_notice_period: minor
+    # source: at-will (US) / statutory (DE); minor.
+    employment_garden_leave: minor
+    # source: rare in healthcare; minor.
+    employment_non_compete: minor
+    # source: sector-specific (e.g. physician non-compete is
+    # state-regulated); minor.
+    employment_ip_assignment: minor
+    # source: clinical IP carve-outs needed (e.g. medical
+    # device inventors retain rights under ArbNErfG);
+    # deviation is minor.
+    employment_confidentiality_survival: minor
+    # source: HIPAA survival period longer than baseline;
+    # deviation is minor.
+    employment_working_hours: minor
+    # source: shift-work + ArbZG exceptions + Tariffverträge
+    # (TVöD-K for hospitals); deviation from baseline is
+    # minor because the sector is heavily tariff-regulated.
+    employment_leave_entitlements: minor
+    # source: sector has extra entitlements; minor.
+    employment_termination_for_cause: minor
+    # source: at-will (US) / statutory (DE); minor.
+
+# --- Phase 4: language axis (back-compat) --------------------------------
+#
+# The Phase 4 DE column is preserved unchanged. Phase 5 callers
+# using the 4-axis counterparty types (``enterprise`` / ``smb`` /
+# ``public_sector`` / ``healthcare``) will not hit this column
+# unless they pass ``counterparty_type="de_german_entity"``
+# explicitly — the loader's ``lookup_verdict_with_counterparty``
+# function falls back to ``de_german_entity`` for the DE lookup
+# when the call's counterparty type has no DE override (see the
+# function's docstring for the exact logic).
+#
+# The DE column continues to *narrow* verdicts (never relax).
+# This is the "DE no-relax" guard tested in
+# ``tests/phase2/test_counterparty.py::test_de_lookup_only_narrows_never_relaxes``.
 language_overrides:
   de:
     counterparty_overrides:
       de_german_entity:
+        # The original Phase 4 strictest additions: governing_law,
+        # limitation_of_liability, term — all for the
+        # ``de_german_entity`` counterparty type. Phase 5 leaves
+        # these untouched; the Phase 4 test fixtures and the
+        # DE-NDA e2e tests both depend on them.
         governing_law: material
+        # source: BGB / EU jurisdiction rules. A German
+        # counterparty pushing for non-German jurisdiction is
+        # a hard negotiation point; the German party will push
+        # back on US/NY/England jurisdiction. "material" per
+        # the Phase 4 decision.
         limitation_of_liability: material
+        # source: BGB § 276 / § 307. German Haftungsbeschränkung
+        # norms differ; missing or one-sided limitation is
+        # material for a German counterparty.
         term: material
+        # source: BGB / KSchG Kündigungsfrist. Non-standard
+        # terms become material for German counterparties
+        # because statutory notice periods are the floor.
