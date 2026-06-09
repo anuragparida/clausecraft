@@ -150,6 +150,28 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
         "examples/contracts/hand-curated/nda-003.pdf",
         "examples/expected/hand-curated-003.yaml",
     ),
+    # Phase 4 (t_b238eff4): DE contracts, registered for the per-language F1
+    # gap assertion wiring (t_7bd4e184). Provisional: 3 public + 2 synthetic.
+    (
+        "examples/contracts/public-de/nda-001.pdf",
+        "examples/expected/public-de-001.yaml",
+    ),
+    (
+        "examples/contracts/public-de/nda-002.pdf",
+        "examples/expected/public-de-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/nda-003.pdf",
+        "examples/expected/public-de-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/nda-001.pdf",
+        "examples/expected/synthetic-de-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/nda-002.pdf",
+        "examples/expected/synthetic-de-002.yaml",
+    ),
 ]
 
 
