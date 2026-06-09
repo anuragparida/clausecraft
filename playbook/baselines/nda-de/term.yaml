@@ -1,0 +1,51 @@
+# Playbook-Baseline — NDA (DE) — term
+#
+# Quelle: DIHK-Mustervertrag „Geheimhaltungsvereinbarung", erarbeitet
+# vom DIHK-Rechtsausschuss, Ziff. 8 „Vertragslaufzeit" (mit der
+# branchenüblichen Ergänzung des GeschGehG-statutory carve-out).
+# Der DIHK-Mustervertrag ist das **Dachmuster** der deutschen
+# Industrie- und Handelskammern und wird von der überwiegenden
+# Mehrheit der regionalen IHKs in der Sache übernommen.
+# Die hier abgebildete Struktur (Laufzeit + nachvertragliche
+# Geheimhaltungspflicht + Geschäftsgeheimnis-survival) ist die in
+# der deutschen Praxis häufigste und akzeptierte Standardform.
+clause_id: vertragslaufzeit-und-nachvertragliche-geheimhaltungspflicht
+type: term
+language: de
+title: Vertragslaufzeit und nachvertragliche Geheimhaltungspflicht
+text: >-
+  Diese Vereinbarung tritt mit dem Datum der Unterschrift der zuletzt
+  unterzeichnenden Partei in Kraft und gilt für einen Zeitraum von
+  [___] Jahren. Die Verpflichtungen aus dieser Vereinbarung in Bezug
+  auf die Vertraulichen Informationen, die im Rahmen der Laufzeit der
+  Vereinbarung offenbart wurden, bleiben jedoch für einen Zeitraum von
+  [___] Jahren nach Beendigung weiter bestehen. Soweit für
+  Vertrauliche Informationen (z. B. Geschäftsgeheimnisse) gesetzliche
+  Schutzbestimmungen gelten, verlängert sich die nachvertragliche
+  Geheimhaltungspflicht gemäß diesen gesetzlichen Bestimmungen;
+  insbesondere besteht die Geheimhaltungspflicht für
+  Geschäftsgeheimnisse im Sinne des § 2 Nr. 1 des Gesetzes zum Schutz
+  von Geschäftsgeheimnissen (GeschGehG) so lange fort, wie die
+  jeweilige Information die Voraussetzungen des § 2 Nr. 1 GeschGehG
+  erfüllt.
+source_url: https://www.dihk.de/resource/blob/28616/feb67178384bc90cb80b27abd04ae7e3/recht-praktische-vertragsinformationen-zu-geschaeftsgeheimnissen-deutsch-data.pdf
+retrieval_date: 2026-06-09
+license: >-
+  DIHK-Mustervertrag; veröffentlicht durch den Deutschen
+  Industrie- und Handelskammertag (DIHK) als unverbindliches Muster
+  zur Orientierungshilfe. Haftung ist nach dem Vorwort des Musters
+  ausgeschlossen; das Muster ersetzt keinen maßgeschneiderten
+  Vertrag.
+notes: >-
+  In der Praxis werden die Platzhalter [___] üblicherweise mit 2 bis
+  5 Jahren (Vertragslaufzeit) und 3 bis 5 Jahren (nachvertragliche
+  Geheimhaltungspflicht) gefüllt. Die explizite Bezugnahme auf
+  § 2 Nr. 1 GeschGehG ist eine gängige redaktionelle Ergänzung zum
+  DIHK-Grundtext, die den Gleichlauf mit dem statutory carve-out
+  (siehe Definition-Baseline) herstellt. Andere in der Praxis
+  verwendete Strukturen sind: (a) einheitliche Laufzeit ohne
+  separate nachvertragliche Frist (z. B. IHK-Hessen-Muster Ziff. 7:
+  einheitliche Frist ab Ende des Informationsaustausches), (b)
+  unbefristete Geheimhaltungspflichten für Geschäftsgeheimnisse
+  (statutarisch abgedeckt, vertraglich gelegentlich explizit
+  klargestellt).

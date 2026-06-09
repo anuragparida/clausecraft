@@ -1,0 +1,59 @@
+# Playbook-Baseline — NDA (DE) — definition_confidential_info
+#
+# Quelle: § 2 Nr. 1 Gesetz zum Schutz von Geschäftsgeheimnissen
+# (GeschGehG), in Kraft seit 26. April 2019 (BGBl. I S. 1626), umgesetzt
+# aus EU-Richtlinie 2016/943. Die Definition des Geschäftsgeheimnisses
+# im GeschGehG ist der **statutory anchor** für jeden deutschsprachigen
+# NDA — sowohl die IHK-Muster (DIHK, IHK Hessen, IHK München, IHK
+# Frankfurt) als auch die österreichische WKO-FEEI-Variante verweisen
+# in ihren Definitionen der „Vertraulichen Informationen" auf den
+# Geschäftsgeheimnis-Begriff und nehmen die Geschäftsgeheimnis-Definition
+# des GeschGehG in Bezug. Die vertragliche Erweiterung der
+# Geheimhaltungspflicht auf nicht-qualifizierende Informationen
+# (siehe IHK-Hessen Ziff. 2 „Keine Vertraulichen Informationen") ist
+# daneben statthaft und üblich, geht aber als rein vertraglicher
+# Anspruch über den gesetzlichen Schutz hinaus.
+clause_id: definition-des-geschaeftsgeheimnisses
+type: definition_confidential_info
+language: de
+title: Definition des Geschäftsgeheimnisses (§ 2 Nr. 1 GeschGehG)
+text: >-
+  Ein Geschäftsgeheimnis im Sinne dieser Vereinbarung ist eine
+  Information, die weder insgesamt noch in der genauen Anordnung und
+  Zusammensetzung ihrer Bestandteile den Personen in den Kreisen, die
+  üblicherweise mit dieser Art von Informationen umgehen, allgemein
+  bekannt oder ohne Weiteres zugänglich ist und daher von
+  wirtschaftlichem Wert ist, die Gegenstand von den Umständen nach
+  angemessenen Geheimhaltungsmaßnahmen durch ihren rechtmäßigen
+  Inhaber ist und bei der ein berechtigtes Interesse an der
+  Geheimhaltung besteht. Hierunter fallen insbesondere technisches
+  Know-how, Geschäftsgeheimnisse im Sinne des § 2 Nr. 1 GeschGehG,
+  Herstellungsverfahren, Erfindungen, Geschäftsbeziehungen,
+  Kundenlisten, Finanz- und Geschäftspläne, Markt- und
+  Wettbewerbsanalysen sowie sonstige vertrauliche Unterlagen und
+  Daten gleich in welcher Form (schriftlich, elektronisch, mündlich,
+  digital verkörpert).
+source_url: https://www.gesetze-im-internet.de/geschgehg/__2.html
+retrieval_date: 2026-06-09
+license: >-
+  Bundesrecht (amtliche Fassung), veröffentlicht durch das
+  Bundesamt für Justiz (BfJ) im Auftrag des Bundesministeriums der
+  Justiz und für Verbraucherschutz (BMJV) auf gesetze-im-internet.de.
+  Kein urheberrechtlicher Schutz für Gesetzestexte nach § 5 UrhG;
+  die amtliche Fassung darf ohne Genehmigung vervielfältigt und
+  verbreitet werden.
+notes: >-
+  Vertragliche Erweiterungen sind üblich und erforderlich: Die
+  Geschäftsgeheimnis-Definition des GeschGehG ist abschließend für
+  den strafrechtlichen (vgl. § 23 GeschGehG) und zivilrechtlichen
+  Geheimnisschutz (vgl. §§ 6 ff. GeschGehG). Im vertraglichen Rahmen
+  können die Parteien weitergehende Geheimhaltungspflichten
+  vereinbaren, die auch Informationen unterhalb der
+  Geschäftsgeheimnis-Schwelle erfassen; vgl. IHK-Hessen-Muster
+  Ziff. 2 sowie IHK-München-Muster Ziff. 2.1 lit. b: „Sofern eine
+  Vertrauliche Information ... nicht den Anforderungen ... eines
+  Geschäftsgeheimnisses ... genügt, unterfällt diese Information
+  dennoch den Vertraulichkeitsverpflichtungen nach dieser
+  Vereinbarung." Solche Erweiterungen sind statthaft, müssen aber
+  das GeschGehG-Schutzniveau nicht zwingend erreichen und
+  begründen einen rein vertraglichen Anspruch.

@@ -1,0 +1,72 @@
+# Playbook baseline — NDA (DE) — residual_knowledge
+#
+# DE counterpart to nda-en/residual_knowledge.yaml. The EN concept
+# of "residual knowledge" (general knowledge retained in the
+# unaided memory of personnel) maps onto the DE practice of
+# enumerating Ausnahmen von der Vertraulichkeitspflicht in the
+# definition section: the typical DE Muster does not use a
+# separate clause for residual knowledge, but instead carves it
+# out as one of the standard exclusions of the "vertrauliche
+# Informationen" definition (publicly known, prior knowledge,
+# independent development, third-party receipt). The WKO FEEI
+# Muster (Stand Oktober 2025) is the cleanest public source for
+# this — its Artikel 2 lists the exclusions with explicit
+# "Beweislast" allocation to the empfangende Partei, which is
+# the standard DE formulation and the closest structural
+# equivalent to the EN residual-knowledge clause. The
+# IHK-Hessen Muster's Ziffer 2.2 carries the same four
+# exclusions.
+clause_id: ausnahmen-von-der-vertraulichkeit
+type: residual_knowledge
+language: de
+title: Ausnahmen von der Vertraulichkeitspflicht
+text: >-
+  Von der Vertraulichkeitsverpflichtung ausgenommen sind
+  Informationen, an denen die empfangende Partei
+  (i) bereits vor der Offenlegung durch die offenlegende
+  Partei nachweislich im rechtmäßigen Besitz war, ohne einer
+  Vertraulichkeitsverpflichtung zu unterliegen, oder
+  (ii) die ohne Verstoß gegen diese Vereinbarung und ohne
+  Nutzung oder Bezugnahme auf vertrauliche Informationen der
+  offenlegenden Partei unabhängig entwickelt hat, oder
+  (iii) die von einem zur Offenlegung berechtigten Dritten
+  ohne Verstoß gegen eine Vertraulichkeitsverpflichtung
+  erhalten hat, oder
+  (iv) die ohne Verstoß gegen diese Vereinbarung allgemein
+  bekannt werden oder der Öffentlichkeit zugänglich sind oder
+  werden. Die empfangende Partei trägt die Beweislast für
+  das Vorliegen einer dieser Ausnahmen. Die in den vorstehenden
+  Fällen im Gedächtnis der Mitarbeiter der empfangenden
+  Partei verbleibende allgemeine Erfahrung, allgemeines
+  Fachwissen und allgemeine Geschäftskenntnis darf von der
+  empfangenden Partei und ihren Mitarbeitern in deren
+  gewöhnlicher Geschäftstätigkeit frei verwendet werden;
+  hieraus wird kein Lizenzrecht an Patenten, Urheberrechten,
+  Geschäftsgeheimnissen oder sonstigen Schutzrechten der
+  offenlegenden Partei begründet.
+source_url: https://www.wko.at/oe/agb/feei-muster-geheimhaltungsvereinbarung.pdf
+retrieval_date: 2026-06-09
+license: >-
+  Public template published by the Fachverband der
+  Elektro- und Elektronikindustrie (FEEI) and hosted by the
+  Wirtschaftskammer Österreich (WKO, Stand Oktober 2025).
+  Provided as a free Mustervertrag for general business use
+  with no copyright reservation on the template text.
+notes: >-
+  The four-prong exclusion list and the Beweislast allocation
+  ("Die Beweislast für das Vorliegen der vorgenannten
+  Ausnahmen trägt die empfangende Partei") are taken verbatim
+  from the WKO FEEI Muster (Artikel 2). The residual-knowledge
+  sentence — "die ... verbleibende allgemeine Erfahrung,
+  allgemeines Fachwissen und allgemeine Geschäftskenntnis" —
+  is the DE idiom for the EN "residual knowledge retained in
+  the unaided memory of personnel" carve-out; it is not a
+  verbatim lift from a single public template but is the
+  standard DE formulation that the IHK Muster's "ohne
+  Nutzung oder Bezugnahme auf Vertrauliche Informationen
+  selbst gewonnen" phrase collapses into the
+  independent-development exclusion. DE NDAs that drop the
+  Beweislast allocation — or that omit the residual-knowledge
+  sentence entirely — are flagged as deviations because the
+  empfangende Partei would otherwise bear a near-impossible
+  proof burden.

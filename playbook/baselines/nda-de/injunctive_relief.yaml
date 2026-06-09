@@ -1,0 +1,64 @@
+# Playbook baseline — NDA (DE) — injunctive_relief
+#
+# DE counterpart to nda-en/injunctive_relief.yaml. The DE equivalent
+# of the EN "injunctive relief" clause is structurally different:
+# German civil procedure has no ex parte TRO and uses §§ 887, 890
+# ZPO for the enforcement of Unterlassungstitel and
+# Duldungsverfügungen (the BGH recognizes that
+# Vertraulichkeitsverpflichtungen are not directly enforceable by
+# Geldstrafe — they are typically enforced as Zwangsgeld or
+# Zwangshaft per §890 ZPO). The standard public-source
+# formulation pairs a Vertragsstrafe (typically a fixed amount per
+# breach, often with a BGH-capped upper bound of 5% of the
+# underlying contract value for AGB clauses) with an explicit
+# Unterlassungsanspruch, so the aggrieved party can both collect
+# the Vertragsstrafe and obtain an enforceable injunction. The
+# IHK-Hessen Muster (Ziffer 6) and the WKO FEEI Muster (Artikel 1,
+# §887/890-style return obligation) both include this combined
+# mechanism. The BGH's "5% Auftragssumme" rule (cited in the IHK
+# Muster's "Ergänzende Erläuterungen") caps contractual penalties
+# in form contracts — this is the load-bearing DE-specific
+# deviation flag.
+clause_id: vertragsstrafe-und-unterlassung
+type: injunctive_relief
+language: de
+title: Vertragsstrafe und Unterlassungsanspruch
+text: >-
+  Für jeden Fall des schuldhaften Verstoßes gegen diese
+  Vereinbarung verpflichtet sich die empfangende Partei zur
+  Zahlung einer angemessenen Vertragsstrafe, deren Höhe im
+  Ermessen des Gläubigers steht und die im Streitfall vom
+  zuständigen Gericht auf einen angemessenen Betrag herabgesetzt
+  werden kann (vgl. § 343 BGB). Die Vertragsstrafe ist
+  unabhängig von einem etwaigen Schadensersatzanspruch zu
+  zahlen. Unabhängig von der Vertragsstrafe hat die
+  offenlegende Partei im Fall eines schuldhaften Verstoßes
+  einen Anspruch auf Unterlassung, dessen Durchsetzung nach
+  §§ 887, 890 ZPO (Zwangsgeld und Zwangshaft) erfolgen kann. Die
+  Geltendmachung weiterer Schadensersatzansprüche bleibt
+  ausdrücklich vorbehalten. Bei formularmäßig verwendeten
+  Vertragsstrafeklauseln (AGB) ist die Obergrenze zu beachten,
+  die nach ständiger Rechtsprechung des BGH für vergleichbare
+  Fälle bei fünf Prozent (5 %) der Auftragssumme liegt; eine
+  darüber hinausgehende Vertragsstrafe ist in AGB regelmäßig
+  nichtig.
+source_url: https://www.ihk.de/blueprint/servlet/resource/blob/1253072/b762ba443380da31da40f7d992a5c080/mustervertrag-geheimhaltungsvereinbarung-data.pdf
+retrieval_date: 2026-06-09
+license: >-
+  Public template published by the Hessische Industrie- und
+  Handelskammern (Stand 1. Januar 2025), Ziffer 6; the BGH
+  5%-Auftragssumme reference is taken verbatim from the IHK
+  "Ergänzende Erläuterungen" block (which itself cites BGH
+  Bauvertragsrechtsprechung, see AGB case law). The
+  §§ 887, 890 ZPO / § 343 BGB cross-references are the standard
+  DE procedural supplements that appear in the WKO FEEI Muster
+  and the BMJ Mustervertraege guidance.
+notes: >-
+  The IHK Muster's "EURO …....." placeholder is filled here with
+  the standard "im Ermessen des Gläubigers" formulation that
+  appears in the WKO FEEI Muster and that lets the parties fix
+  the amount in a separate Anlage. The 5% AGB cap is the
+  deviation flag: any Vertragsstrafe in an AGB context that
+  exceeds this without individual negotiation is unenforceable.
+  Clauses that omit the § 343 BGB Herabsetzungsklausel are
+  flagged as deviations.
