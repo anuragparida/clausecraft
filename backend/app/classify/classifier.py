@@ -33,6 +33,7 @@ from app.classify.prompt import build_messages
 from app.classify.schema import Clause, ClausePosition, ClauseType
 from app.config import settings
 from app.observability import _NoopSpan, get_langfuse
+from app.parse.language import detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +298,7 @@ def _looks_like_real_key(value: str) -> bool:
 
 
 def _call_llm_for_classification(
-    clause_text: str, *, contract_filename: str
+    clause_text: str, *, contract_filename: str, language: str = "en"
 ) -> tuple[ClauseType, float]:
     """Call the LLM and return ``(type, confidence)``.
 
@@ -305,6 +306,12 @@ def _call_llm_for_classification(
     to retry or fall back. The OpenAI client is constructed on every
     call rather than cached as a module global so that tests can
     monkey-patch ``settings.llm_api_key`` between calls.
+
+    The ``language`` argument is threaded into
+    :func:`app.classify.prompt.build_messages` so the per-clause
+    switch picks the matching prompt variant (EN for ``"en"``, DE
+    for ``"de"``). See :mod:`app.classify.prompt` for the dispatch
+    contract.
     """
     from openai import OpenAI  # type: ignore[import-not-found]
 
@@ -312,7 +319,7 @@ def _call_llm_for_classification(
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
     )
-    messages = build_messages(clause_text)
+    messages = build_messages(clause_text, language=language)
     response = client.chat.completions.create(
         model=settings.llm_model,
         messages=messages,  # type: ignore[arg-type]
@@ -341,6 +348,7 @@ def classify_clause(
     section_title: str = "",
     paragraph_index: list[int] | None = None,
     contract_filename: str = "",
+    language: str | None = None,
 ) -> Clause:
     """Classify a single raw clause. Returns a fully-populated ``Clause``.
 
@@ -351,14 +359,47 @@ def classify_clause(
        ``"classify_clause"`` with the contract filename as a tag.
     3. Returns a ``Clause`` whose ``id`` is preserved from the
        chunker (``raw_id``) and whose other fields are filled in.
+
+    The ``language`` parameter is the per-clause language code
+    (``"en"`` or ``"de"``) and is **optional**. When ``None`` (the
+    default), the function auto-detects the language from the
+    clause text via :func:`app.parse.language.detect_language`
+    and uses the detected value for both prompt selection and
+    the returned ``Clause.language`` field. When a non-None value
+    is passed, it acts as an override (e.g. for tests or for a
+    caller that already knows the language from a per-document
+    hint).
+
+    The dispatch is per-clause (not per-document) — a
+    mixed-language contract passes the right language for each
+    clause, and the auto-detect path handles the case where the
+    caller doesn't know.
     """
+    # Resolve the per-clause language. Caller-provided value is an
+    # explicit override (e.g. a per-document default from
+    # ``run_stage1(language="de")``); None triggers auto-detection
+    # at parse time, per the Phase 4 spec:
+    # "The language field is set at parse time, not at query time.
+    # The classifier should not have to detect language — it reads
+    # the field." The detection happens here in the classifier
+    # because the field is set when the Clause is built.
+    resolved_language: str = (
+        language
+        if language
+        else detect_language(raw_text, heading=section_title or None)
+    )
+
     langfuse = get_langfuse()
     span: Any = _NoopSpan()
     try:
         span = langfuse.trace(
             name="classify_clause",
             tags=[contract_filename] if contract_filename else [],
-            input={"clause_id": raw_id, "clause_length": len(raw_text)},
+            input={
+                "clause_id": raw_id,
+                "clause_length": len(raw_text),
+                "language": resolved_language,
+            },
         )
     except Exception:  # noqa: BLE001
         span = _NoopSpan()
@@ -374,7 +415,9 @@ def classify_clause(
         for attempt in range(3):  # 1 try + 2 retries
             try:
                 ctype, confidence = _call_llm_for_classification(
-                    raw_text, contract_filename=contract_filename
+                    raw_text,
+                    contract_filename=contract_filename,
+                    language=resolved_language,
                 )
                 last_error = None
                 break
@@ -422,7 +465,15 @@ def classify_clause(
             paragraph_index=list(paragraph_index or []),
         ),
         type=ctype,
-        language="en",
+        # Phase 4 (bilingual DE): the language is resolved at
+        # parse time (see the top of this function) and stamped
+        # on the Clause. The caller-provided ``language`` arg
+        # is an override; otherwise the value comes from
+        # :func:`app.parse.language.detect_language` on the
+        # clause text + section_title. The same value is also
+        # used to pick the prompt variant — so a DE clause gets
+        # the DE prompt, the DE fallback, and a DE Clause.
+        language=resolved_language,
         confidence=confidence,
     )
 
@@ -431,11 +482,30 @@ def classify_clauses(
     raw_clauses: list[Any],  # list[RawClause] — kept untyped to avoid a cycle
     *,
     contract_filename: str = "",
+    language: str | None = None,
 ) -> list[Clause]:
     """Classify a list of :class:`app.parse.chunker.RawClause`.
 
     The classifier calls are sequential. Phase 1 is mechanical —
     no agent, no parallelism. Each call produces one Langfuse trace.
+
+    The ``language`` parameter is the **per-document default**
+    language code. When ``None`` (the default), each clause's
+    language is auto-detected by :func:`classify_clause` from the
+    clause text. When a string (``"en"`` or ``"de"``) is passed,
+    it is used as the per-clause override — the auto-detect step
+    in ``classify_clause`` is skipped, and every clause in the
+    file is stamped with the same language. The latter is the
+    per-document fast-path: a caller that knows the file is
+    uniformly DE can skip the per-clause detection.
+
+    The dispatch is per-clause: callers that want per-clause
+    auto-detection leave ``language=None`` (the default). A
+    mixed-language contract can mix the two — e.g. pass
+    ``language="de"`` for the dominant file language and let
+    per-clause detection flag the occasional EN quote that
+    surfaces as a real clause. Phase 4 card 3 (this card)
+    standardises on the per-clause auto-detect path.
     """
     classified: list[Clause] = []
     for raw in raw_clauses:
@@ -446,6 +516,7 @@ def classify_clauses(
             section_title=raw.section_title,
             paragraph_index=raw.paragraph_indices,
             contract_filename=contract_filename,
+            language=language,
         )
         classified.append(clause)
     return classified

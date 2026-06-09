@@ -138,16 +138,26 @@ def run_stage1(
     filename: str,
     content_type: str,
     data: bytes,
+    language: str = "en",
 ) -> Stage1Result:
     """Execute the full Phase 1 pipeline on the uploaded file.
 
     See module docstring for the shape. The function is the public
     surface that :func:`app.main.post_contracts_ingest` calls.
+
+    The ``language`` parameter is the per-document language code
+    (``"en"`` or ``"de"``). It is propagated to
+    :func:`app.classify.classify_clauses` so the classifier stamps
+    every :class:`Clause` with the right ``language`` field and the
+    underlying LLM call uses the matching prompt variant. Per-clause
+    language detection (Phase 4 card 3) can override this default at
+    the chunker level in a follow-up card; this entry point threads
+    the document-level language through unchanged.
     """
     ingest_result, format_name = _ingest(filename, content_type, data)
     raw_clauses = _parse(ingest_result, format_name)
     classified = classify_clauses(
-        raw_clauses, contract_filename=filename
+        raw_clauses, contract_filename=filename, language=language
     )
 
     is_scanned = bool(getattr(ingest_result, "is_scanned", False)) or bool(

@@ -1,0 +1,46 @@
+# Playbook-Baseline — NDA (DE) — governing_law
+#
+# Quelle: IHK München und Oberbayern, Muster „Geheimhaltungsvereinbarung
+# / Non-Disclosure Agreement (NDA)" (Stand 01.01.2025), Ziff. 8
+# „Rechtswahl und Gerichtsstand". Die IHK-München-Variante wählt
+# das Recht der Bundesrepublik Deutschland mit kaufmännischem
+# Gerichtsstand am Sitz des Erfinders / der offenlegenden Partei —
+# die in der deutschen B2B-NDA-Praxis häufigste Konstellation.
+# Die Formulierung entspricht in der Sache der DIHK-Musterregelung
+# (Ziff. 10 f. DIHK) und der IHK-Hessen-Regelung (Ziff. 8.2), wird
+# hier aber aus dem bayerischen IHK-Stand-2025-Dokument zitiert,
+# um die Source-Diversität der DE-Baselines abzubilden.
+clause_id: rechtswahl-und-gerichtsstand
+type: governing_law
+language: de
+title: Rechtswahl und Gerichtsstand
+text: >-
+  Auf diesen Vertrag ist deutsches Recht unter Ausschluss der
+  Normen des internationalen Privatrechts anzuwenden. Das
+  Übereinkommen der Vereinten Nationen über Verträge über den
+  internationalen Warenkauf (CISG) findet keine Anwendung. Für
+  Streitigkeiten aus diesem Vertrag ist das Gericht am Sitz des
+  Erfinders (der offenlegenden Partei) örtlich zuständig, soweit
+  der Empfänger Kaufmann im Sinne des Handelsgesetzbuchs (HGB) ist.
+  Die Parteien können abweichend davon eine
+  Schiedsgerichtsvereinbarung treffen; in diesem Fall ist der
+  ordentliche Rechtsweg ausgeschlossen.
+source_url: https://www.ihk-muenchen.de/ratgeber/recht/vertragsrecht/mustervertraege/geheimhaltungsvereinbarung.html
+retrieval_date: 2026-06-09
+license: >-
+  IHK-München-Mustervertrag; veröffentlicht durch die Industrie- und
+  Handelskammer für München und Oberbayern als unverbindliches
+  Muster zur Orientierungshilfe. Haftung ist nach den „Rechtlichen
+  Hinweisen zur Benutzung" am Ende des Musters ausgeschlossen.
+notes: >-
+  Strukturentsprechung zum EN-Pendant: Der kaufmännische
+  Gerichtsstand nach § 38 ZPO ist die deutsche Funktionsäquivalenz
+  zur US-amerikanischen „exclusive jurisdiction"-Klausel. Die
+  CISG-Ausschlussklausel entspricht dem üblichen Standard bei
+  deutsch-inlandsbezogenen B2B-Verträgen; bei grenzüberschreitenden
+  Sachverhalten kann die ausdrückliche Einbeziehung des
+  UN-Kaufrechts sinnvoll sein, was im IHK-Muster nicht vorgesehen
+  ist. Bei Verbraucherverträgen (B2C) ist die Gerichtsstandsklausel
+  nach der Rom-I- und Brüssel-Ia-Verordnung nur eingeschränkt
+  zulässig; das IHK-Muster ist ausdrücklich auf B2B-Konstellationen
+  zugeschnitten (Kaufmannsqualifikation).

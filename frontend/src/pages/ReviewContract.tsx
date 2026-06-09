@@ -1,7 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DeviationReviewPage } from "@/pages/DeviationReview";
-import { usePostDecisions, useSpot } from "@/lib/hooks";
-import type { Decision, IngestResponse, SpotResponse } from "@/lib/api";
+import {
+  useContractState,
+  usePostDecisions,
+  useSpot,
+} from "@/lib/hooks";
+import type {
+  ContractStateResponse,
+  Decision,
+  IngestResponse,
+  SpotResponse,
+} from "@/lib/api";
 
 // ReviewContract — the connected wrapper for the deviation
 // review. Reached at ``/contracts/{contractId}/review``
@@ -22,26 +31,43 @@ import type { Decision, IngestResponse, SpotResponse } from "@/lib/api";
 // State lifecycle
 // ---------------
 // 1. **Mount.** The page receives ``contractId`` from the
-//    URL. The wrapper holds the clauses + flags + prior
-//    decisions in local state. On first render, all three
-//    are empty (loading).
-// 2. **Spot call.** The wrapper drives
-//    ``POST /contracts/spot`` with the clauses it inherited
-//    from the parent. (The parent is the upload flow, which
-//    already called ``/contracts/ingest`` and stored the
-//    clauses + contract id in localStorage or via a
-//    router-state handoff. Build 6 will tighten this — for
-//    Build 5 we accept either a ``clauses`` prop or a
-//    re-fetch from the resume endpoint when Build 3 lands.)
+//    URL. When the parent (App.tsx) has clauses (the
+//    "upload → review" hand-off path) it forwards them as
+//    a prop. When the parent has nothing (the
+//    "refresh-the-page" path), the wrapper fetches
+//    ``GET /contracts/{id}/state`` to re-hydrate
+//    clauses + prior spot flags + prior decisions. This is
+//    the F3 fix from the Phase 3 review: without it, a
+//    user who refreshed the URL mid-review saw a blank
+//    page.
+// 2. **Spot call.** If the state (or the parent prop)
+//    provides clauses *and* no spot flags have been
+//    cached server-side, the wrapper drives
+//    ``POST /contracts/spot`` and stashes the result. If
+//    the state already has flags, the wrapper uses them
+//    as-is (the user might have refreshed in the middle
+//    of a review; re-spotting would change the flag set
+//    and silently lose decisions the user has already
+//    made).
 // 3. **User decides.** DeviationReview calls ``onFlagDecision``
 //    for every change. The wrapper's handler writes the
 //    decision to local state — that state is the source of
 //    truth for the page UI (matches the "optimistic UI"
-//    pattern from the spec's pause-and-resume test).
+//    pattern from the spec's pause-and-resume test). Prior
+//    decisions from the server are merged in on hydration.
 // 4. **Generate redline.** DeviationReview calls
 //    ``onSubmitDecisions(batch)``. The wrapper posts the
 //    batch to ``/contracts/{id}/decisions`` and on success
 //    navigates to the redline output page.
+//
+// Error / empty states
+// --------------------
+// The state endpoint always returns 200 — an unknown
+// contract yields ``has_state=false`` with empty lists.
+// The wrapper renders a friendly "this contract was not
+// found" state in that case (a 404 here would force the
+// user back to triage on a refresh, which is exactly the
+// broken behaviour F3 is meant to fix).
 
 export interface ReviewContractProps {
   /** The LangGraph thread id / contract id (from the URL). */
@@ -49,10 +75,11 @@ export interface ReviewContractProps {
   /**
    * The clauses from the upstream ``POST /contracts/ingest``
    * call. The wrapper passes them straight to the spotter.
-   * Optional: when omitted, the wrapper calls the spotter
-   * with an empty list (the spec's "refresh the page" path
-   * may not have the clauses cached client-side — Build 3's
-   * resume endpoint will need to return them in Build 6).
+   * Optional: when omitted, the wrapper calls
+   * ``GET /contracts/{contractId}/state`` to re-hydrate
+   * clauses + flags + decisions. This is the F3 fix —
+   * the previous build assumed the parent always handed
+   * us the clauses, which it could not on a refresh.
    */
   clauses?: IngestResponse["clauses"];
   /** Filename for the spotter (and the audit log payload). */
@@ -81,20 +108,87 @@ export function ReviewContractPage({
   const [decisions, setDecisions] = useState<Decision[]>(
     initialDecisions ?? [],
   );
+  const [hydratedFromServer, setHydratedFromServer] = useState(false);
+  const [hasIngested, setHasIngested] = useState<boolean>(
+    Boolean(clauses && clauses.length > 0),
+  );
 
   const spotMutation = useSpot();
   const submitMutation = usePostDecisions(contractId);
+  const stateQuery = useContractState(contractId);
 
-  // Kick off the spot call on first mount when the parent
-  // hands us clauses. The mutation is one-shot; we don't
-  // refetch on every render. If the clauses prop is
-  // missing, the page renders with no data — Build 6 will
-  // add a re-fetch from the resume endpoint.
+  // --- F3 hydration: fetch state on mount when the parent
+  //     hands us no clauses. Runs once per mount.
+  useEffect(() => {
+    if (hydratedFromServer) return;
+    if (clauses && clauses.length > 0) {
+      // Parent gave us clauses; we don't need a server fetch.
+      setHydratedFromServer(true);
+      return;
+    }
+    if (!stateQuery.isFetched) {
+      // Wait for the query to settle. ``isFetched`` flips
+      // true on both success and error, so a 5xx will land
+      // us in the error branch below.
+      return;
+    }
+    const snap: ContractStateResponse | undefined = stateQuery.data;
+    if (!snap || !snap.has_state || !snap.has_ingest) {
+      // Nothing to hydrate from. The render path below
+      // shows the "contract not found" empty state.
+      setHydratedFromServer(true);
+      return;
+    }
+    // Use the server-cached flags directly — re-running
+    // the spotter would change the flag set and silently
+    // drop the user's prior decisions. If the contract was
+    // ingested but not yet spotted, ``snap.flags`` is empty
+    // and we fall through to the spotter below.
+    if (snap.flags && snap.flags.length > 0) {
+      setSpot({
+        filename: snap.filename,
+        flag_count: snap.flags.length,
+        flagged_count: snap.flags.filter((f) => f.score > 0).length,
+        unverified_count: snap.flags.filter((f) => f.unverified).length,
+        no_baseline_count: 0,
+        matrix_version: "restored",
+        embedding_provider: "restored",
+        flags: snap.flags,
+      });
+    }
+    // Hydrate prior decisions so the user sees their
+    // earlier choices after a refresh.
+    if (snap.decisions && snap.decisions.length > 0) {
+      setDecisions(
+        snap.decisions.map((d) => ({
+          clause_id: d.clause_id,
+          decision: mapCanonicalToAction(d),
+          new_severity:
+            typeof d.severity === "number" ? d.severity : undefined,
+          old_severity:
+            typeof d.old_severity === "number" ? d.old_severity : undefined,
+          context: d.extra_context,
+        })),
+      );
+    }
+    setHasIngested(true);
+    setHydratedFromServer(true);
+  }, [hydratedFromServer, clauses, stateQuery.isFetched, stateQuery.data]);
+
+  // --- Kick off the spot call when clauses are present and
+  //     we have not already hydrated the spot response from
+  //     server state. The mutation is one-shot.
   const [spotStarted, setSpotStarted] = useState(false);
-  if (!spotStarted && clauses && clauses.length > 0 && !spot) {
+  useEffect(() => {
+    if (spotStarted) return;
+    if (spot) return; // already hydrated
+    if (!hasIngested) return;
+    const activeClauses =
+      clauses ?? (stateQuery.data?.has_ingest ? stateQuery.data?.clauses : null);
+    if (!activeClauses || activeClauses.length === 0) return;
     setSpotStarted(true);
     spotMutation.mutate(
-      { filename: filename ?? contractId, clauses },
+      { filename: filename ?? contractId, clauses: activeClauses },
       {
         onSuccess: (r) => {
           setSpot(r);
@@ -105,7 +199,16 @@ export function ReviewContractPage({
         },
       },
     );
-  }
+  }, [
+    spotStarted,
+    spot,
+    hasIngested,
+    clauses,
+    filename,
+    contractId,
+    stateQuery.data,
+    spotMutation,
+  ]);
 
   const handleFlagDecision = (d: Decision) => {
     setDecisions((prev) => {
@@ -141,6 +244,97 @@ export function ReviewContractPage({
     );
   };
 
+  // --- Render: friendly empty state when the state endpoint
+  //     confirmed the contract does not exist on the
+  //     server. (This is the F3 fix: refresh the URL with
+  //     a typo'd contract id, and the user sees a clear
+  //     message rather than a blank page.)
+  if (hydratedFromServer && !hasIngested) {
+    return (
+      <div
+        className="flex min-h-screen flex-col bg-background text-foreground"
+        data-testid="review-contract-empty"
+      >
+        <main className="flex-1">
+          <div className="mx-auto flex max-w-2xl flex-col gap-4 px-6 py-16">
+            <header className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Contract not found
+              </h1>
+              <p className="text-muted-foreground">
+                No review state exists for contract id{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {contractId}
+                </code>
+                . The session may have been cleared, or the URL
+                may have been mistyped.
+              </p>
+            </header>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onBackToHome}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                data-testid="review-contract-back-home"
+              >
+                Back to home
+              </button>
+              <button
+                type="button"
+                onClick={onViewAudit}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                data-testid="review-contract-view-audit"
+              >
+                View audit log
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // --- Render: error state when the state fetch failed
+  //     (network error, 5xx, etc.). The user can retry or
+  //     go back.
+  if (hydratedFromServer && stateQuery.error && !hasIngested) {
+    return (
+      <div
+        className="flex min-h-screen flex-col bg-background text-foreground"
+        data-testid="review-contract-error"
+      >
+        <main className="flex-1">
+          <div className="mx-auto flex max-w-2xl flex-col gap-4 px-6 py-16">
+            <header className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Could not load review
+              </h1>
+              <p className="text-muted-foreground">
+                {stateQuery.error.message}
+              </p>
+            </header>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => stateQuery.refetch()}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={onBackToHome}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+              >
+                Back to home
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const data = spot
     ? {
         filename: spot.filename,
@@ -164,7 +358,15 @@ export function ReviewContractPage({
   return (
     <DeviationReviewPage
       data={data}
-      loading={spotMutation.isPending && !spot}
+      loading={
+        // Only show the "loading" skeleton until we know
+        // whether the contract exists. Once hydration
+        // completes, the spot call is the only pending
+        // network request — and DeviationReview renders
+        // its own "no flags" state when ``data`` is null.
+        (!hydratedFromServer && stateQuery.isFetching) ||
+        (hydratedFromServer && spotMutation.isPending && !spot)
+      }
       error={spotError ?? submitMutation.error?.message ?? null}
       onBackToHome={onBackToHome}
       onBackToTriage={onViewAudit}
@@ -175,6 +377,33 @@ export function ReviewContractPage({
       showGenerateRedline
     />
   );
+}
+
+// --- Helpers ------------------------------------------------------------
+
+
+/**
+ * Map a server-canonical decision (the shape stored in
+ * ``phase3_pipeline.normalise_decision``) back to the
+ * frontend's ``DecisionAction`` enum. Mirrors the inverse
+ * of the action map in ``phase3_pipeline.normalise_decision``
+ * — the two stay in lockstep so hydration is lossless.
+ */
+function mapCanonicalToAction(d: {
+  action?: string;
+}): Decision["decision"] {
+  switch ((d.action ?? "").toLowerCase()) {
+    case "accepted":
+      return "approve";
+    case "rejected":
+      return "reject";
+    case "edited":
+      return "edit_severity";
+    case "context_added":
+      return "add_context";
+    default:
+      return "approve";
+  }
 }
 
 export default ReviewContractPage;

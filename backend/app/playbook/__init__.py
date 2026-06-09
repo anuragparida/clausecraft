@@ -13,8 +13,12 @@ Modules:
 - ``seed``       — Idempotent seeder that reads every YAML under
                    ``playbook/baselines/`` and inserts into the store.
 - ``counterparty`` — Matrix config loader. Phase 2 ships a flat
-                   lookup; the counterparty-aware overrides arrive
-                   in Phase 5.
+                  lookup; the counterparty-aware overrides arrive
+                  in Phase 5. Phase 4 stacks a *language* axis on
+                  top: ``language → counterparty_type → clause_type
+                  → verdict``, with the DE column narrowing verdicts
+                  for DE counterparty types (additive — EN path
+                  unchanged).
 
 Public surface: this package re-exports the high-level helpers so
 ``python -m backend.app.playbook.seed`` and tests can ``from
@@ -27,6 +31,7 @@ from app.playbook.counterparty import (
     Verdict,
     load_matrix,
     lookup_verdict,
+    lookup_verdict_with_language,
 )
 from app.playbook.embeddings import (
     EmbeddingResult,
@@ -60,4 +65,5 @@ __all__ = [
     "Verdict",
     "load_matrix",
     "lookup_verdict",
+    "lookup_verdict_with_language",
 ]

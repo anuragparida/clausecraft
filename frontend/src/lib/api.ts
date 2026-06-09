@@ -306,6 +306,36 @@ export async function getRedlineDocx(contractId: string): Promise<Blob> {
   return res.blob();
 }
 
+// --- Endpoint: redline.md download (Build 5) ---------------------------
+
+/**
+ * Download the redline as a markdown-diff ``Blob``. The
+ * markdown path is the v0 escape hatch for users who cannot
+ * open the .docx in Word — it is the same contract text +
+ * accepted proposals, expressed as a unified diff. The
+ * backend renders the markdown from the same state the
+ * .docx was rendered from, so the two outputs are consistent.
+ *
+ * Returns a ``Blob`` (``text/markdown; charset=utf-8``). The
+ * caller hands the blob to ``downloadBlob`` with a sensible
+ * filename. We do not cache the blob because the .md path
+ * is rare and the bytes are small.
+ */
+export async function getRedlineMarkdown(contractId: string): Promise<Blob> {
+  const res = await fetch(
+    `/api/contracts/${encodeURIComponent(contractId)}/redline.md`,
+  );
+  if (!res.ok) {
+    const body = await readErrorBody(res);
+    throw new ApiError(
+      `/api/contracts/${contractId}/redline.md`,
+      res.status,
+      body,
+    );
+  }
+  return res.blob();
+}
+
 // --- Endpoint: audit-log (Build 4) ------------------------------------
 
 /**
@@ -363,6 +393,63 @@ export async function getAuditLogPdf(contractId: string): Promise<Blob> {
     );
   }
   return res.blob();
+}
+
+// --- Endpoint: contract state snapshot (Build 7 — resume hydration) ---
+
+/**
+ * The shape of ``GET /contracts/{id}/state``. The connected
+ * review page fetches this on mount to re-hydrate clauses,
+ * flags, and prior decisions after a page refresh (or when
+ * the URL is opened from a teammate's chat).
+ *
+ * The booleans let the UI render a friendly "contract not
+ * found" state on a URL that points at a contract that was
+ * never ingested, instead of failing on missing fields.
+ */
+export interface ContractStateResponse {
+  contract_id: string;
+  filename: string;
+  has_state: boolean;
+  has_ingest: boolean;
+  has_spot: boolean;
+  has_decisions: boolean;
+  has_redline: boolean;
+  clauses: IngestResponse["clauses"];
+  flags: Array<{
+    clause_id: string;
+    score: number;
+    rationale: string;
+    citation: Citation | null;
+    unverified: boolean;
+    baseline_type: string;
+  }>;
+  decisions: Array<{
+    clause_id: string;
+    /** Server-canonical action: ``accepted`` / ``rejected`` / ``edited`` / ``context_added``. */
+    action: string;
+    /** Present when ``action == "edited"``. */
+    severity?: number;
+    /** Present when ``action == "edited"``; the spotter's prior score. */
+    old_severity?: number;
+    /** Present when ``action == "context_added"``. */
+    extra_context?: string;
+  }>;
+  redlines: Array<{ clause_id: string; outcome: string }>;
+}
+
+/**
+ * GET /contracts/{id}/state. Always resolves (200) — the
+ * backend returns an empty ``has_state=false`` payload when
+ * the contract is unknown, rather than a 404, so the React
+ * page can render a friendly empty state on a stale URL.
+ */
+export async function getContractState(
+  contractId: string,
+): Promise<ContractStateResponse> {
+  return request<ContractStateResponse>(
+    `/api/contracts/${encodeURIComponent(contractId)}/state`,
+  );
 }
 
 // --- Helpers -----------------------------------------------------------

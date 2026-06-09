@@ -23,6 +23,13 @@ the review UI calls. Two export formats:
 Both functions read-only. They do NOT touch the writer or
 the trigger; they are pure SELECT + serialise.
 
+User-facing description (button labels, file names, what is
+included) lives in the README ``§audit-trail`` section, owned
+by Athena's README card. The button labels in
+``frontend/src/pages/AuditReplay.tsx`` (Download JSON,
+Download PDF) are the contract — keep them in sync with the
+README if either side changes.
+
 Why "404 if no rows" instead of "empty export"
 -----------------------------------------------
 
@@ -262,6 +269,7 @@ async def export_audit_log_json(
         indent. The top-level shape is::
 
             {
+              "schema_version": "1",
               "contract_id": "...",
               "exported_at": "2026-...Z",
               "row_count": 7,
@@ -271,6 +279,16 @@ async def export_audit_log_json(
         The events list is ordered by ``decided_at`` ASC.
         No redaction, no field removal — this is a
         machine-readable copy of the log.
+
+        ``schema_version`` is a string of the form
+        ``"<major>"`` (currently ``"1"``) so a downstream
+        consumer can detect whether its parser matches the
+        producer's format. The first versioned export
+        contained the four legacy fields (``contract_id``,
+        ``exported_at``, ``row_count``, ``events``); any
+        future breaking change must bump this string and
+        document the diff in the README's audit-log
+        section.
 
     Raises
     ------
@@ -282,6 +300,7 @@ async def export_audit_log_json(
         raise ContractNotFound(contract_id)
 
     payload: dict[str, Any] = {
+        "schema_version": "1",
         "contract_id": contract_id,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "row_count": len(rows),

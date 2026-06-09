@@ -65,6 +65,7 @@ Hard rules from the kanban card
 from __future__ import annotations
 
 import asyncio
+import csv
 import json
 import logging
 import time
@@ -261,6 +262,20 @@ class RunReport:
     Written to ``evals/runs/{run_id}.json`` at the end of the run.
     The schema is the eval harness's contract with downstream
     consumers (CI dashboards, Langfuse dataset versioner, etc.).
+
+    Phase 4 additions on top of the Phase 2 shape:
+
+    - ``aggregate_by_language``: per-language F1 + citation
+      completeness split, keyed by language code
+      (``"en"``, ``"de"``). This is the **default view**;
+      the legacy ``aggregate`` field is the all-languages
+      aggregate kept for backwards compat.
+    - ``gap_assertions``: spec-mandated EN-vs-DE gap
+      assertions (deviation F1 ≤ 10%, citation
+      completeness ≤ 5%). Hard-coded in code; a regression
+      fails CI.
+    - ``language_filter``: which language filter was
+      active for this run (``"en"`` | ``"de"`` | ``"both"``).
     """
 
     run_id: str
@@ -270,6 +285,11 @@ class RunReport:
     contract_set_version: str
     contracts: list[dict[str, Any]] = field(default_factory=list)
     aggregate: dict[str, float] = field(default_factory=dict)
+    aggregate_by_language: dict[str, dict[str, float]] = field(
+        default_factory=dict
+    )
+    gap_assertions: dict[str, Any] = field(default_factory=dict)
+    language_filter: str = "both"
 
 
 # --- F1 + severity helpers ----------------------------------------------
@@ -488,6 +508,28 @@ def _build_aggregate(per_contract: list[ContractMetrics]) -> dict[str, float]:
     The aggregate dict has exactly the keys the spec calls out:
     ``retrieval_f1``, ``classification_f1``, ``deviation_f1``,
     ``severity_mismatch_count``, ``citation_completeness``.
+
+    Note: for Phase 4 the per-language split is the
+    primary view — this function still returns the
+    all-languages aggregate for backwards compat with the
+    Phase 2 report shape. See
+    :func:`_build_aggregate_by_language` for the per-language
+    split that drives the gap assertions.
+    """
+    return _aggregate_subset(per_contract)
+
+
+def _aggregate_subset(per_contract: list[ContractMetrics]) -> dict[str, float]:
+    """Aggregate metrics over a subset of contracts.
+
+    Micro-averaged F1 (sum numerators and denominators
+    across the subset, then compute F1) for classification
+    and deviation, mean for retrieval, sum for severity
+    mismatch, micro-averaged ratio for citation
+    completeness. Returns a dict with the same 5 keys as
+    :func:`_build_aggregate`. This is the building block
+    that ``_build_aggregate`` and
+    ``_build_aggregate_by_language`` both call.
     """
     # Retrieval F1: mean of per-contract values. The retrieval
     # layer is uniform across contracts (it's the same playbook),
@@ -508,7 +550,7 @@ def _build_aggregate(per_contract: list[ContractMetrics]) -> dict[str, float]:
         2 * c_p * c_r / (c_p + c_r) if (c_p + c_r) else 0.0
     )
 
-    # Deviation F1 (micro-averaged). When the entire eval set has
+    # Deviation F1 (micro-averaged). When the entire subset has
     # no expected deviations and the spotter emits no flags, the
     # F1 is 1.0 (the trivially aligned case).
     d_tp = sum(c.deviation_tp for c in per_contract)
@@ -542,6 +584,291 @@ def _build_aggregate(per_contract: list[ContractMetrics]) -> dict[str, float]:
     }
 
 
+def _build_aggregate_by_language(
+    per_contract: list[ContractMetrics],
+) -> dict[str, dict[str, float]]:
+    """Compute the per-language aggregate split.
+
+    Returns a dict keyed by language code (e.g. ``"en"``,
+    ``"de"``), each value being the same 5-key shape as
+    :func:`_build_aggregate`. Languages with zero contracts
+    in this run are omitted (a per-language filter
+    --language=en produces an aggregate_by_language with
+    only ``"en"``). The per-language split is the **default
+    view** for Phase 4; aggregate-only summaries (no
+    per-language) are an anti-pattern called out in the
+    card body.
+    """
+    by_lang: dict[str, list[ContractMetrics]] = {}
+    for c in per_contract:
+        lang = c.language or "unknown"
+        by_lang.setdefault(lang, []).append(c)
+    return {lang: _aggregate_subset(subset) for lang, subset in by_lang.items()}
+
+
+# --- Gap assertions (Phase 4) ------------------------------------------
+
+
+#: Hard-coded gap thresholds from the Phase 4 spec
+#: (``docs/11-phases.md`` Phase 4 Risks). A regression on either
+#: threshold fails CI — these are **code assertions**, not
+#: documentation comments. Tuned per the spec's "F1 drop > 10%
+#: on DE vs EN = red flag for the prompt work" rule.
+DEVIATION_F1_GAP_THRESHOLD = 0.10
+"""Max allowed drop in deviation F1 (DE vs EN). 10% per spec."""
+
+CITATION_COMPLETENESS_GAP_THRESHOLD = 0.05
+"""Max allowed drop in citation completeness (DE vs EN). 5% per spec."""
+
+
+def _compute_gap_assertions(
+    aggregate_by_language: dict[str, dict[str, float]],
+) -> dict[str, Any]:
+    """Compute the EN-vs-DE gap assertions for the spec's thresholds.
+
+    Returns a dict shaped like::
+
+        {
+            "languages_compared": ["en", "de"],
+            "deviation_f1": {
+                "en": 0.92, "de": 0.85,
+                "drop": 0.07, "threshold": 0.10,
+                "passed": True,
+            },
+            "citation_completeness": {
+                "en": 0.95, "de": 0.92,
+                "drop": 0.03, "threshold": 0.05,
+                "passed": True,
+            },
+            "all_passed": True,
+        }
+
+    When fewer than 2 languages are present in
+    ``aggregate_by_language``, returns
+    ``{"languages_compared": [...], "skipped": true,
+    "skip_reason": "..."}`` — the gap is undefined with
+    one language and the spec does not call for an
+    absolute-floor assertion.
+
+    The drop is computed as ``en - de`` (positive = DE is
+    worse, which is what we want to bound). A drop of
+    exactly the threshold **passes**; only drops strictly
+    greater fail.
+    """
+    languages = sorted(aggregate_by_language.keys())
+    if len(languages) < 2:
+        return {
+            "languages_compared": languages,
+            "skipped": True,
+            "skip_reason": (
+                f"Gap assertions require >=2 languages; got "
+                f"{languages!r}. Re-run with --language=both "
+                f"after the DE eval set lands."
+            ),
+        }
+    if "en" not in aggregate_by_language:
+        return {
+            "languages_compared": languages,
+            "skipped": True,
+            "skip_reason": (
+                f"EN aggregate is the reference for gap "
+                f"assertions; got languages={languages!r}. "
+                f"Re-run with --language=both (or include EN) "
+                f"to enable the gap check."
+            ),
+        }
+    en = aggregate_by_language["en"]
+    # Find the non-EN language to compare against. Phase 4
+    # adds DE; future phases (v2 backlog) may add FR/ES —
+    # for now the comparison is EN vs the *other* present
+    # language.
+    other_langs = [lang for lang in languages if lang != "en"]
+    if not other_langs:
+        return {
+            "languages_compared": languages,
+            "skipped": True,
+            "skip_reason": (
+                f"Gap assertions require a non-EN language; "
+                f"got {languages!r}."
+            ),
+        }
+    other = other_langs[0]
+    de = aggregate_by_language[other]
+
+    def _drop_and_pass(
+        en_val: float, other_val: float, threshold: float
+    ) -> dict[str, Any]:
+        drop = round(en_val - other_val, 4)
+        return {
+            "en": en_val,
+            "other": other_val,
+            "other_language": other,
+            "drop": drop,
+            "threshold": threshold,
+            "passed": drop <= threshold,
+        }
+
+    dev = _drop_and_pass(
+        en["deviation_f1"], de["deviation_f1"], DEVIATION_F1_GAP_THRESHOLD
+    )
+    cit = _drop_and_pass(
+        en["citation_completeness"],
+        de["citation_completeness"],
+        CITATION_COMPLETENESS_GAP_THRESHOLD,
+    )
+    return {
+        "languages_compared": ["en", other],
+        "deviation_f1": dev,
+        "citation_completeness": cit,
+        "all_passed": dev["passed"] and cit["passed"],
+    }
+
+
+def assert_gap_assertions(
+    gap_assertions: dict[str, Any],
+) -> None:
+    """Raise ``AssertionError`` if any gap threshold is violated.
+
+    This is the **hard code assertion** the card body
+    requires. The thresholds live in module-level constants
+    (:data:`DEVIATION_F1_GAP_THRESHOLD`,
+    :data:`CITATION_COMPLETENESS_GAP_THRESHOLD`) so a
+    future regression — e.g. a model upgrade producing a
+    12% DE F1 drop — fails CI. If you find yourself wanting
+    to "report and let a human decide" here, you are
+    regressing the spec; the threshold is the threshold.
+    """
+    if gap_assertions.get("skipped"):
+        return  # no comparison possible, no failure possible
+    failures: list[str] = []
+    dev = gap_assertions["deviation_f1"]
+    if not dev["passed"]:
+        failures.append(
+            f"DEVIATION F1 GAP: en={dev['en']} "
+            f"{dev['other_language']}={dev['other']} "
+            f"drop={dev['drop']} > threshold={dev['threshold']}. "
+            f"DE-vs-EN deviation F1 regressed beyond the "
+            f"10% spec-mandated budget."
+        )
+    cit = gap_assertions["citation_completeness"]
+    if not cit["passed"]:
+        failures.append(
+            f"CITATION COMPLETENESS GAP: en={cit['en']} "
+            f"{cit['other_language']}={cit['other']} "
+            f"drop={cit['drop']} > threshold={cit['threshold']}. "
+            f"DE-vs-EN citation completeness regressed beyond "
+            f"the 5% spec-mandated budget."
+        )
+    if failures:
+        raise AssertionError("\n".join(failures))
+
+
+# --- Leaderboard CSV ----------------------------------------------------
+
+
+LEADERBOARD_PATH = EVALS_DIR_PATH / "leaderboard.csv"
+"""Path to the per-run leaderboard CSV.
+
+Appended to on every run; the schema is the eval
+harness's contract with downstream consumers (CI
+dashboards, regression monitors, future Langfuse
+dataset-version handoff). One row per run, with
+per-language F1 + the gap deltas.
+"""
+
+LEADERBOARD_FIELDS: list[str] = [
+    "run_id",
+    "started_at",
+    "ended_at",
+    "real_llm_mode",
+    "contract_set_version",
+    "language_filter",
+    "n_contracts",
+    "classification_f1_en",
+    "classification_f1_de",
+    "deviation_f1_en",
+    "deviation_f1_de",
+    "citation_completeness_en",
+    "citation_completeness_de",
+    "severity_mismatch_count_en",
+    "severity_mismatch_count_de",
+    "gap_deviation_f1",
+    "gap_citation_completeness",
+    "gap_passed",
+]
+"""Schema for the leaderboard CSV. Bump ``LEADERBOARD_SCHEMA_VERSION`` when
+adding/removing columns so downstream consumers can detect a mismatch."""
+
+
+LEADERBOARD_SCHEMA_VERSION = "1.0.0"
+"""Bump when LEADERBOARD_FIELDS changes; the CSV header carries this so
+readers can detect a column mismatch."""
+
+
+def _append_leaderboard_row(
+    leaderboard_path: Path,
+    *,
+    run_id: str,
+    started_at: str,
+    ended_at: str,
+    real_llm_mode: bool,
+    contract_set_version: str,
+    language_filter: str,
+    n_contracts: int,
+    aggregate_by_language: dict[str, dict[str, float]],
+    gap_assertions_: dict[str, Any],
+) -> None:
+    """Append a single run's row to the leaderboard CSV.
+
+    Writes the header row on a fresh file; appends
+    thereafter. Per-language cells are ``""`` when the
+    language was not in this run (so a
+    --language=en-only run has empty DE columns). Gap
+    columns are ``""`` when the gap check was skipped.
+    The CSV lives at
+    ``evals/leaderboard.csv`` and is the eval
+    harness's durable handoff to the CI dashboard.
+    """
+    en = aggregate_by_language.get("en", {})
+    de = aggregate_by_language.get("de", {})
+    dev_gap = gap_assertions_.get("deviation_f1", {})
+    cit_gap = gap_assertions_.get("citation_completeness", {})
+
+    row = {
+        "run_id": run_id,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "real_llm_mode": str(real_llm_mode),
+        "contract_set_version": contract_set_version,
+        "language_filter": language_filter,
+        "n_contracts": n_contracts,
+        "classification_f1_en": en.get("classification_f1", ""),
+        "classification_f1_de": de.get("classification_f1", ""),
+        "deviation_f1_en": en.get("deviation_f1", ""),
+        "deviation_f1_de": de.get("deviation_f1", ""),
+        "citation_completeness_en": en.get("citation_completeness", ""),
+        "citation_completeness_de": de.get("citation_completeness", ""),
+        "severity_mismatch_count_en": en.get("severity_mismatch_count", ""),
+        "severity_mismatch_count_de": de.get("severity_mismatch_count", ""),
+        "gap_deviation_f1": (
+            "" if gap_assertions_.get("skipped") else dev_gap.get("drop", "")
+        ),
+        "gap_citation_completeness": (
+            "" if gap_assertions_.get("skipped") else cit_gap.get("drop", "")
+        ),
+        "gap_passed": (
+            "" if gap_assertions_.get("skipped") else gap_assertions_.get("all_passed", False)
+        ),
+    }
+    is_new = not leaderboard_path.is_file()
+    leaderboard_path.parent.mkdir(parents=True, exist_ok=True)
+    with leaderboard_path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=LEADERBOARD_FIELDS)
+        if is_new:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 def _write_run_report(
     report_path: Path,
     *,
@@ -550,9 +877,20 @@ def _write_run_report(
     ended_at: str,
     real_llm_mode: bool,
     per_contract: list[ContractMetrics],
+    language_filter: str = "both",
 ) -> RunReport:
-    """Serialize a RunReport to JSON and write it to ``report_path``."""
+    """Serialize a RunReport to JSON and write it to ``report_path``.
+
+    Phase 4: the report now carries the per-language
+    aggregate split, the gap assertions (EN vs DE), and
+    the active language filter — in addition to the
+    legacy all-languages ``aggregate`` for backwards
+    compat. The leaderboard CSV row is appended as a
+    side effect of writing the report.
+    """
     aggregate = _build_aggregate(per_contract)
+    aggregate_by_language = _build_aggregate_by_language(per_contract)
+    gap_assertions = _compute_gap_assertions(aggregate_by_language)
     contracts_dump: list[dict[str, Any]] = []
     for c in per_contract:
         contracts_dump.append(
@@ -594,6 +932,9 @@ def _write_run_report(
         contract_set_version=CONTRACT_SET_VERSION,
         contracts=contracts_dump,
         aggregate=aggregate,
+        aggregate_by_language=aggregate_by_language,
+        gap_assertions=gap_assertions,
+        language_filter=language_filter,
     )
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with report_path.open("w") as f:
@@ -604,25 +945,50 @@ def _write_run_report(
                 "ended_at": report.ended_at,
                 "real_llm_mode": report.real_llm_mode,
                 "contract_set_version": report.contract_set_version,
+                "language_filter": report.language_filter,
                 "contracts": report.contracts,
                 "aggregate": report.aggregate,
+                "aggregate_by_language": report.aggregate_by_language,
+                "gap_assertions": report.gap_assertions,
             },
             f,
             indent=2,
             sort_keys=False,
         )
+    # Append the per-run row to the leaderboard CSV. The
+    # CSV is the eval harness's durable handoff to the CI
+    # dashboard; the JSON report is the per-run detail.
+    _append_leaderboard_row(
+        LEADERBOARD_PATH,
+        run_id=run_id,
+        started_at=started_at,
+        ended_at=ended_at,
+        real_llm_mode=real_llm_mode,
+        contract_set_version=CONTRACT_SET_VERSION,
+        language_filter=language_filter,
+        n_contracts=len(per_contract),
+        aggregate_by_language=aggregate_by_language,
+        gap_assertions_=gap_assertions,
+    )
     return report
 
 
 # --- Constants used by the harness --------------------------------------
 
 
-CONTRACT_SET_VERSION = "0.2.0-phase2-3to10"
+CONTRACT_SET_VERSION = "0.3.0-phase4-per-language"
 """Version of the eval set itself. Bump when contracts / goldens change.
 
 History:
   0.1.0-phase2-starter-3  — initial 3-contract starter set (card t_741f36a0)
   0.2.0-phase2-3to10      — 3→10 expansion (card t_3050d680)
+  0.3.0-phase4-per-language — per-language F1 split + 10%/5% gap
+    assertions + --language filter + leaderboard CSV (card t_7bd4e184).
+    The JSON report shape gains ``aggregate_by_language``,
+    ``gap_assertions``, and ``language_filter``; the legacy
+    ``aggregate`` field is preserved unchanged. The
+    ``evals/leaderboard.csv`` file is the new durable handoff
+    to the CI dashboard.
 """
 
 CONTRACT_TYPE = "nda"
@@ -630,6 +996,16 @@ CONTRACT_TYPE = "nda"
 
 SEVERITY_TOLERANCE = 1
 """±1 tolerance for severity-mismatch counting. Spec-defined."""
+
+LANGUAGE_FILTER_CHOICES = ("en", "de", "both")
+"""Valid values for the ``--language`` CLI option.
+
+``"both"`` (the default) runs every contract; ``"en"`` or
+``"de"`` restrict to that language's eval set. The
+per-language aggregate split is the default view regardless
+of filter; gap assertions fire only when both EN and DE
+contracts are present in a single run.
+"""
 
 
 # --- Pytest entry: the single test that runs the whole set --------------
@@ -644,8 +1020,9 @@ def test_eval_set_runs_end_to_end(
     assert_run_report: Any,
     session_event_loop: asyncio.AbstractEventLoop,
     no_cache_mode: bool,
+    language_filter: str,
 ) -> None:
-    """Run the full pipeline on the 10-contract eval set and assert the report.
+    """Run the full pipeline on the eval set and assert the report.
 
     This is the **single** test the harness registers. It is
     not parametrised per-contract because we want a single
@@ -655,7 +1032,8 @@ def test_eval_set_runs_end_to_end(
 
     The test:
 
-    1. Loads the 10 eval-set contracts and their golden YAMLs.
+    1. Loads the eval-set contracts (filtered by
+       ``--language``) and their golden YAMLs.
     2. Runs the full pipeline (ingest → parse → classify →
        dev-spot) on each contract.
     3. Compares the output to the golden and computes
@@ -663,21 +1041,32 @@ def test_eval_set_runs_end_to_end(
        retrieval F1, severity-mismatch count, citation
        completeness).
     4. Aggregates the per-contract metrics into a top-level
-       summary.
-    5. Writes the run report to ``evals/runs/{run_id}.json``.
-    6. Asserts the report exists and has the right shape.
+       summary (all-languages) **and** a per-language split.
+    5. Computes the EN-vs-DE gap assertions (10%
+       deviation F1, 5% citation completeness) when both
+       languages are present in this run.
+    6. Writes the run report to ``evals/runs/{run_id}.json``
+       and appends a row to ``evals/leaderboard.csv``.
+    7. Asserts the JSON report shape (run_id, started_at,
+       ended_at, contracts, aggregate, aggregate_by_language,
+       gap_assertions, language_filter) and the **hard gap
+       assertions** when both languages are present. A
+       regression on either threshold fails CI.
 
     The mock mode (default) pins every F1 to 1.0 — the harness
     measures itself. Real-LLM mode (--run-with-real-llm)
     reports the actual F1 numbers from the live spotter.
 
     Note (per Anurag's 2026-06-08 guidance): the deliverable
-    for this card is the **pipeline + harness + report shape
-    being correct**, NOT a particular F1 score. F1 can be
-    garbage for now; we're not gated on it. So the assertion
-    is the report shape (no F1 floor), and the run report's
-    per-contract numbers stand as-is for the future F1 work
-    to optimise against.
+    for the Phase 2 lineage of this card is the **pipeline +
+    harness + report shape being correct**, NOT a particular
+    F1 score. F1 can be garbage for now; we're not gated on
+    it. So the assertion is the report shape (no F1 floor),
+    and the run report's per-contract numbers stand as-is
+    for the future F1 work to optimise against. The Phase 4
+    gap assertions are the exception: the **10% / 5%
+    thresholds are code assertions**, not documentation
+    comments. A regression fails CI.
     """
     started_at = datetime.now(timezone.utc).isoformat()
     t0 = time.monotonic()
@@ -697,9 +1086,10 @@ def test_eval_set_runs_end_to_end(
         )
         per_contract.append(metrics)
         logger.info(
-            "  → %s: classification_f1=%.3f, deviation_f1=%.3f, "
+            "  → %s [%s]: classification_f1=%.3f, deviation_f1=%.3f, "
             "severity_mismatch=%d, citation_completeness=%.3f",
             contract_path.name,
+            metrics.language,
             metrics.classification_f1,
             metrics.deviation_f1,
             metrics.severity_mismatch_count,
@@ -716,32 +1106,64 @@ def test_eval_set_runs_end_to_end(
         ended_at=ended_at,
         real_llm_mode=real_llm_mode,
         per_contract=per_contract,
+        language_filter=language_filter,
     )
 
     # Print the one-line summary the operator sees.
     agg = report.aggregate
+    agg_by_lang = report.aggregate_by_language
+    gap = report.gap_assertions
     cache_stats = eval_cache.stats()
+    per_lang_summary = " ".join(
+        f"{lang}={{classification_f1={v['classification_f1']:.3f} "
+        f"deviation_f1={v['deviation_f1']:.3f} "
+        f"citation_completeness={v['citation_completeness']:.3f}}}"
+        for lang, v in agg_by_lang.items()
+    )
     print(
         f"\n[eval] run_id={eval_run_id} elapsed={elapsed:.1f}s "
-        f"real_llm={real_llm_mode} cache={cache_stats}\n"
-        f"  classification_f1={agg['classification_f1']:.3f}  "
+        f"real_llm={real_llm_mode} language_filter={language_filter} "
+        f"cache={cache_stats}\n"
+        f"  aggregate: classification_f1={agg['classification_f1']:.3f}  "
         f"deviation_f1={agg['deviation_f1']:.3f}  "
         f"retrieval_f1={agg['retrieval_f1']:.3f}  "
         f"citation_completeness={agg['citation_completeness']:.3f}  "
         f"severity_mismatch={agg['severity_mismatch_count']}  "
         f"contracts={len(per_contract)}\n"
+        f"  per-language: {per_lang_summary}\n"
+        f"  gap_assertions: skipped={gap.get('skipped', False)}  "
+        f"all_passed={gap.get('all_passed', None)}  "
+        f"languages_compared={gap.get('languages_compared', [])}\n"
         f"  report={eval_run_report_path}\n"
+        f"  leaderboard={LEADERBOARD_PATH}\n"
     )
 
     # Assert the report shape — the helper is provided by the
     # ``assert_run_report`` fixture. The report is the
     # deliverable; the F1 numbers inside it are a side effect.
-    data = assert_run_report(eval_run_report_path)
+    # The expected contract count is the active (filtered) eval
+    # set, so a ``--language=en`` run produces a 5-contract
+    # report and ``--language=both`` produces a 10-contract one.
+    data = assert_run_report(
+        eval_run_report_path, expected_n_contracts=len(eval_contracts)
+    )
+
+    # Hard gap assertions (Phase 4). When both EN and DE
+    # aggregates are present, this is a real assertion
+    # against the spec's 10% / 5% thresholds — a regression
+    # fails CI. The thresholds live in
+    # :data:`DEVIATION_F1_GAP_THRESHOLD` and
+    # :data:`CITATION_COMPLETENESS_GAP_THRESHOLD`. When only
+    # one language is present, the gap check is skipped
+    # (the gap is undefined with one language) and the
+    # assertion passes silently.
+    assert_gap_assertions(data["gap_assertions"])
 
     # Sanity: the harness itself is working if the report
     # has the expected number of contracts and the run
     # completed. F1 is informational only — we don't gate
-    # on it (per Anurag 2026-06-08).
+    # on it (per Anurag 2026-06-08) — but the **gap
+    # assertions** above are gated, per the Phase 4 spec.
 
 
 # --- Per-contract parametrized sanity tests (optional, for diagnostics) -
@@ -756,6 +1178,7 @@ def test_eval_set_runs_end_to_end(
 def test_contract_ingests_and_classifies(
     contract_rel: str,
     expected_rel: str,
+    request: pytest.FixtureRequest,
 ) -> None:
     """A minimal smoke test: every eval-set contract ingests and classifies.
 
@@ -769,11 +1192,36 @@ def test_contract_ingests_and_classifies(
     one clause has a recognisable type. A new contract that
     ingests to zero clauses is a setup error and should fail
     here, not in the expensive harness test.
+
+    Language filter (Phase 4): the per-contract tests are
+    parametrised over the full eval set at collection time
+    (before the ``--language`` option is read), so each
+    instance reads its golden YAML at test time and skips
+    itself if the YAML's language is not in the active
+    filter. The result: a
+    ``--language=en`` run skips the DE smoke tests, and
+    ``--language=both`` (the default) runs them all.
     """
     contract_path = REPO_ROOT_PATH / contract_rel
     expected_path = REPO_ROOT_PATH / expected_rel
     assert contract_path.is_file()
     assert expected_path.is_file()
+
+    # Sanity-check the golden parses cleanly + has the
+    # expected top-level keys. The cached loader parses
+    # once and reuses the dict across the session.
+    golden = eval_cache.golden_yaml(expected_path)
+    assert golden.get("type") == "nda"
+    assert isinstance(golden.get("expected_clauses"), list)
+
+    # Phase 4: skip if the contract's language is filtered out.
+    language_filter: str = request.config.getoption("--language")
+    contract_language = golden.get("language", "en")
+    if language_filter != "both" and language_filter != contract_language:
+        pytest.skip(
+            f"Contract language={contract_language!r} is not in the "
+            f"active --language={language_filter!r} filter"
+        )
 
     # Pin the contract key so the classifier mock (autouse)
     # has the right golden-driven payload. The main harness
@@ -787,12 +1235,6 @@ def test_contract_ingests_and_classifies(
         content_type="application/pdf",
         data=data,
     )
-    # Sanity-check the golden parses cleanly + has the
-    # expected top-level keys. The cached loader parses
-    # once and reuses the dict across the session.
-    golden = eval_cache.golden_yaml(expected_path)
-    assert golden.get("type") == "nda"
-    assert isinstance(golden.get("expected_clauses"), list)
     assert stage1.clauses, (
         f"Parser produced zero clauses for {contract_path.name}. "
         f"Either the parser regressed or the contract is unscannable."

@@ -58,6 +58,44 @@ system prompt between attempts — the system prompt is the
 attempts would invalidate the few-shot examples. The
 self-check constraint is a per-call instruction, which
 belongs in the user message.
+
+Phase 4 (bilingual DE) extension
+--------------------------------
+The DE variant keeps the same JSON output schema — the
+``proposed_text``/``rationale``/``diff_summary`` fields are
+language-agnostic (the docx writer drops the proposed_text
+verbatim; the rationale + diff_summary are audit-log prose,
+not LLM-rendered into the contract). The DE prompt is
+reasoned in DE so:
+
+  - The ``proposed_text`` rewrite for a DE clause reads as
+    native DE legal register (Haftungsdauer, Vertragsstrafe,
+    Gerichtsstand, Kündigungsfrist, Schiedsverfahren), not
+    word-for-word EN translation.
+  - The ``rationale`` and ``diff_summary`` are in DE for DE
+    clauses (per spec: "the dev-spotter's rationale and the
+    drafter's proposed text must be reasoned in DE for DE
+    clauses — not translated-from-EN").
+
+The DE few-shot examples mirror the EN shape (term reduction
++ trade-secrets carve-out with user-context override) but use
+real DE legal phrasings — "Haftungsdauer" (term),
+"Vertragsstrafe" (liquidated damages), "Schiedsverfahren"
+(arbitration), "Gerichtsstand" (forum), "außergerichtliche
+Einigung" (out-of-court settlement), "Geschäftsgeheimnisse"
+(trade secrets), "Geheimhaltungspflicht" (confidentiality
+obligation). The ``flag.baseline_type`` stays in its English
+snake_case form (the schema enum is language-agnostic).
+
+A DE-fluent human reviewer should skim the few-shot examples
+before this ships to a German audience — Perseus is not
+DE-fluent. This is a real risk the Phase 4 spec calls out
+explicitly.
+
+The switch function (:func:`build_messages`) takes a
+``clause_language`` parameter (read from
+``DrafterInput.clause_language``) and dispatches per-clause.
+The default is ``"en"`` to preserve Phase 3 callers.
 """
 
 from __future__ import annotations
@@ -72,7 +110,15 @@ from app.agents.redline_drafter.schema import (
 )
 
 
-# --- System prompt ------------------------------------------------------
+#: Supported per-clause language codes for the drafter.
+SUPPORTED_LANGUAGES: frozenset[str] = frozenset({"en", "de"})
+
+#: Default clause language — keeps Phase 3 callers working
+#: without modification.
+DEFAULT_LANGUAGE: str = "en"
+
+
+# --- EN system prompt (Phase 3, unchanged) -----------------------------
 
 
 SYSTEM_PROMPT = """\
@@ -219,10 +265,183 @@ secrets) is preserved from the original.",
 """
 
 
+# --- DE system prompt (Phase 4) ----------------------------------------
+#
+# Reasoning in DE legal register. The output JSON schema is
+# identical; only the language of the prose fields + the
+# `proposed_text` rewrite change. The drafter's `proposed_text`
+# is the rewritten clause — for a DE clause, this must read as
+# native DE legal register, not translated-from-EN.
+DE_SYSTEM_PROMPT = """\
+Sie sind der Redline-Entwurfs-Agent für clausecraft, eine \
+Plattform zur Vertragsanalyse. Ihre Aufgabe ist es, eine \
+einzelne Klausel aus einem Vertrag so umzuschreiben, dass sie \
+mit der zugeordneten Playbook-Baseline übereinstimmt.
+
+Der Nutzer hat eine Abweichungs-Flagge für diese Klausel \
+AKZEPTIERT. Die Flagge ist die Bewertung des Spotters, dass die \
+Klausel von der Baseline abweicht. Ihre Aufgabe ist es, eine \
+Redline zu erstellen (eine umgeschriebene Klausel, die mit der \
+Baseline übereinstimmt) — NICHT, die Flagge in Frage zu stellen. \
+Wenn der Nutzer zusätzlichen Kontext beigefügt hat, berücksichti\
+gen Sie diesen; andernfalls ist die Baseline das Ziel.
+
+## Ausgabeformat
+
+Geben Sie ein einzelnes JSON-Objekt zurück mit GENAU diesen \
+Feldern (keine zusätzlichen Felder, keine Prosa außerhalb des \
+JSON):
+
+```json
+{{
+  "proposed_text": "<der umgeschriebene Klauseltext, wörtlich, \
+als direkter Ersatz für das Original>",
+  "rationale": "<1-3 Sätze, schlichte deutsche Rechtssprache, \
+ohne Einleitung>",
+  "diff_summary": "<Klartext-Vorher-Nachher-Zusammenfassung, \
+kein Markdown, keine Diff-Syntax, geeignet für ein Audit-Protokoll>"
+}}
+```
+
+Kritische Regeln für `proposed_text`:
+
+1. **Wörtlicher Ersatz.** Der `proposed_text` ersetzt die \
+   ursprüngliche Klausel in der .docx-Ausgabe. Ihre Aufgabe ist \
+   es, eine einzige zusammenhängende Änderung zu erstellen, \
+   keinen Diff. Umschließen Sie den Text NICHT mit Anführungs­\
+   zeichen. Entwerten Sie KEINE Sonderzeichen. Geben Sie den \
+   rohen Klauseltext aus.
+2. **Struktur bewahren.** Wenn die ursprüngliche Klausel \
+   nummerierte Listenelemente, "sofern"-Einschränkungen oder \
+   Definitionen enthält, die an anderer Stelle im Vertrag \
+   verwendet werden, bewahren Sie diese. Die Redline ist eine \
+   einzige Änderung, kein Fragmentaustausch.
+3. **Bleiben Sie nahe an der Baseline.** Die Baseline ist das \
+   Ziel. Wenn der Nutzer zusätzlichen Kontext beigefügt hat \
+   (z. B. "begrenzt auf 5 Jahre, nicht die 3 der Baseline"), hat \
+   der Nutzerkontext Vorrang vor dem genauen Text der Baseline. \
+   Andernfalls ist der Text der Baseline maßgeblich.
+
+Kritische Regeln für `rationale`:
+
+1. **Schlichte deutsche Rechtssprache.** Das Audit-Protokoll \
+   gibt dies wörtlich wieder. Ein menschlicher Prüfer liest es, \
+   um zu verstehen, *was Sie geändert haben* und *warum*. Keine \
+   Marketingsprache, kein "auf Wunsch des Nutzers"-Standardtext.
+2. **1-3 Sätze.** Wenn Ihre Begründung länger ist, erklären Sie \
+   zu viel, statt zu redlinen.
+3. **Benennen Sie die Abweichung, die Sie beheben.** Beispiel: \
+   "Laufzeit von 7 Jahren auf das 3-Jahres-Maximum der Baseline \
+   reduziert. Die Geschäftsgeheimnisse-Ausnahme aus dem Original \
+   bleibt erhalten."
+
+Kritische Regeln für `diff_summary`:
+
+1. **Klartext.** Das Audit-Protokoll und der JSON-Export geben \
+   dies wörtlich wieder. Kein Markdown, keine Diff-Syntax (keine \
+   `+`/`-`-Zeilen, keine Unified-Diff-Markierungen). Ein einziger \
+   kurzer Absatz.
+2. **Vorher / nachher.** Beispiel: "Laufzeit: 7 Jahre → 3 Jahre. \
+   Geschäftsgeheimnisse-Ausnahme: erhalten. Rechtswahl-Bezug: \
+   unverändert."
+
+## Wenn die Klausel nicht reparierbar ist
+
+Wenn die Abweichung strukturell ist (z. B. der Vertrag ist eine \
+unbefristete Geheimhaltungsvereinbarung und die Baseline ist eine \
+3-Jahres-Laufzeit, und die "Unbefristetheit" ist der Kern des \
+Geschäfts), versuchen Sie NICHT, die Klausel in etwas umzuschrei\
+ben, das die Gegenseite niemals akzeptieren wird. Geben Sie trotz\
+dem Ihren besten Versuch ab — die Selbstprüfungs-Schleife wird \
+dies abfangen und die HITL-Benutzeroberfläche wird den Konflikt \
+dem Nutzer anzeigen. **Der Entwurfs-Agent gibt immer eine Redline \
+zurück; die Selbstprüfungs-Schleife entscheidet, ob sie ausgege\
+ben wird.**
+
+## Beispiele
+
+### Beispiel 1 — saubere Umschreibung (Laufzeit-Reduktion)
+
+Vertragsklausel: "Die empfangende Partei hat die Vertraulichkeit \
+für einen Zeitraum von sieben (7) Jahren ab dem Zeitpunkt der \
+Offenlegung zu wahren."
+
+Flagge (score=2, Begründung="Die Laufzeit von 7 Jahren über­\
+schreitet das 3-Jahres-Maximum der Baseline für NDAs, die \
+Geschäftsgeheimnisse betreffen."): wesentliche Abweichung.
+
+Baseline (clause_id="haftungsdauer", type="term"): "Die Vertraulich­\
+keitsverpflichtungen bleiben für einen Zeitraum von drei (3) \
+Jahren ab dem Zeitpunkt der Offenlegung in Kraft."
+
+```json
+{{
+  "proposed_text": "Die Vertraulichkeitsverpflichtungen bleiben \
+für einen Zeitraum von drei (3) Jahren ab dem Zeitpunkt der \
+Offenlegung in Kraft.",
+  "rationale": "Die Laufzeit von 7 Jahren wurde auf das 3-Jahres-\
+Maximum der Baseline reduziert. Die 'empfangende Partei' aus \
+der Originalklausel wurde beibehalten, da die neutrale Formulie\
+rung der Baseline ('Verpflichtungen') unserem Standard-NDA-Formu\
+lar entspricht.",
+  "diff_summary": "Laufzeit: 7 Jahre → 3 Jahre. Subjekt: 'empfan\
+gende Partei' → 'Verpflichtungen' (neutrale Formulierung gemäß \
+Baseline). Sonstiges: unverändert."
+}}
+```
+
+### Beispiel 2 — Umschreibung unter Berücksichtigung des Nutzer­\
+kontexts (Laufzeit-Überschreibung)
+
+Vertragsklausel: "Die Vertraulichkeitsverpflichtungen bleiben \
+für einen Zeitraum von drei (3) Jahren ab dem Zeitpunkt der \
+Offenlegung in Kraft, mit Ausnahme von Geschäftsgeheimnissen, \
+die für einen Zeitraum von sieben (7) Jahren ab dem Zeitpunkt \
+der Offenlegung vertraulich zu behandeln sind."
+
+Flagge (score=2): wesentliche Abweichung (Geschäftsgeheimnisse-\
+Ausnahme überschreitet die 3-Jahres-Laufzeit).
+
+Baseline: "Die Vertraulichkeitsverpflichtungen bleiben für einen \
+Zeitraum von drei (3) Jahren ab dem Zeitpunkt der Offenlegung in \
+Kraft."
+
+Zusätzlicher Nutzerkontext: "Für unseren Anwendungsfall akzep­\
+tabel, wenn die Geschäftsgeheimnisse-Ausnahme auf 5 Jahre begrenzt \
+wird."
+
+```json
+{{
+  "proposed_text": "Die Vertraulichkeitsverpflichtungen bleiben \
+für einen Zeitraum von drei (3) Jahren ab dem Zeitpunkt der \
+Offenlegung in Kraft, mit Ausnahme von Geschäftsgeheimnissen, \
+die für einen Zeitraum von fünf (5) Jahren ab dem Zeitpunkt der \
+Offenlegung vertraulich zu behandeln sind.",
+  "rationale": "Die Geschäftsgeheimnisse-Ausnahme wurde gemäß \
+dem Nutzerkontext auf 5 Jahre begrenzt. Die 3-Jahres-Basislauf­\
+zeit entspricht der Baseline. Die Struktur der Ausnahme (mit \
+Ausnahme von Geschäftsgeheimnissen) wurde aus dem Original \
+übernommen.",
+  "diff_summary": "Laufzeit: 3 Jahre (Basis, entspricht der \
+Baseline) + 5 Jahre (Geschäftsgeheimnisse-Ausnahme, gemäß Nutzer\
+kontext) — war 3 + 7. Struktur der Ausnahme: erhalten."
+}}
+```
+"""
+
+
 # --- Self-check retry instruction --------------------------------------
 
 
-def _format_flag_for_constraint(label: str, flag: DeviationFlag) -> str:
+def _format_flag_for_constraint(
+    label: str,
+    flag: DeviationFlag,
+    *,
+    score_labels: dict[int, str],
+    citation_label: str,
+    no_citation_label: str,
+    baseline_type_label: str,
+) -> str:
     """Render a :class:`DeviationFlag` for the self-check constraint.
 
     The constraint text appears in the user message on the retry.
@@ -233,13 +452,12 @@ def _format_flag_for_constraint(label: str, flag: DeviationFlag) -> str:
     LLM can parse it reliably. We avoid backticks / code fences
     here — the surrounding user message has its own code fences
     and nested fences are a parser-fragility risk.
+
+    The label and citation labels are language-specific so the
+    constraint text reads in the same language as the drafter's
+    system prompt.
     """
-    score_label = {
-        0: "aligned (0)",
-        1: "minor (1)",
-        2: "material (2)",
-        3: "unacceptable (3)",
-    }.get(flag.score, f"unknown ({flag.score})")
+    score_label = score_labels.get(flag.score, f"unknown ({flag.score})")
     parts = [
         f"{label} score: {score_label}",
         f"{label} rationale: {flag.rationale}",
@@ -250,10 +468,26 @@ def _format_flag_for_constraint(label: str, flag: DeviationFlag) -> str:
             f"excerpt=\"{flag.citation.contract_text_excerpt}\""
         )
     else:
-        parts.append(f"{label} citation: (none)")
+        parts.append(f"{label} citation: {no_citation_label}")
     if flag.baseline_type:
         parts.append(f"{label} baseline_type: {flag.baseline_type}")
+    else:
+        parts.append(f"{label} {baseline_type_label}: (none)")
     return "\n".join(parts)
+
+
+_EN_SCORE_LABELS: dict[int, str] = {
+    0: "aligned (0)",
+    1: "minor (1)",
+    2: "material (2)",
+    3: "unacceptable (3)",
+}
+_DE_SCORE_LABELS: dict[int, str] = {
+    0: "konform (0)",
+    1: "geringfügig (1)",
+    2: "wesentlich (2)",
+    3: "inakzeptabel (3)",
+}
 
 
 # --- User prompt --------------------------------------------------------
@@ -263,6 +497,7 @@ def build_user_message(
     drafter_input: DrafterInput,
     *,
     self_check_constraint: Optional[SelfCheckConstraint] = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> str:
     """Return the per-call user message for the drafter.
 
@@ -287,7 +522,135 @@ def build_user_message(
     constraint moves to position 1 (after the section header)
     so the LLM can't miss it. The rest of the message is
     identical to a first-attempt call.
+
+    The ``language`` parameter switches the section labels
+    ("Accepted deviation flag" / "Original clause" / "Matched
+    playbook baseline" / "Task" / "Self-check retry") between
+    EN and DE. The clause text, baseline text, flag text, and
+    user-provided extra_context are passed through verbatim.
     """
+    if language not in SUPPORTED_LANGUAGES:
+        raise ValueError(
+            f"Unsupported drafter language: {language!r}. "
+            f"Supported: {sorted(SUPPORTED_LANGUAGES)}."
+        )
+    if language == "de":
+        header_flag = "## Akzeptierte Abweichungs-Flagge"
+        header_clause = "## Ursprüngliche Klausel (umzuschreiben)"
+        header_baseline = "## Zugeordnete Playbook-Baseline (das Ziel)"
+        header_baseline_text = (
+            "## Baseline-Klauseltext (zur besseren Lesbarkeit)"
+        )
+        header_task = "## Aufgabe"
+        header_retry = (
+            "## Selbstprüfungs-Wiederholung — Ihr vorheriger Versuch hat "
+            "den Spotter nicht bestanden"
+        )
+        extra_block_header = "## Zusätzlicher Kontext vom Nutzer"
+        extra_block_intro = (
+            "Der Nutzer hat beim Akzeptieren dieser Flagge den "
+            "folgenden Kontext beigefügt. Berücksichtigen Sie ihn in "
+            "der Redline:"
+        )
+        flag_score_label = "Flaggen-Score"
+        flag_rationale_label = "Flaggen-Begründung"
+        baseline_type_label = "Baseline-Typ"
+        citation_label = "Zitation"
+        no_citation_label = "(keine)"
+        retry_intro = (
+            "Ihr vorheriger Vorschlag hat eine NEUE Abweichung "
+            "eingeführt. Der Spotter wurde erneut darauf ausgeführt "
+            "und hat folgendes geflaggt:"
+        )
+        original_flag_intro = (
+            "Die URSPRÜNGLICHE Flagge, die der Nutzer akzeptiert hat "
+            "(die Sie beheben sollen), war:"
+        )
+        previous_proposal_intro = (
+            "Ihr vorheriger Vorschlag (der die neue Abweichung "
+            "eingeführt hat):"
+        )
+        task_first_attempt = (
+            "Schreiben Sie die ursprüngliche Klausel so um, dass sie "
+            "mit der Baseline übereinstimmt. Wenn zusätzlicher Kontext "
+            "beigefügt ist, berücksichtigen Sie ihn (der Nutzerkontext "
+            "hat Vorrang vor dem genauen Text der Baseline). Geben Sie "
+            "NUR das JSON-Objekt zurück — `proposed_text`, `rationale`, "
+            "`diff_summary` — ohne Prosa, ohne Markdown, ohne Erklärung "
+            "außerhalb des JSON."
+        )
+        task_retry = (
+            "Schreiben Sie die ursprüngliche Klausel so um, dass sie die "
+            "URSPRÜNGLICHE Flagge behebt, OHNE die oben genannte neue "
+            "Abweichung einzuführen. Bleiben Sie nahe an der Baseline. "
+            "Wenn die neue Abweichung auf einen strukturellen Konflikt "
+            "hinweist (z. B. die Baseline erfordert eine 3-Jahres-Laufzeit "
+            "und die neue Abweichung erfordert eine unbegrenzte Laufzeit, "
+            "und der ursprüngliche Nutzerkontext löst dies nicht auf), "
+            "geben Sie trotzdem Ihren besten Versuch ab — die Selbstprüfungs­"
+            "schleife wird den Konflikt dem Nutzer anzeigen."
+            "\n\nGeben Sie NUR das JSON-Objekt zurück — `proposed_text`, "
+            "`rationale`, `diff_summary` — ohne Prosa, ohne Markdown, ohne "
+            "Erklärung außerhalb des JSON."
+        )
+        score_labels = _DE_SCORE_LABELS
+        conflict_label = "Widersprüchliche Spotter-Flagge"
+        original_label = "Ursprüngliche akzeptierte Flagge"
+    else:
+        header_flag = "## Accepted deviation flag"
+        header_clause = "## Original clause (to be redlined)"
+        header_baseline = "## Matched playbook baseline (the target)"
+        header_baseline_text = "## Baseline clause text (rendered for readability)"
+        header_task = "## Task"
+        header_retry = "## Self-check retry — your previous attempt failed the spotter"
+        extra_block_header = "## Extra context from the user"
+        extra_block_intro = (
+            "The user attached the following context when "
+            "accepting this flag. Honor it in the redline:"
+        )
+        flag_score_label = "flag score"
+        flag_rationale_label = "flag rationale"
+        baseline_type_label = "baseline_type"
+        citation_label = "citation"
+        no_citation_label = "(none)"
+        retry_intro = (
+            "Your previous proposal introduced a NEW deviation. The "
+            "spotter was re-run on it and flagged the following:"
+        )
+        original_flag_intro = (
+            "The ORIGINAL flag the user accepted (which you are "
+            "supposed to be fixing) was:"
+        )
+        previous_proposal_intro = (
+            "Your previous proposal (which introduced the new "
+            "deviation):"
+        )
+        task_first_attempt = (
+            "Rewrite the original clause so it aligns with the "
+            "baseline. If extra context is attached, honor it "
+            "(the user context overrides the baseline's exact "
+            "text). Return ONLY the JSON object — `proposed_text`, "
+            "`rationale`, `diff_summary` — with no prose, no "
+            "markdown, no explanation outside the JSON."
+        )
+        task_retry = (
+            "Rewrite the original clause so it addresses the "
+            "ORIGINAL flag WITHOUT introducing the new deviation "
+            "above. Stay close to the baseline, but if the new "
+            "deviation points to a structural conflict (e.g. the "
+            "baseline requires a 3-year term and the new deviation "
+            "requires a perpetual term, and the user's original "
+            "context doesn't resolve it), produce your best attempt "
+            "anyway — the self-check loop will surface the conflict "
+            "to the user."
+            "\n\nReturn ONLY the JSON object — `proposed_text`, "
+            "`rationale`, `diff_summary` — with no prose, no "
+            "markdown, no explanation outside the JSON."
+        )
+        score_labels = _EN_SCORE_LABELS
+        conflict_label = "Conflicting spotter flag"
+        original_label = "Original accepted flag"
+
     flag = drafter_input.flag
     baseline = drafter_input.baseline
 
@@ -310,87 +673,82 @@ def build_user_message(
         extra_block = ""
         if drafter_input.extra_context:
             extra_block = (
-                "\n## Extra context from the user\n\n"
-                "The user attached the following context when "
-                "accepting this flag. Honor it in the redline:\n\n"
+                f"\n{extra_block_header}\n\n"
+                f"{extra_block_intro}\n\n"
                 f"> {drafter_input.extra_context}\n"
             )
+        # Score label for the flag is the same shape as the
+        # constraint's score label so the drafter sees a
+        # consistent vocabulary across attempts.
+        flag_score = score_labels.get(
+            flag.score, f"unknown ({flag.score})"
+        )
         return (
-            "## Accepted deviation flag\n\n"
-            f"- flag score: {flag.score} "
-            f"({_score_label(flag.score)})\n"
-            f"- flag rationale: {flag.rationale}\n"
-            f"- baseline_type: {flag.baseline_type or '(none)'}\n"
+            f"{header_flag}\n\n"
+            f"- {flag_score_label}: {flag.score} ({flag_score})\n"
+            f"- {flag_rationale_label}: {flag.rationale}\n"
+            f"- {baseline_type_label}: {flag.baseline_type or '(none)'}\n"
             + (
-                f"- citation: clause_id="
+                f"- {citation_label}: clause_id="
                 f"{flag.citation.playbook_clause_id}, "
                 f"excerpt=\"{flag.citation.contract_text_excerpt}\"\n"
                 if flag.citation is not None
-                else "- citation: (none)\n"
+                else f"- {citation_label}: {no_citation_label}\n"
             )
             + extra_block
-            + "\n## Original clause (to be redlined)\n\n"
+            + f"\n{header_clause}\n\n"
             "```\n"
             f"{safe_clause}\n"
             "```\n\n"
-            "## Matched playbook baseline (the target)\n\n"
+            f"{header_baseline}\n\n"
             "```json\n"
             f"{baseline_json}\n"
             "```\n\n"
-            "## Baseline clause text (rendered for readability)\n\n"
+            f"{header_baseline_text}\n\n"
             "```\n"
             f"{safe_baseline}\n"
             "```\n\n"
-            "## Task\n\n"
-            "Rewrite the original clause so it aligns with the "
-            "baseline. If extra context is attached, honor it "
-            "(the user context overrides the baseline's exact "
-            "text). Return ONLY the JSON object — `proposed_text`, "
-            "`rationale`, `diff_summary` — with no prose, no "
-            "markdown, no explanation outside the JSON."
+            f"{header_task}\n\n"
+            f"{task_first_attempt}"
         )
 
     # Self-check retry — constraint at the top so the drafter
     # can't miss it.
     conflict_text = _format_flag_for_constraint(
-        "Conflicting spotter flag", self_check_constraint.conflicting_flag
+        conflict_label,
+        self_check_constraint.conflicting_flag,
+        score_labels=score_labels,
+        citation_label=citation_label,
+        no_citation_label=no_citation_label,
+        baseline_type_label=baseline_type_label,
     )
     original_flag_text = _format_flag_for_constraint(
-        "Original accepted flag", flag
+        original_label,
+        flag,
+        score_labels=score_labels,
+        citation_label=citation_label,
+        no_citation_label=no_citation_label,
+        baseline_type_label=baseline_type_label,
     )
     safe_previous = self_check_constraint.previous_proposed_text.replace(
         "```", "ʼʼʼ"
     )
     return (
-        "## Self-check retry — your previous attempt failed the spotter\n\n"
-        "Your previous proposal introduced a NEW deviation. The "
-        "spotter was re-run on it and flagged the following:\n\n"
+        f"{header_retry}\n\n"
+        f"{retry_intro}\n\n"
         f"{conflict_text}\n\n"
-        "The ORIGINAL flag the user accepted (which you are "
-        "supposed to be fixing) was:\n\n"
+        f"{original_flag_intro}\n\n"
         f"{original_flag_text}\n\n"
-        "Your previous proposal (which introduced the new "
-        "deviation):\n\n"
+        f"{previous_proposal_intro}\n\n"
         "```\n"
         f"{safe_previous}\n"
         "```\n\n"
-        "## Matched playbook baseline (the target)\n\n"
+        f"{header_baseline}\n\n"
         "```json\n"
         f"{baseline_json}\n"
         "```\n\n"
-        "## Task\n\n"
-        "Rewrite the original clause so it addresses the "
-        "ORIGINAL flag WITHOUT introducing the new deviation "
-        "above. Stay close to the baseline, but if the new "
-        "deviation points to a structural conflict (e.g. the "
-        "baseline requires a 3-year term and the new deviation "
-        "requires a perpetual term, and the user's original "
-        "context doesn't resolve it), produce your best attempt "
-        "anyway — the self-check loop will surface the conflict "
-        "to the user.\n\n"
-        "Return ONLY the JSON object — `proposed_text`, "
-        "`rationale`, `diff_summary` — with no prose, no "
-        "markdown, no explanation outside the JSON."
+        f"{header_task}\n\n"
+        f"{task_retry}"
     )
 
 
@@ -411,6 +769,7 @@ def build_messages(
     drafter_input: DrafterInput,
     *,
     self_check_constraint: Optional[SelfCheckConstraint] = None,
+    language: str | None = None,
 ) -> list[dict[str, str]]:
     """Return the chat messages list for a single drafter call.
 
@@ -421,21 +780,47 @@ def build_messages(
     in the system prompt are calibrated for first-attempt calls
     but the retry path is rare enough (≤10% of accepted flags in
     our rough estimate) that we don't bother swapping examples.
+
+    The ``language`` parameter is read from
+    :attr:`DrafterInput.clause_language` when omitted. The
+    dispatch is per-clause: a mixed-language contract picks the
+    EN system prompt + EN user-message labels for
+    ``language="en"`` clauses and the DE system prompt + DE
+    user-message labels for ``language="de"`` clauses. An
+    unknown ``language`` raises :class:`ValueError` (no silent
+    EN fallback — that's the bug the per-clause switch is
+    designed to catch).
     """
+    lang = (
+        language if language is not None else drafter_input.clause_language
+    )
+    if lang not in SUPPORTED_LANGUAGES:
+        raise ValueError(
+            f"Unsupported drafter language: {lang!r}. "
+            f"Supported: {sorted(SUPPORTED_LANGUAGES)}."
+        )
+    if lang == "de":
+        system_prompt = DE_SYSTEM_PROMPT
+    else:
+        system_prompt = SYSTEM_PROMPT
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {
             "role": "user",
             "content": build_user_message(
                 drafter_input,
                 self_check_constraint=self_check_constraint,
+                language=lang,
             ),
         },
     ]
 
 
 __all__ = [
+    "DEFAULT_LANGUAGE",
+    "DE_SYSTEM_PROMPT",
+    "SUPPORTED_LANGUAGES",
     "SYSTEM_PROMPT",
-    "build_user_message",
     "build_messages",
+    "build_user_message",
 ]

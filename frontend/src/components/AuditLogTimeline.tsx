@@ -134,12 +134,37 @@ export interface AuditLogTimelineProps {
    * (Build 4) renders the timeline without the header.
    */
   showHeader?: boolean;
+  /**
+   * Compact mode for the live-review surface. When
+   * ``compact`` is true the timeline:
+   *   - suppresses the per-row "decided_by" actor line
+   *     (the live page already shows the user; the
+   *     audit-replay page is the place to render actors)
+   *   - caps the visible row count at ``limit`` (default
+   *     ``5`` in compact mode, no cap otherwise). The
+   *     cap is applied AFTER sorting, so the most recent
+   *     ``limit`` events are the ones rendered.
+   *   - skips the per-row "clause: …" mono footer
+   *     (the live page already has that information in
+   *     the row it lives in)
+   *
+   * The audit-replay page sets ``compact={false}``
+   * explicitly to opt out.
+   */
+  compact?: boolean;
+  /**
+   * Maximum rows to render in compact mode. Default 5.
+   * Ignored when ``compact`` is false.
+   */
+  limit?: number;
 }
 
 export function AuditLogTimeline({
   rows,
   className,
   showHeader = true,
+  compact = false,
+  limit = 5,
 }: AuditLogTimelineProps) {
   if (rows.length === 0) {
     return (
@@ -164,6 +189,14 @@ export function AuditLogTimeline({
     return ta - tb;
   });
 
+  // Compact mode caps the visible row count after the
+  // sort. The most recent ``limit`` events are the ones
+  // rendered. The total count is still surfaced in the
+  // header (when shown) so the user knows the visible
+  // row is a subset.
+  const visible = compact ? sorted.slice(-limit) : sorted;
+  const hiddenCount = rows.length - visible.length;
+
   return (
     <div className={cn("space-y-2", className)} data-testid="audit-timeline">
       {showHeader && (
@@ -173,10 +206,13 @@ export function AuditLogTimeline({
         >
           {rows.length} audit event{rows.length === 1 ? "" : "s"} for this
           contract.
+          {compact && hiddenCount > 0 && (
+            <> Showing the latest {visible.length}.</>
+          )}
         </p>
       )}
       <ol className="relative ml-2 border-l border-border">
-        {sorted.map((row, idx) => {
+        {visible.map((row, idx) => {
           const tone = decisionTypeTone(row.decision_type);
           return (
             <li
@@ -210,7 +246,7 @@ export function AuditLogTimeline({
                   data-testid="audit-timeline-timestamp"
                 >
                   {formatTimestamp(row.decided_at)}
-                  {row.decided_by && (
+                  {!compact && row.decided_by && (
                     <>
                       {" · "}
                       <span
@@ -228,7 +264,7 @@ export function AuditLogTimeline({
                 >
                   {payloadSummary(row)}
                 </span>
-                {row.clause_id && (
+                {!compact && row.clause_id && (
                   <span
                     className="font-mono text-[11px] text-muted-foreground"
                     data-testid="audit-timeline-clause-id"

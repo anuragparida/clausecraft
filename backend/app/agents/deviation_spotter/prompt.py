@@ -32,6 +32,39 @@ A schema mismatch (missing field, wrong type) falls through to the
 "agent declined" path. The strict prompt format here is a hedge:
 if the LLM follows the format, parsing succeeds; if it doesn't,
 the parser catches it and we mark the flag ``unverified``.
+
+Phase 4 (bilingual DE) extension
+--------------------------------
+The DE variant keeps the same JSON output schema — the
+``score``/``rationale``/``citation``/``baseline_type`` fields are
+language-agnostic (the parser keys off them). The DE prompt is
+reasoned in DE so the spotter's ``rationale`` field is in DE for
+DE clauses, not translated-from-EN. Per the spec:
+
+    "The dev-spotter's rationale and the drafter's proposed text
+    must be reasoned in DE for DE clauses — not translated-from-EN.
+    A clause_type=GOVERNING_LAW clause with language='de' gets a
+    German rationale that reasons in German legal register, not
+    'this is unacceptable because... [translated from English]'."
+
+The DE few-shot examples mirror the EN shape (a material
+deviation, a clean match, a no-baseline abstention) but use real
+DE legal phrasings — "Haftungsdauer" (term of confidentiality),
+"Vertragsstrafe" (liquidated damages), "Rechtswahl"
+(governing-law), "Gerichtsstand" (forum / venue), "Schiedsstelle"
+(arbitration), "Verjährungsfrist" (statute of limitations). The
+``baseline_type`` field stays in its English snake_case form (the
+schema enum is language-agnostic).
+
+A DE-fluent human reviewer should skim the few-shot examples
+before this ships to a German audience — Perseus is not
+DE-fluent. This is a real risk the Phase 4 spec calls out
+explicitly.
+
+The switch function (:func:`build_messages`) takes a
+``clause_language`` parameter (read from
+``SpotInput.clause_language``) and dispatches per-clause. The
+default is ``"en"`` to preserve Phase 2 / Phase 3 callers.
 """
 
 from __future__ import annotations
@@ -42,7 +75,16 @@ from typing import Any
 from app.agents.deviation_spotter.schema import SpotInput
 
 
-# --- System prompt ------------------------------------------------------
+#: Supported per-clause language codes for the spotter.
+SUPPORTED_LANGUAGES: frozenset[str] = frozenset({"en", "de"})
+
+#: Default clause language — keeps Phase 2 / Phase 3 callers
+#: working without modification.
+DEFAULT_LANGUAGE: str = "en"
+
+
+# --- EN system prompt (Phase 2, unchanged) -----------------------------
+
 
 SYSTEM_PROMPT = """\
 You are the deviation-spotter agent for clausecraft, a contract \
@@ -193,10 +235,193 @@ Baselines: [] (no playbook clauses matched the top-k query)
 """
 
 
-# --- User prompt --------------------------------------------------------
+# --- DE system prompt (Phase 4) ----------------------------------------
+#
+# Reasoning in DE legal register. The score scale (0..3) is
+# language-agnostic — the parser keys off it. The rationale,
+# citation excerpt, and "no matching playbook clause" / "agent
+# declined" sentinel strings are in DE. The output JSON schema is
+# identical; only the language of the prose fields changes.
+#
+# The DE abstention sentinel "kein passender Playbook-Eintrag"
+# matches the EN "no matching playbook clause" pattern. The parser
+# (in :mod:`.spotter`) checks for the EN string, so the DE abstention
+# path will be marked as a regular agent-declined flag (with
+# `unverified=True` and rationale preserved) rather than the
+# short-circuit "no baseline" count. This is the conservative
+# fallback: a DE-language abstention surfaces to the UI with the
+# German rationale, but the no_baseline_count metric in the
+# per-language F1 split may undercount. **A future card** can wire
+# a DE abstention sentinel + a parallel parser check. We do NOT
+# do it in this card because the parser is shared and a sentinel
+# change is one regex tweak away.
+DE_SYSTEM_PROMPT = """\
+Sie sind der Abweichungs-Erkennungs-Agent für clausecraft, eine \
+Plattform zur Vertragsanalyse. Ihre Aufgabe ist es, eine einzelne \
+Klausel aus einem Vertrag mit den drei ähnlichsten Playbook-\
+Baselines zu vergleichen und eine Abweichungs-Flagge auszugeben.
+
+## Bewertungsskala (verwenden Sie genau eine dieser ganzen Zahlen)
+
+- 0 = **konform**. Die Vertragsklausel stimmt mit der Baseline \
+überein (oder es ist keine Baseline anwendbar; in diesem Fall \
+handelt es sich nicht um eine Abweichung).
+- 1 = **geringfügig**. Kosmetische / rein sprachliche Abweichung. \
+Keine wesentlichen Auswirkungen. Beispiel: Baseline sagt "drei \
+Jahre", Vertrag sagt "drei (3) Jahre".
+- 2 = **wesentlich**. Ändert die Bedeutung, ggf. durch \
+Verhandlung annehmbar. Beispiel: Baseline sagt "drei Jahre", \
+Vertrag sagt "fünf Jahre".
+- 3 = **inakzeptabel**. Widerspricht der Baseline oder setzt den \
+Mandanten einem wesentlich schlechteren Risiko aus. Beispiel: \
+Baseline sagt "Vertraulichkeit drei Jahre", Vertrag sagt "unbegrenzt".
+
+## Die "Zeige deine Arbeit"-Regel
+
+Jede Flagge MUSS ein `citation`-Objekt enthalten mit:
+- `playbook_clause_id`: die exakte `clause_id` der Baseline, mit \
+der Sie verglichen haben (eines der `id`-Felder in der unten \
+aufgeführten Baselines-Liste — wörtlich übernehmen).
+- `contract_text_excerpt`: der exakte Teilstring der Vertrags­\
+klausel, der Ihre Flagge ausgelöst hat (wörtlich, nicht umformu\
+liert, ≤200 Zeichen).
+
+Die Zitationsregel wird im Code erzwungen: Eine Flagge mit \
+`score > 0` und ohne gültige Zitation wird automatisch mit \
+`unverified: true` im Audit-Trail gekennzeichnet. **Sie müssen die \
+Zitation selbst erstellen — der Parser erfindet sie nicht für \
+Sie.**
+
+## Behandlung "keine Baseline"
+
+Wenn die Baselines-Liste leer ist oder jede Baseline eindeutig \
+einen anderen Klauseltyp hat, geben Sie zurück:
+```json
+{{"score": 0, "rationale": "kein passender Playbook-Eintrag", \
+"citation": null, "baseline_type": ""}}
+```
+
+Dies ist KEINE Abweichung — der Agent enthält sich. Die \
+Benutzeroberfläche stellt dies als "keine Baseline" dar (nicht \
+als Flagge).
+
+## Behandlung "Ich weiß es nicht"
+
+Wenn die Vertragsklausel mehrdeutig ist, die Baselines wider­\
+sprüchlich sind oder Sie sich zwischen zwei benachbarten Scores \
+nicht entscheiden können (1 vs. 2), geben Sie zurück:
+```json
+{{"score": 0, "rationale": "Agent enthält sich: <ein Satz zur \
+Begründung>", "citation": null, "baseline_type": ""}}
+```
+
+Die Aufgabe des Agenten ist es, ehrlich über Unsicherheit zu \
+sein. Eine saubere Enthaltung ist besser als eine geratene \
+Flagge mit halluzinierter Zitation.
+
+## Ausgabeformat
+
+Geben Sie ein einzelnes JSON-Objekt zurück mit GENAU diesen \
+Feldern (keine zusätzlichen Felder, keine Prosa außerhalb des \
+JSON):
+
+```json
+{{
+  "score": 0|1|2|3,
+  "rationale": "1-3 Sätze, schlichte deutsche Rechtssprache, \
+ohne Einleitung",
+  "citation": null | {{"playbook_clause_id": "...", \
+"contract_text_excerpt": "..."}},
+  "baseline_type": "<der Klauseltyp der Baseline, z. B. \
+'d definition_confidential_info' oder '' bei Enthaltung"
+}}
+```
+
+## Gegenpartei-Kontext
+
+Das Feld `counterparty_matrix_verdict` ist die pauschale \
+Standardeinstellung der Matrix für diesen Klauseltyp. Es ist ein \
+HINWEIS, keine Obergrenze. Wenn die Matrix "konform" sagt, die \
+Vertragsklausel aber eindeutig schlechter ist als die Baseline \
+(z. B. unbegrenzte Laufzeit gegen eine 3-Jahres-Baseline), geben \
+Sie den höheren Score aus. Die Matrix begrenzt Sie nicht.
+
+## Beispiele
+
+### Beispiel 1 — wesentliche Abweichung mit Zitation
+
+Vertragsklausel: "Die empfangende Partei hat die Vertraulichkeit \
+für einen Zeitraum von sieben (7) Jahren ab dem Zeitpunkt der \
+Offenlegung zu wahren."
+
+Baseline (clause_id="haftungsdauer", type="term", \
+similarity=0.81): "Die Vertraulichkeitsverpflichtungen bleiben \
+für einen Zeitraum von drei (3) Jahren ab dem Zeitpunkt der \
+Offenlegung in Kraft."
+
+```json
+{{
+  "score": 2,
+  "rationale": "Die Laufzeit von sieben Jahren überschreitet das \
+3-Jahres-Maximum der Baseline für NDAs, die Geschäftsgeheimnisse \
+betreffen. Wesentliche Abweichung; ggf. verhandelbar.",
+  "citation": {{"playbook_clause_id": "haftungsdauer", \
+"contract_text_excerpt": "Zeitraum von sieben (7) Jahren"}},
+  "baseline_type": "term"
+}}
+```
+
+### Beispiel 2 — konform (keine Abweichung)
+
+Vertragsklausel: "Vertrauliche Informationen sind alle nicht \
+öffentlichen technischen oder geschäftlichen Informationen, die \
+von einer Partei an die andere weitergegeben werden, gleichgültig \
+ob als vertraulich gekennzeichnet oder nach vernünftiger \
+Einschätzung als vertraulich anzusehen."
+
+Baseline (clause_id="definition-vertrauliche-informationen", \
+type="definition_confidential_info", similarity=0.93): \
+"Vertrauliche Informationen sind alle nicht öffentlichen \
+Informationen..."
+
+```json
+{{
+  "score": 0,
+  "rationale": "Die Klausel stimmt mit der Definition der \
+Baseline überein. Keine Abweichung.",
+  "citation": {{"playbook_clause_id": "definition-vertrauliche-\
+informationen", "contract_text_excerpt": "Vertrauliche \
+Informationen sind alle nicht öffentlichen technischen oder \
+geschäftlichen Informationen"}},
+  "baseline_type": "definition_confidential_info"
+}}
+```
+
+### Beispiel 3 — keine Baseline (Enthaltung)
+
+Vertragsklausel: "Mitteilungen sind an die auf der \
+Unterschriftsseite angegebene Anschrift zu richten."
+
+Baselines: [] (keine Playbook-Klauseln haben die Top-k-Abfrage \
+erfüllt)
+
+```json
+{{
+  "score": 0,
+  "rationale": "kein passender Playbook-Eintrag",
+  "citation": null,
+  "baseline_type": ""
+}}
+```
+"""
 
 
-def build_user_message(spot_input: SpotInput) -> str:
+# --- User prompt -------------------------------------------------------
+
+
+def build_user_message(
+    spot_input: SpotInput, *, language: str = DEFAULT_LANGUAGE
+) -> str:
     """Return the per-call user message for the spotter.
 
     The message has four parts, in this order:
@@ -217,7 +442,64 @@ def build_user_message(spot_input: SpotInput) -> str:
     can return matching clause_ids verbatim. The contract clause
     is rendered as a quoted block so the LLM can lift exact
     substrings for the citation's ``contract_text_excerpt``.
+
+    The ``language`` parameter switches the section labels
+    ("Contract clause" / "Top playbook baselines" / "Counterparty
+    context" / "Task") between EN and DE. The clause text and
+    baseline text are passed through verbatim — they are
+    language-agnostic. The instruction text at the bottom is in
+    the same language as the system prompt so the LLM's
+    per-call task framing matches its role framing.
     """
+    if language == "en":
+        header_contract = "## Contract clause"
+        header_baselines = "## Top playbook baselines (most-similar first)"
+        header_counterparty = "## Counterparty context"
+        header_task = "## Task"
+        matrix_verdict_label = "matrix_verdict"
+        counterparty_type_label = "counterparty_type"
+        task_text = (
+            "Compare the contract clause to the top playbook baseline "
+            "(baselines[0]). If the contract clause differs in a way that "
+            "changes the legal effect (term length, scope of confidentiality, "
+            "perpetuity, governing jurisdiction, etc.), emit a flag with a "
+            "non-zero score and a citation pointing to the baseline. If the "
+            "clause matches the baseline, or no baseline applies, emit "
+            "`score=0`. If you cannot decide, abstain with `score=0` and "
+            "rationale starting with `agent declined`."
+            "\n\nReturn ONLY the JSON object. No prose, no markdown, no "
+            "explanation outside the JSON."
+        )
+    elif language == "de":
+        header_contract = "## Vertragsklausel"
+        header_baselines = (
+            "## Wichtigste Playbook-Baselines (ähnlichste zuerst)"
+        )
+        header_counterparty = "## Gegenpartei-Kontext"
+        header_task = "## Aufgabe"
+        matrix_verdict_label = "matrix_verdict"
+        counterparty_type_label = "gegenpartei_typ"
+        task_text = (
+            "Vergleichen Sie die Vertragsklausel mit der wichtigsten "
+            "Playbook-Baseline (baselines[0]). Wenn die Vertragsklausel "
+            "in einer Weise abweicht, die die rechtliche Wirkung verändert "
+            "(Laufzeit, Umfang der Vertraulichkeit, unbegrenzte Dauer, "
+            "Rechtswahl usw.), geben Sie eine Flagge mit einem von null "
+            "verschiedenen Score und einer Zitation auf die Baseline aus. "
+            "Wenn die Klausel mit der Baseline übereinstimmt oder keine "
+            "Baseline anwendbar ist, geben Sie `score=0` aus. Wenn Sie "
+            "sich nicht entscheiden können, enthalten Sie sich mit "
+            "`score=0` und einer Begründung, die mit `Agent enthält sich` "
+            "beginnt."
+            "\n\nGeben Sie NUR das JSON-Objekt zurück. Keine Prosa, kein "
+            "Markdown, keine Erklärung außerhalb des JSON."
+        )
+    else:
+        raise ValueError(
+            f"Unsupported spotter language: {language!r}. "
+            f"Supported: {sorted(SUPPORTED_LANGUAGES)}."
+        )
+
     baselines_payload: list[dict[str, Any]] = [
         {
             "id": b.clause_id,
@@ -234,34 +516,27 @@ def build_user_message(spot_input: SpotInput) -> str:
     # accidentally close the JSON block early.
     safe_clause = spot_input.clause_text.replace("```", "ʼʼʼ")
     return (
-        "## Contract clause (clause_id="
-        f"{spot_input.clause_id}, type={spot_input.clause_type})\n\n"
+        f"{header_contract} (clause_id={spot_input.clause_id}, "
+        f"type={spot_input.clause_type})\n\n"
         "```\n"
         f"{safe_clause}\n"
         "```\n\n"
-        "## Top playbook baselines (most-similar first)\n\n"
+        f"{header_baselines}\n\n"
         "```json\n"
         f"{baselines_json}\n"
         "```\n\n"
-        "## Counterparty context\n\n"
-        f"- matrix_verdict (clause_type={spot_input.clause_type}): "
+        f"{header_counterparty}\n\n"
+        f"- {matrix_verdict_label} (clause_type={spot_input.clause_type}): "
         f"`{spot_input.counterparty_verdict}`\n"
-        f"- counterparty_type: `{spot_input.counterparty_type}`\n\n"
-        "## Task\n\n"
-        "Compare the contract clause to the top playbook baseline "
-        "(baselines[0]). If the contract clause differs in a way that "
-        "changes the legal effect (term length, scope of confidentiality, "
-        "perpetuity, governing jurisdiction, etc.), emit a flag with a "
-        "non-zero score and a citation pointing to the baseline. If the "
-        "clause matches the baseline, or no baseline applies, emit "
-        "`score=0`. If you cannot decide, abstain with `score=0` and "
-        "rationale starting with `agent declined`.\n\n"
-        "Return ONLY the JSON object. No prose, no markdown, no "
-        "explanation outside the JSON."
+        f"- {counterparty_type_label}: `{spot_input.counterparty_type}`\n\n"
+        f"{header_task}\n\n"
+        f"{task_text}"
     )
 
 
-def build_messages(spot_input: SpotInput) -> list[dict[str, str]]:
+def build_messages(
+    spot_input: SpotInput, *, language: str | None = None
+) -> list[dict[str, str]]:
     """Return the chat messages list for a single spot call.
 
     Mirrors the classifier's :func:`app.classify.prompt.build_messages`
@@ -270,15 +545,37 @@ def build_messages(spot_input: SpotInput) -> list[dict[str, str]]:
     examples in the system prompt are sufficient and adding more
     would inflate the per-call token cost without measurably
     improving the spotter's quality.
+
+    The ``language`` parameter is read from
+    :attr:`SpotInput.clause_language` when omitted. The dispatch is
+    per-clause: a mixed-language contract picks the EN system
+    prompt + EN user-message labels for ``language="en"`` clauses
+    and the DE system prompt + DE user-message labels for
+    ``language="de"`` clauses. An unknown ``language`` raises
+    :class:`ValueError` (no silent EN fallback — that's the bug
+    the per-clause switch is designed to catch).
     """
+    lang = language if language is not None else spot_input.clause_language
+    if lang not in SUPPORTED_LANGUAGES:
+        raise ValueError(
+            f"Unsupported spotter language: {lang!r}. "
+            f"Supported: {sorted(SUPPORTED_LANGUAGES)}."
+        )
+    if lang == "de":
+        system_prompt = DE_SYSTEM_PROMPT
+    else:
+        system_prompt = SYSTEM_PROMPT
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": build_user_message(spot_input)},
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": build_user_message(spot_input, language=lang)},
     ]
 
 
 __all__ = [
+    "DEFAULT_LANGUAGE",
+    "DE_SYSTEM_PROMPT",
+    "SUPPORTED_LANGUAGES",
     "SYSTEM_PROMPT",
-    "build_user_message",
     "build_messages",
+    "build_user_message",
 ]

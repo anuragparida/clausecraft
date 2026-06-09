@@ -5,11 +5,16 @@
 # Phase 5 scope: "the matrix is the source of truth for
 # (clause_type, counterparty_type) → acceptable_range").
 #
-# What "flat" means here: every (clause_type) maps to a single
-# default verdict. Counterparty type is recorded for audit purposes
-# but does not yet change the verdict. The shape is forward-compatible
-# with Phase 5 — the verdict table will gain a `counterparty_type`
-# key and lookups will become a 2D table.
+# Phase 4 adds a sibling language axis: a few DE-specific entries
+# become stricter when the contract is in German AND the
+# counterparty is a German entity. The shape is:
+#
+#   language_overrides[language][counterparty_type][clause_type] = verdict
+#
+# This mirrors the existing 2D `counterparty_overrides` shape
+# (`counterparty_type → clause_type → verdict`) and stacks the
+# language axis on top. The DE column only NARROWS verdicts for
+# DE counterparty types — the EN path is unchanged.
 #
 # Verdict scale (matches the spotter's score scale in Phase 2):
 #   0 = aligned (matches baseline)
@@ -19,7 +24,7 @@
 #
 # When the matrix is flat, every (clause_type) is treated as
 # "counterparty_type=any" and the verdict is the default.
-version: "0.0.0-dev"
+version: "0.1.0-de"
 contract_type: nda
 language: en
 default_counterparty_type: any
@@ -60,3 +65,31 @@ clause_verdicts:
 # and `lookup_verdict(clause_type, counterparty_type, score)` will
 # apply the override. For Phase 2 this entire section is ignored.
 counterparty_overrides: {}
+# Phase 4: language axis as a sibling of `counterparty_overrides`.
+# Shape: `language → { counterparty_type → { clause_type → verdict } }`.
+# The DE column is *additive* — only narrows verdicts for DE
+# counterparty types. EN lookup is unchanged.
+#
+# The current DE counterparty types are intentionally coarse — the
+# spec calls out that the counterparty matrix is a Phase 5 feature;
+# Phase 4 only adds a single language axis. We surface one DE
+# counterparty type for now (`de_german_entity`) and leave the
+# schema open for the Phase 5 expansion.
+#
+# DE-specific stricter verdicts (per docs/11-phases.md Phase 4 spec):
+#   - governing_law: when counterparty is a German entity, deviation
+#     from "German courts" jurisdiction is more material. The EN
+#     default is `aligned`; for DE counterparty types we escalate
+#     any non-German-law deviation to `material` (negotiate) — the
+#     German party will push back hard on US/NY/England jurisdiction.
+#   - limitation_of_liability: German `Haftungsbeschränkung` norms
+#     differ; missing or one-sided limitation becomes `material`.
+#   - term: DE BGB notice periods have a specific shape (Kündigungs­
+#     frist); non-standard terms become `material` for DE counterparties.
+language_overrides:
+  de:
+    counterparty_overrides:
+      de_german_entity:
+        governing_law: material
+        limitation_of_liability: material
+        term: material

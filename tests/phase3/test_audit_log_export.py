@@ -233,6 +233,48 @@ async def test_export_json_raises_for_unknown_contract() -> None:
             )
 
 
+async def test_export_json_includes_schema_version(seeded_contract: str) -> None:
+    """The JSON export carries a top-level ``schema_version`` field.
+
+    Fix F2 from the Phase 3 review. Downstream consumers
+    (regulated-work pitches, re-importers, validators)
+    need a machine-checkable handle to know whether
+    their parser matches the producer's format. The
+    field is a string of the form ``"<major>"`` — the
+    first versioned export is ``"1"``; any future
+    breaking change must bump it and document the diff
+    in the README's audit-log section.
+
+    Asserts:
+
+    1. ``schema_version`` is present at the top level.
+    2. It is a non-empty string.
+    3. It is the expected current value (``"1"``), so a
+       regression that drops the field back out is
+       caught by the test rather than by a downstream
+       consumer.
+
+    The test is intentionally separate from
+    :func:`test_export_json_via_inprocess_function`
+    so that a regression on this single field gives a
+    direct pointer to the fix card.
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        blob = await export_audit_log_json(session, seeded_contract)
+
+    payload = json.loads(blob)
+    assert "schema_version" in payload, (
+        "F2 regression: JSON export is missing the top-level "
+        "`schema_version` field. See t_ccdb1b96 for context."
+    )
+    assert isinstance(payload["schema_version"], str)
+    assert payload["schema_version"] != ""
+    # Pin the current version. When this changes, update
+    # this assertion AND the README audit-log section.
+    assert payload["schema_version"] == "1"
+
+
 # --- 2. In-process PDF export ------------------------------------------
 
 
@@ -376,6 +418,13 @@ async def test_get_audit_log_json_endpoint(
     assert payload["contract_id"] == seeded_contract
     assert payload["row_count"] == len(_DECISION_TYPE_FIXTURES)
     assert len(payload["events"]) == len(_DECISION_TYPE_FIXTURES)
+    # F2 from the Phase 3 review: the JSON must advertise
+    # its schema_version at the top level. Caught at the
+    # route layer (not just the in-process function) so a
+    # regression in the response wrapper is caught too.
+    assert "schema_version" in payload
+    assert isinstance(payload["schema_version"], str)
+    assert payload["schema_version"] == "1"
 
 
 async def test_get_audit_log_pdf_endpoint(

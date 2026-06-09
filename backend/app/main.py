@@ -188,14 +188,17 @@ async def post_contracts_ingest(
     file: UploadFile = File(..., description="PDF or DOCX NDA contract"),
     language: str = Form(
         default="en",
-        description='Contract language. Phase 1 supports "en" only.',
+        description='Contract language. Phase 4 supports "en" and "de".',
     ),
 ) -> IngestResponse:
     """Phase 1 — ingest + parse + classify an uploaded NDA.
 
     Accepts a multipart upload (``file=@contract.pdf``) and an optional
-    ``language`` form field. The pipeline returns the typed clause list
-    in a stable JSON schema; the frontend renders it in the Triage page.
+    ``language`` form field (``"en"`` or ``"de"``). The pipeline
+    returns the typed clause list in a stable JSON schema; the
+    frontend renders it in the Triage page. The ``language`` form
+    field is threaded through to the classifier so the matching
+    prompt variant (EN or DE) is used.
 
     Failure modes:
 
@@ -206,15 +209,12 @@ async def post_contracts_ingest(
       endpoint still returns 200 with the partially-classified list.
     """
     if language not in ("en", "de"):
-        # Phase 1 = en only. We accept "de" as a form value so the
-        # field is forward-compatible, but the classifier still treats
-        # it as English for now.
+        # Phase 4 — bilingual EN + DE.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"Unsupported language {language!r}. Phase 1 supports 'en' "
-                f"only. The 'de' value is accepted as a forward-compatible "
-                f"placeholder but is classified as English."
+                f"Unsupported language {language!r}. "
+                f"Phase 4 supports 'en' and 'de'."
             ),
         )
 
@@ -230,6 +230,7 @@ async def post_contracts_ingest(
             filename=file.filename or "upload.bin",
             content_type=file.content_type or "application/octet-stream",
             data=data,
+            language=language,
         )
     except ValueError as exc:
         # Unsupported format / parse failure — return 400.
@@ -237,6 +238,32 @@ async def post_contracts_ingest(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+
+    # Phase 3 Build 6: stash the ingest result in the
+    # in-memory state store so the downstream
+    # ``/contracts/{id}/decisions`` endpoint can find it
+    # without re-ingesting. The ``contract_id`` is the
+    # filename (the e2e test's contract_id == filename
+    # convention). Production swaps the dict for a
+    # Postgres-backed store.
+    try:
+        from app.pipeline.phase3_pipeline import get_state
+
+        state = get_state(file.filename or "upload.bin")
+        state.filename = result.filename
+        state.content_type = file.content_type or "application/octet-stream"
+        state.file_bytes = data
+        state.clauses = ClauseList(
+            clauses=result.clauses
+        ).model_dump(mode="jsonable")["clauses"]
+    except Exception as exc:  # noqa: BLE001
+        # State-store failure is non-fatal for the
+        # ingest itself — the response is still
+        # accurate. The /decisions endpoint will surface
+        # a clear error if state is missing.
+        logger.warning(
+            "ingest: failed to stash clauses in state store: %s", exc
+        )
 
     return _build_ingest_response(result)
 
@@ -416,6 +443,32 @@ async def post_contracts_spot(payload: SpotRequest) -> SpotResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Spot stage failed: {exc}",
         ) from exc
+
+    # Phase 3 Build 6: stash the spot flags in the
+    # in-memory state store so the downstream
+    # ``/contracts/{id}/decisions`` endpoint can find them
+    # when the user clicks "Generate redline". The state
+    # was created by the prior ``/contracts/ingest`` call —
+    # we look it up by the same ``filename`` key.
+    try:
+        from app.pipeline.phase3_pipeline import get_state
+
+        state = get_state(payload.filename)
+        # ``result.flags`` is a list of ``DeviationFlag``
+        # Pydantic models; the pipeline module only consumes
+        # the dict shape (``clause_id``, ``score``, etc.).
+        # ``model_dump`` is the cleanest serialiser — it
+        # handles the nested ``Citation`` (also a Pydantic
+        # model) recursively.
+        state.flags = [
+            f.model_dump() if hasattr(f, "model_dump") else dict(f)
+            for f in (result.flags or [])
+        ]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "spot: failed to stash flags in state store: %s", exc
+        )
+
     return _build_spot_response(result)
 
 
@@ -452,6 +505,7 @@ async def get_audit_log_json(
     ::
 
         {
+          "schema_version": "1",
           "contract_id": "...",
           "exported_at": "<ISO-8601 UTC>",
           "row_count": N,
@@ -530,6 +584,349 @@ async def get_audit_log_pdf(
         headers={
             "Content-Disposition": (
                 f'attachment; filename="audit-log-{safe}.pdf"'
+            ),
+        },
+    )
+
+
+# --- Phase 3 Build 6: decisions + redline download ---------------------
+#
+# These two routes are the spine of the e2e test. Both are
+# thin HTTP shells over the ``app.pipeline.phase3_pipeline``
+# module's in-memory state store, which was populated by
+# the prior ``/contracts/ingest`` and ``/contracts/spot``
+# calls (the same filename key).
+#
+# State is process-local — the spec's exit gate runs in CI,
+# not across a container restart. A production deployment
+# would swap the dict for a Postgres-backed store.
+
+
+class DecisionItem(BaseModel):
+    """One per-flag decision in the e2e request body.
+
+    Mirrors the shape the e2e test sends — the spec
+    hardcodes the test's ``decision`` strings
+    (``"approve"`` / ``"reject"`` / ``"edit_severity"``) and
+    the pipeline module's :func:`normalise_decision` does
+    the mapping to the canonical ``accepted`` / ``rejected``
+    / ``edited`` action names.
+    """
+
+    clause_id: str = Field(..., min_length=1, max_length=128)
+    decision: str = Field(..., min_length=1, max_length=32)
+    new_severity: int | None = None
+    old_severity: int | None = None
+    extra_context: str | None = None
+
+
+class DecisionsRequest(BaseModel):
+    """Body for ``POST /contracts/{contract_id}/decisions``.
+
+    Wraps a list of :class:`DecisionItem`. The e2e test
+    pins a deterministic set of decisions per fixture
+    contract, so the request body is fully specifiable.
+    """
+
+    decisions: list[DecisionItem] = Field(..., min_length=1)
+
+
+class DecisionsResponse(BaseModel):
+    """Response body for ``/contracts/{id}/decisions``.
+
+    Mirrors the pipeline's :func:`process_decisions` return
+    shape — the operator / e2e test cares about the
+    counts, not the inner state.
+    """
+
+    contract_id: str
+    decisions_count: int
+    redlines_count: int
+    docx_bytes: int
+
+
+@app.post(
+    "/contracts/{contract_id}/decisions",
+    response_model=DecisionsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def post_contracts_decisions(
+    contract_id: str,
+    payload: DecisionsRequest,
+) -> DecisionsResponse:
+    """Phase 3 Build 6 — submit per-flag decisions and render the redline.
+
+    The endpoint is the HITL ``resume`` point in the
+    Build 3 spec: the user has reviewed the spot flags,
+    approved some and rejected others, and now wants
+    the redline drafter to run + the .docx to be
+    rendered. The pipeline module runs:
+
+    1. Decision normalisation (``approve`` / ``reject``
+       / ``edit_severity`` → canonical actions).
+    2. Per-decision audit events.
+    3. Drafter + self-check for each accepted flag.
+    4. ``.docx`` render (Build 2's
+       :func:`app.output.docx.render_redline_docx`).
+    5. ``graph_resumed`` lifecycle event.
+
+    Failure modes:
+
+    - No state for ``contract_id`` → 404 (the user
+      hasn't run ``/contracts/ingest`` first, or the
+      server restarted — the in-memory state is
+      process-local).
+    - Decision validation error → 422 (Pydantic does
+      this for us on the body itself; a semantic
+      ``ValueError`` from
+      :func:`app.pipeline.phase3_pipeline.process_decisions`
+      is converted to 400).
+    """
+    # Imported lazily so the e2e test's gating fixture
+    # can introspect the app's routes without paying for
+    # the import until a request actually arrives.
+    from app.pipeline.phase3_pipeline import process_decisions
+
+    decisions_payload = [d.model_dump(exclude_none=True) for d in payload.decisions]
+    try:
+        result = await process_decisions(
+            contract_id=contract_id,
+            decisions=decisions_payload,
+            decided_by="api-user",
+        )
+    except KeyError as exc:
+        # The pipeline raises KeyError-shaped errors when
+        # the state was never populated. Convert to 404.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No in-memory state for contract_id={contract_id!r}. "
+                f"Call POST /contracts/ingest first. ({exc})"
+            ),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        # Unexpected — log and 500. The audit log already
+        # has the ``graph_started`` event, so the operator
+        # can correlate.
+        logger.exception(
+            "decisions endpoint failed for contract_id=%s: %s",
+            contract_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Decisions processing failed: {exc}",
+        ) from exc
+
+    return DecisionsResponse(
+        contract_id=result["contract_id"],
+        decisions_count=result["decisions_count"],
+        redlines_count=result["redlines_count"],
+        docx_bytes=result["docx_bytes"],
+    )
+
+
+# --- Phase 3 Build 7: state snapshot (resume-after-pause UI hydration) --
+
+
+class ContractStateResponse(BaseModel):
+    """Response body for ``GET /contracts/{contract_id}/state``.
+
+    The connected review page fetches this on mount when the
+    user navigates to ``#/contracts/{id}/review`` after a page
+    refresh. The page uses the clauses + flags to re-hydrate
+    DeviationReview, the prior decisions to restore the user's
+    per-flag choices, and the booleans to render a friendly
+    "contract not found" state when the URL points at a
+    contract that was never ingested.
+
+    All fields are always present (``[]`` / ``False`` when
+    missing) so the React side can render the page without
+    optional-chaining everywhere.
+    """
+
+    contract_id: str
+    filename: str
+    has_state: bool
+    has_ingest: bool
+    has_spot: bool
+    has_decisions: bool
+    has_redline: bool
+    clauses: list[dict[str, Any]]
+    flags: list[dict[str, Any]]
+    decisions: list[dict[str, Any]]
+    redlines: list[dict[str, Any]]
+
+
+@app.get(
+    "/contracts/{contract_id}/state",
+    response_model=ContractStateResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_contracts_state(contract_id: str) -> ContractStateResponse:
+    """Phase 3 Build 7 — snapshot of a contract's resume state.
+
+    Closes the F3 gap from the Phase 3 review: a user who
+    navigates to ``#/contracts/{id}/review`` after a page
+    refresh (or after copying the URL from a teammate) used
+    to land on a blank page because :class:`ReviewContractPage`
+    received no ``clauses`` prop from the hash router. The
+    pipeline's state machine round-trips fine (see
+    :mod:`tests.pipeline.test_hitl_state_machine`), but the
+    React layer could not see it. This endpoint is the seam
+    the React page fetches on mount.
+
+    Behaviour
+    ---------
+    - Returns 200 with a fully-populated payload when the
+      contract has state in the in-memory store. The
+      ``has_ingest`` / ``has_spot`` / ``has_decisions`` /
+      ``has_redline`` booleans let the UI render the right
+      skeleton / error message for partial progress.
+    - Returns 200 with ``has_state=False`` and empty lists
+      when no state exists. The UI renders a friendly
+      "this contract was not found" state instead of a
+      hard 404 — a 404 would force the user back to
+      triage on a refresh, which is exactly the broken
+      behaviour F3 is meant to fix.
+    """
+    from app.pipeline.phase3_pipeline import snapshot_state
+
+    snap = snapshot_state(contract_id)
+    return ContractStateResponse(**snap)
+
+
+@app.get(
+    "/contracts/{contract_id}/redline.docx",
+    response_class=Response,
+)
+async def get_contracts_redline_docx(contract_id: str) -> Response:
+    """Phase 3 Build 6 — download the rendered redline ``.docx``.
+
+    Returns the blob the pipeline module rendered in
+    :func:`process_decisions`. The bytes were written
+    into the in-memory state store under
+    ``contract_id`` by the prior ``/contracts/{id}/decisions``
+    call.
+
+    Status codes:
+
+    - ``200`` — at least one accepted flag produced a
+      redline; the body is a valid Word ``.docx`` with
+      ``w:ins`` / ``w:del`` tracked changes attributed
+      to ``"clausecraft"``.
+    - ``404`` — no state for ``contract_id`` (the user
+      didn't call ``/contracts/{id}/decisions`` first,
+      or the server restarted), or all flags were
+      rejected and the docx renderer had nothing to do.
+    """
+    from app.pipeline.phase3_pipeline import get_state
+
+    state = get_state(contract_id)
+    blob = state.output_docx_bytes
+    if not blob:
+        # Either no state was ever populated, or every
+        # flag was rejected and the renderer produced an
+        # empty blob. Distinguish in the error message.
+        from app.pipeline.phase3_pipeline import has_state
+
+        if not has_state(contract_id) or not state.decisions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"No redline has been generated for "
+                    f"contract_id={contract_id!r}. The flow is: "
+                    f"POST /contracts/ingest → POST /contracts/spot → "
+                    f"POST /contracts/{contract_id}/decisions → "
+                    f"GET /contracts/{contract_id}/redline.docx."
+                ),
+            )
+        # Decisions exist but the docx was empty — likely
+        # the drafter was unavailable for every accepted
+        # flag. The audit log has the per-redline rows;
+        # the .docx path is genuinely empty.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No redline bytes were rendered for "
+                f"contract_id={contract_id!r}. Every accepted "
+                f"flag's drafter was unavailable (check the "
+                f"audit log for per-redline outcome details)."
+            ),
+        )
+    safe = _safe_filename_segment(contract_id) or "contract"
+    return Response(
+        content=blob,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="redline-{safe}.docx"'
+            ),
+        },
+    )
+
+
+@app.get(
+    "/contracts/{contract_id}/redline.md",
+    response_class=Response,
+)
+async def get_contracts_redline_md(contract_id: str) -> Response:
+    """Phase 3 Build 5 — download the redline as a markdown diff.
+
+    The markdown path is the v0 escape hatch for the .docx
+    path: same contract baseline + accepted proposals, but
+    rendered as a unified diff against a single text
+    document. The "tracked changes" caveat in the spec
+    (line 287: "Mammoth.js… will not render tracked
+    changes — it sees the 'final' document") is exactly
+    the problem the .md path exists to side-step. A user
+    who cannot open the .docx in Word can still see the
+    redline in a plain-text viewer.
+
+    Returns:
+    - 200 — the body is a UTF-8 markdown document with a
+      unified diff for every accepted flag.
+    - 404 — no state for ``contract_id``, or the markdown
+      render was empty (e.g. every accepted flag's
+      drafter was unavailable).
+    """
+    from app.pipeline.phase3_pipeline import get_state, has_state
+
+    state = get_state(contract_id)
+    md = state.output_markdown_bytes
+    if not md:
+        if not has_state(contract_id) or not state.decisions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"No redline has been generated for "
+                    f"contract_id={contract_id!r}. The flow is: "
+                    f"POST /contracts/ingest → POST /contracts/spot → "
+                    f"POST /contracts/{contract_id}/decisions → "
+                    f"GET /contracts/{contract_id}/redline.md."
+                ),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"No markdown redline bytes were rendered for "
+                f"contract_id={contract_id!r}. Every accepted "
+                f"flag's drafter was unavailable (check the "
+                f"audit log for per-redline outcome details)."
+            ),
+        )
+    safe = _safe_filename_segment(contract_id) or "contract"
+    return Response(
+        content=md,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="redline-{safe}.md"'
             ),
         },
     )

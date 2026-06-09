@@ -19,12 +19,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  type ContractStateResponse,
   type Decision,
   type DecisionsBody,
   type IngestResponse,
   type SpotResponse,
   getAuditLogJson,
   getAuditLogPdf,
+  getContractState,
   getRedlineDocx,
   postDecisions,
   postIngest,
@@ -43,6 +45,7 @@ export const queryKeys = {
   contract: (id: string) => ["contract", id] as const,
   spot: (id: string) => ["contract", id, "spot"] as const,
   auditLog: (id: string) => ["contract", id, "audit-log"] as const,
+  state: (id: string) => ["contract", id, "state"] as const,
 };
 
 // --- Hooks -------------------------------------------------------------
@@ -132,6 +135,34 @@ export function useRedlineBlob(contractId: string, enabled = false) {
   });
 }
 
+/**
+ * GET /contracts/{id}/state. Used by the connected review
+ * page to re-hydrate clauses, flags, and prior decisions
+ * after a page refresh (the F3 gap from the Phase 3
+ * review). The endpoint always returns 200 — an unknown
+ * contract returns ``has_state=false`` with empty lists —
+ * so the query is enabled by default.
+ *
+ * 404s (and any other 4xx) are NOT retried: a missing
+ * contract is deterministic. 5xx and network errors retry
+ * once.
+ */
+export function useContractState(contractId: string, enabled = true) {
+  return useQuery<ContractStateResponse>({
+    queryKey: queryKeys.state(contractId),
+    queryFn: () => getContractState(contractId),
+    enabled: enabled && Boolean(contractId),
+    staleTime: 60 * 1000, // re-fetch on focus for ≤1 minute
+    retry: (failureCount, error) => {
+      const status = (error as { status?: number } | undefined)?.status;
+      if (status !== undefined && status >= 400 && status < 500) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+  });
+}
+
 /** Mutation wrapper for triggering a .docx download. */
 export function useDownloadRedline() {
   return useMutation<Blob, Error, string>({
@@ -153,4 +184,10 @@ export { spotResponseToReviewData };
 // Re-export the per-decision type so consumers that only use
 // the hooks file can build payloads without touching the API
 // module.
-export type { Decision, DecisionsBody, IngestResponse, SpotResponse };
+export type {
+  ContractStateResponse,
+  Decision,
+  DecisionsBody,
+  IngestResponse,
+  SpotResponse,
+};

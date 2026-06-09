@@ -1,0 +1,60 @@
+# Golden set — public-de/nda-001.pdf (GeschGehG-anchored NDA).
+#
+# This is a CLEAN BASELINE contract. No deviations from the
+# Phase 4.1 DE playbook. The eval harness should report:
+#   - retrieval F1 = 1.0 (every clause gets a relevant DE baseline
+#     hit on the 5 DE NDA-DE baselines: definition, term,
+#     residual, governing_law, injunctive_relief)
+#   - classification F1 = 1.0 (the rule-based classifier's
+#     DE-localized patterns all match the playbook)
+#   - deviation F1 = 1.0 trivially (no expected deviations, no
+#     actual deviations — empty set match)
+#   - per-language gap assertion skipped (only one language in
+#     the eval at this point) — the Phase 4 per-language F1
+#     wiring is in evals/harness.py and evals/test_phase4_per_language.py
+#
+# The contract text is hand-authored following the structure of
+# the GeschGehG § 2 Nr. 1 statutory definition (BMJ juristic
+# portal). The text uses the statute's three-prong test
+# (allgemein-unbekannt + wirtschaftlicher-Wert + angemessene-
+# Geheimhaltungsmaßnahmen + berechtigtes-Interesse) verbatim
+# because § 5 UrhG places federal statutes in the public domain.
+# See examples/contracts/public-de/SOURCES.md for full provenance.
+#
+# The parser will produce 7 clauses (c1..c7). Their types and
+# short excerpts are pinned below. The eval harness compares
+# against these expected types to compute classification F1.
+
+contract: examples/contracts/public-de/nda-001.pdf
+type: nda
+language: de
+
+expected_clauses:
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "1. Definition der Vertraulichen Informationen"
+  - id: c2
+    type: residual_knowledge
+    text_excerpt: "2. Keine Vertraulichen Informationen"
+  - id: c3
+    type: term
+    text_excerpt: "3. Vertragslaufzeit"
+  - id: c4
+    type: return_of_materials
+    text_excerpt: "4. Rückgabe von Unterlagen"
+  - id: c5
+    type: injunctive_relief
+    text_excerpt: "5. Vertragsstrafe und Unterlassung"
+  - id: c6
+    type: governing_law
+    text_excerpt: "6. Rechtswahl und Gerichtsstand"
+  - id: c7
+    type: entire_agreement
+    text_excerpt: "7. Schlussbestimmungen"
+
+# Clean baseline. No expected deviations. The harness will report
+# 1.0 deviation F1 if the spotter also reports 0 deviations on
+# this contract. If the spotter flags something, the harness
+# records it as a false positive in the run report — useful
+# signal for prompt iteration.
+expected_deviations: []
