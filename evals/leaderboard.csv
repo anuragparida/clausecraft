@@ -1,0 +1,4 @@
+run_id,started_at,ended_at,real_llm_mode,contract_set_version,language_filter,n_contracts,classification_f1_en,classification_f1_de,deviation_f1_en,deviation_f1_de,citation_completeness_en,citation_completeness_de,severity_mismatch_count_en,severity_mismatch_count_de,gap_deviation_f1,gap_citation_completeness,gap_passed
+20260609T015453Z,2026-06-09T01:54:53.470987+00:00,2026-06-09T01:54:53.805675+00:00,False,0.3.0-phase4-per-language,both,10,0.7,,1.0,,1.0,,0,,,,
+20260609T015456Z,2026-06-09T01:54:56.536657+00:00,2026-06-09T01:54:56.866160+00:00,False,0.3.0-phase4-per-language,both,10,0.7,,1.0,,1.0,,0,,,,
+20260609T015521Z,2026-06-09T01:55:21.997806+00:00,2026-06-09T01:55:22.426810+00:00,False,0.3.0-phase4-per-language,both,10,0.7,,1.0,,1.0,,0,,,,

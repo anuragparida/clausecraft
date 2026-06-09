@@ -157,7 +157,7 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    """Register the ``--run-with-real-llm`` and ``--no-cache`` flags."""
+    """Register the ``--run-with-real-llm``, ``--no-cache``, and ``--language`` flags."""
     parser.addoption(
         "--run-with-real-llm",
         action="store_true",
@@ -180,16 +180,55 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             "session is unaffected."
         ),
     )
+    parser.addoption(
+        "--language",
+        action="store",
+        default="both",
+        choices=("en", "de", "both"),
+        help=(
+            "Filter the eval set to one language or run both. "
+            "Default: both. The per-language F1 split is "
+            "reported regardless of the filter; the EN-vs-DE "
+            "gap assertions (10% deviation F1, 5% citation "
+            "completeness) fire only when both languages are "
+            "present in a single run."
+        ),
+    )
 
 
 # --- Fixtures ------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
-def eval_contracts() -> list[tuple[Path, Path]]:
-    """The 10 eval-set contracts as absolute paths.
+def language_filter(request: pytest.FixtureRequest) -> str:
+    """The ``--language`` option: ``"en"``, ``"de"``, or ``"both"`` (default).
+
+    The eval_contracts fixture applies this filter so the
+    main harness test sees only the contracts in the
+    active language. The per-contract smoke tests read
+    this option at test time and skip themselves when
+    filtered out (they're parametrised at collection time
+    over the full eval set; the filter is runtime).
+    """
+    return str(request.config.getoption("--language"))
+
+
+@pytest.fixture(scope="session")
+def eval_contracts(
+    language_filter: str,
+) -> list[tuple[Path, Path]]:
+    """The 10 eval-set contracts as absolute paths, filtered by language.
 
     Returns a list of ``(contract_pdf, expected_yaml)`` tuples.
+    The language filter (``--language=en|de|both``) is
+    applied at fixture-resolution time by reading each
+    golden YAML's ``language`` field. The default
+    ``"both"`` returns the full 10-contract set; ``"en"``
+    or ``"de"`` restrict to that language. When the filter
+    excludes every contract (e.g. ``--language=de`` and no
+    DE YAMLs exist yet), the list is empty — the harness
+    test still runs and the gap assertion is skipped (the
+    gap is undefined with one or zero languages).
     """
     pairs: list[tuple[Path, Path]] = []
     for contract_rel, expected_rel in EVAL_CONTRACTS:
@@ -205,6 +244,15 @@ def eval_contracts() -> list[tuple[Path, Path]]:
             f"eval-set golden YAMLs are hand-written; missing "
             f"files are a setup error."
         )
+        # Apply the language filter. The golden YAML is the
+        # single source of truth for the contract's language
+        # (kept in sync with the per-clause ``language`` field
+        # in the actual output).
+        if language_filter != "both":
+            golden = cache.golden_yaml(expected_path)
+            contract_language = golden.get("language", "en")
+            if contract_language != language_filter:
+                continue
         pairs.append((contract_path, expected_path))
     return pairs
 
@@ -542,7 +590,10 @@ def _patch_llm_for_mock_mode(
     real_key_check_spot = spotter_mod._looks_like_real_key
 
     def _stub_classify(
-        clause_text: str, *, contract_filename: str
+        clause_text: str,
+        *,
+        contract_filename: str,
+        language: str = "en",
     ) -> tuple[str, float]:
         """Mock classifier: return the golden's expected type for the active contract.
 
@@ -557,6 +608,15 @@ def _patch_llm_for_mock_mode(
         confidence of 1.0 — the harness is golden-driven,
         so any real-LLM disagreement would be a harness bug,
         not a spotter bug.
+
+        Phase 4: the real classifier's signature gained a
+        ``language`` kwarg (card t_4c21627c wires the DE
+        prompt switch off the per-clause ``language``
+        field). The mock accepts the kwarg with a default
+        so the harness doesn't break when the real
+        classifier's signature evolves. The mock payload is
+        keyed on contract path, not language, so the
+        ``language`` value is informational only here.
         """
         contract_key = _state.get_current_contract_key()
         clause_payload = mock_payloads.get("classify", {}).get(contract_key, [])
@@ -696,9 +756,22 @@ def mock_payloads(eval_contracts: list[tuple[Path, Path]]) -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def assert_run_report() -> Any:
-    """A helper that asserts a run report exists and has the right shape."""
+    """A helper that asserts a run report exists and has the right shape.
 
-    def _assert(report_path: Path) -> dict[str, Any]:
+    Phase 4: the report shape now includes
+    ``aggregate_by_language``, ``gap_assertions``, and
+    ``language_filter``. The legacy ``aggregate`` field is
+    preserved (still required). The contract-count check
+    is against the **active** eval set, not the full
+    10-contract list, so a ``--language=en`` run produces
+    a 5-contract report and a ``--language=both`` run
+    produces a 10-contract report. The
+    ``expected_contracts`` field of the report (computed
+    by the harness and re-derived here from the contract
+    paths) is the source of truth.
+    """
+
+    def _assert(report_path: Path, expected_n_contracts: int | None = None) -> dict[str, Any]:
         assert report_path.is_file(), (
             f"Run report not found at {report_path}. The harness "
             f"must write a JSON report at the end of the run."
@@ -711,6 +784,9 @@ def assert_run_report() -> Any:
             "ended_at",
             "contracts",
             "aggregate",
+            "aggregate_by_language",
+            "gap_assertions",
+            "language_filter",
         ):
             assert key in data, f"Run report missing key {key!r}: {list(data.keys())}"
         agg = data["aggregate"]
@@ -722,11 +798,85 @@ def assert_run_report() -> Any:
             "citation_completeness",
         ):
             assert key in agg, f"Run report aggregate missing key {key!r}"
-        assert isinstance(data["contracts"], list)
-        assert len(data["contracts"]) == len(EVAL_CONTRACTS), (
-            f"Run report should have {len(EVAL_CONTRACTS)} contracts, "
-            f"got {len(data['contracts'])}"
+        # The per-language split must contain at least one
+        # language — but only when the run actually ran
+        # contracts. A ``--language=de`` run on the current
+        # EN-only eval set produces an empty active set, so
+        # the per-language aggregate is also empty (no
+        # language produced any metrics). The run report's
+        # ``language_filter`` field is the source of truth
+        # for which languages were filtered.
+        agg_by_lang = data["aggregate_by_language"]
+        assert isinstance(agg_by_lang, dict)
+        if len(data["contracts"]) > 0:
+            assert len(agg_by_lang) >= 1, (
+                f"aggregate_by_language must contain >=1 language "
+                f"when the run produced contracts; got "
+                f"{list(agg_by_lang.keys())!r}"
+            )
+        for lang, lang_agg in agg_by_lang.items():
+            for key in (
+                "retrieval_f1",
+                "classification_f1",
+                "deviation_f1",
+                "severity_mismatch_count",
+                "citation_completeness",
+            ):
+                assert key in lang_agg, (
+                    f"Run report aggregate_by_language[{lang!r}] "
+                    f"missing key {key!r}"
+                )
+        # Gap assertions shape: when both EN and DE are
+        # present, the dict has ``deviation_f1``,
+        # ``citation_completeness``, ``languages_compared``,
+        # ``all_passed``. When fewer languages are present,
+        # it has ``languages_compared``, ``skipped=True``,
+        # ``skip_reason``.
+        gap = data["gap_assertions"]
+        assert "languages_compared" in gap, (
+            f"gap_assertions missing 'languages_compared': {list(gap.keys())}"
         )
+        if gap.get("skipped"):
+            assert "skip_reason" in gap, (
+                "skipped gap_assertions must include 'skip_reason'"
+            )
+        else:
+            for key in ("deviation_f1", "citation_completeness", "all_passed"):
+                assert key in gap, (
+                    f"non-skipped gap_assertions missing key {key!r}: "
+                    f"{list(gap.keys())}"
+                )
+            for metric_key in ("deviation_f1", "citation_completeness"):
+                m = gap[metric_key]
+                for k in ("en", "other", "other_language", "drop", "threshold", "passed"):
+                    assert k in m, (
+                        f"gap_assertions[{metric_key!r}] missing key "
+                        f"{k!r}: {list(m.keys())}"
+                    )
+        # language_filter is one of the valid choices.
+        assert data["language_filter"] in ("en", "de", "both"), (
+            f"language_filter must be 'en'|'de'|'both', got "
+            f"{data['language_filter']!r}"
+        )
+        # Contract count matches the active (filtered) eval set.
+        assert isinstance(data["contracts"], list)
+        if expected_n_contracts is not None:
+            assert len(data["contracts"]) == expected_n_contracts, (
+                f"Run report should have {expected_n_contracts} "
+                f"contracts (active eval set), got {len(data['contracts'])}. "
+                f"Either the harness double-counted or the language "
+                f"filter wasn't applied."
+            )
+        else:
+            # Fallback for the original Phase 2 assertion: the
+            # report must have the same number of contracts as
+            # the full unfiltered eval set. Kept for backwards
+            # compat with callers that don't pass an explicit
+            # expected count.
+            assert len(data["contracts"]) == len(EVAL_CONTRACTS), (
+                f"Run report should have {len(EVAL_CONTRACTS)} contracts, "
+                f"got {len(data['contracts'])}"
+            )
         return data
 
     return _assert
