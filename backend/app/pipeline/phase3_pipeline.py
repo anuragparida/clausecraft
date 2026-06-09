@@ -595,8 +595,19 @@ async def process_decisions(
         attempt = 0
         payload: dict[str, Any] = {"outcome": result.get("outcome")}
         if result.get("outcome") == "ok" and isinstance(result.get("proposal"), dict):
-            attempt = int(result["proposal"].get("attempt", 0))
+            proposal_dict = result["proposal"]
+            attempt = int(proposal_dict.get("attempt", 0))
             payload["attempt"] = attempt
+            # Phase 4 (card t_3597a13b) — the redline_generated
+            # audit row must carry the drafter's rationale
+            # verbatim, so the audit log is the source of
+            # truth for "the DE LLM reasoned in DE, not in EN"
+            # (the per-language F1 eval queries the rationale
+            # prose directly). The conflict path below already
+            # copies both attempts' rationales; the ok path
+            # was missing this and the Phase 3 e2e never
+            # asserted on it. The Phase 4 DE e2e enforces it.
+            payload["rationale"] = proposal_dict.get("rationale", "")
         elif result.get("outcome") == "conflict":
             payload["conflict"] = True
             payload["attempt"] = attempt
