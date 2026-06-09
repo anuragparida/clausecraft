@@ -110,20 +110,22 @@ expected_deviations:
     severity: 1
     category: missing_beweislast_allocation
     rationale: >-
-      The clause omits the "Die empfangende Partei trägt die
-      Beweislast für das Vorliegen einer dieser Ausnahmen"
-      Beweislast allocation that the WKO FEEI baseline
-      (Stand Oktober 2025, Art. 2) requires. The four-prong
-      exclusion list is intact (vorheriger-Besitz,
-      unabhängige-Entwicklung, Dritt-Offenlegung,
-      allgemein-bekannt), but the burden allocation is
-      dropped. Minor because the substantive exclusions
-      are present — only the Beweislast allocation is
-      missing. A German reviewer would flag this because
-      the missing Beweislast allocation shifts a
-      near-impossible proof burden onto the offenlegende
-      Partei (the empfangende Partei can rely on a
-      "vorheriger Besitz" claim without producing records).
+      The clause drops the WKO FEEI baseline's (Stand
+      Oktober 2025, Art. 2) Beweislast allocation
+      (verbatim: "Die Beweislast für das Vorliegen der
+      vorgenannten Ausnahmen trägt die empfangende
+      Partei"). The five-prong exclusion list is intact
+      (i Öffentlichkeit, ii rechtmäßiger-Weg, iii
+      vorheriger-Besitz, iv unabhängige-Entwicklung, v
+      schriftliche-Freigabe-durch-offenlegende-Partei),
+      but the burden allocation is dropped. Minor because
+      the substantive exclusions are present — only the
+      Beweislast allocation is missing. A German reviewer
+      would flag this because the missing Beweislast
+      allocation shifts a near-impossible proof burden
+      onto the offenlegende Partei (the empfangende
+      Partei can rely on a "vorheriger Besitz" claim
+      without producing records).
     citation:
       playbook_clause_id: ausnahmen-von-der-vertraulichkeit
       source_url: "https://www.wko.at/oe/agb/feei-muster-geheimhaltungsvereinbarung.pdf"
