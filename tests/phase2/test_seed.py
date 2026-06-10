@@ -299,3 +299,183 @@ async def test_seed_de_baselines_idempotent(cleanup_playbook):
             {"v": version},
         )
     assert count2 == 5, "second DE seed created duplicate rows!"
+
+
+# ---------------------------------------------------------------------------
+# DE Employment baselines (Phase 5 card t_84896561) — lock the 5-baseline
+# DE Employment coverage in CI. Mirrors the EN Employment pattern
+# (5 baselines) but pivots to the DE source spread (4 × gesetze-im-
+# internet.de + 1 × ihk.de).
+#
+# Source spread (2 distinct hosts, 5 distinct URLs):
+#   - www.gesetze-im-internet.de (4 × Bundesgesetzestexte, each
+#     pinned to a different statute: BGB § 622 notice, BGB § 611a
+#     Abs. 2 remuneration, BUrlG § 3 leave, BGB § 626 termination
+#     for cause)
+#   - www.ihk.de (1 × IHK Musterarbeitsvertrag, § 12/§ 13 post-
+#     employment confidentiality + secondary-employment restriction
+#     as the DE non-solicitation anchor)
+#
+# The "no single document covers more than one clause type" rule
+# holds: the four gesetze-im-internet.de pages are four different
+# statutes (BGB § 622 ≠ BGB § 611a ≠ BUrlG § 3 ≠ BGB § 626), even
+# though they share the same amtliche domain. The IHK Mustervertrag
+# is a different host, different document kind. This mirrors the
+# EN Employment card's "4 × GOV.UK + 1 × ABA" pattern and the
+# DE DPA card's "EUR-Lex co-host + multiple statutes" pattern.
+# ---------------------------------------------------------------------------
+
+EMPLOYMENT_DE_EXPECTED_TYPES = {
+    "employment_notice_period",
+    "employment_remuneration",
+    "employment_leave_entitlements",
+    "employment_termination_for_cause",
+    "employment_non_solicitation",
+}
+
+# Expected source-URL host per clause_type. The four gesetze-im-
+# internet.de pages all share the www.gesetze-im-internet.de
+# host because they are four distinct Bundesgesetzestexte (the
+# same way the DE DPA spread uses 3 distinct EUR-Lex documents).
+# The spec's diversity rule is "no single document covers more
+# than one clause type", which is satisfied (4 different statutes,
+# 4 different clause types).
+EMPLOYMENT_DE_EXPECTED_HOSTS = {
+    "employment_notice_period": "www.gesetze-im-internet.de",              # § 622 BGB — Kündigungsfristen
+    "employment_remuneration": "www.gesetze-im-internet.de",               # § 611a Abs. 2 BGB — Vergütungspflicht
+    "employment_leave_entitlements": "www.gesetze-im-internet.de",         # § 3 BUrlG — Dauer des Urlaubs
+    "employment_termination_for_cause": "www.gesetze-im-internet.de",      # § 626 BGB — Fristlose Kündigung
+    "employment_non_solicitation": "www.ihk.de",                           # IHK Musterarbeitsvertrag § 12/§ 13
+}
+
+
+@pytest.mark.asyncio
+async def test_seed_employment_de_baselines_load(cleanup_playbook):
+    """All 5 DE Employment baselines parse and seed into the store with real provenance.
+
+    This locks the Phase 5 card t_84896561 so a future change to
+    ``playbook/baselines/employment-de/`` cannot silently drop a
+    clause type, swap a source for a non-public one, or collapse
+    the source spread back to a single document.
+    """
+    version = _unique_version()
+    summaries = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="employment",
+        language="de",
+    )
+    assert len(summaries) == 1
+    assert summaries[0].contract_type == "employment"
+    assert summaries[0].language == "de"
+    assert summaries[0].clause_count == 5
+
+    factory = get_session_factory()
+    async with factory() as session:
+        rows = list(
+            (
+                await session.execute(
+                    text(
+                        "SELECT c.clause_id, c.type, c.source_url, "
+                        "c.retrieval_date, c.license, c.language "
+                        "FROM playbook_clauses c "
+                        "JOIN playbook_versions v ON v.id = c.playbook_id "
+                        "WHERE v.version = :v"
+                    ),
+                    {"v": version},
+                )
+            ).mappings()
+        )
+    assert len(rows) == 5, f"expected 5 DE Employment baselines, got {len(rows)}"
+    seen_types: set[str] = set()
+    seen_hosts: set[str] = set()
+    for r in rows:
+        # Every row must be a DE Employment baseline with a valid type and a real URL.
+        assert r["language"] == "de"
+        assert r["type"] in EMPLOYMENT_DE_EXPECTED_TYPES, (
+            f"unexpected Employment-DE type {r['type']!r}; expected one of "
+            f"{sorted(EMPLOYMENT_DE_EXPECTED_TYPES)}"
+        )
+        assert r["source_url"].startswith("http")
+        assert r["retrieval_date"] is not None
+        assert r["license"]
+        seen_types.add(r["type"])
+        # Track the source host so we can assert provenance is spread
+        # across multiple distinct public sources.
+        host = r["source_url"].split("/")[2] if "/" in r["source_url"] else ""
+        seen_hosts.add(host)
+        # Per-clause-type host check: the expected host map pins each
+        # baseline to a specific public source.
+        expected_host = EMPLOYMENT_DE_EXPECTED_HOSTS[r["type"]]
+        assert host == expected_host, (
+            f"DE Employment baseline {r['clause_id']} (type={r['type']}) is "
+            f"hosted at {host!r}, expected {expected_host!r}. Update "
+            f"EMPLOYMENT_DE_EXPECTED_HOSTS if the source change is intentional."
+        )
+    assert seen_types == EMPLOYMENT_DE_EXPECTED_TYPES
+    # The 5 baselines must come from 5 distinct source URLs — no
+    # single document covers more than one clause type. (Hosts may
+    # repeat: the 4 gesetze-im-internet.de pages all share the
+    # www.gesetze-im-internet.de host; the spec's diversity rule
+    # is "no single document covers more than one clause type",
+    # satisfied by the 4 different Bundesgesetzestexte.)
+    assert len({r["source_url"] for r in rows}) == 5
+    # Source-spread cross-check: the union of hosts covers the
+    # 2-source spread (gesetze-im-internet.de + ihk.de). A weaker
+    # assertion is appropriate here than for the DE NDA (5 distinct
+    # hosts) or the DE DPA (≥ 4 distinct hosts): the DE Employment
+    # set is anchored to German federal statutory floors which
+    # legitimately collapse to a single amtliche host across 4
+    # distinct statutes, plus the IHK Mustervertrag for the
+    # non-solicitation anchor.
+    assert len(seen_hosts) >= 2, (
+        f"DE Employment baselines should come from at least 2 distinct "
+        f"hosts (gesetze-im-internet.de + ihk.de); got {len(seen_hosts)}: "
+        f"{seen_hosts}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_seed_employment_de_baselines_idempotent(cleanup_playbook):
+    """Re-seeding the DE Employment baselines produces no duplicate rows.
+
+    The seeder is documented as idempotent at the row level; the
+    DE Employment coverage is no exception. The (playbook_id, clause_id)
+    PK should reject any second insert.
+    """
+    version = _unique_version()
+    first = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="employment",
+        language="de",
+    )
+    assert first[0].clause_count == 5
+    factory = get_session_factory()
+    async with factory() as session:
+        count1 = await session.scalar(
+            text(
+                "SELECT COUNT(*) FROM playbook_clauses c "
+                "JOIN playbook_versions v ON v.id = c.playbook_id "
+                "WHERE v.version = :v"
+            ),
+            {"v": version},
+        )
+    assert count1 == 5
+    second = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="employment",
+        language="de",
+    )
+    assert second[0].clause_count == 5
+    async with factory() as session:
+        count2 = await session.scalar(
+            text(
+                "SELECT COUNT(*) FROM playbook_clauses c "
+                "JOIN playbook_versions v ON v.id = c.playbook_id "
+                "WHERE v.version = :v"
+            ),
+            {"v": version},
+        )
+    assert count2 == 5, "second DE Employment seed created duplicate rows!"
