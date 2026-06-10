@@ -1,0 +1,95 @@
+# Playbook-Baseline — Employment (EN) — employment_remuneration
+#
+# Source: UK Government, GOV.UK, "Written employment contract:
+# what to include" guidance page (last reviewed 7 February 2025),
+# hosted at https://www.gov.uk/employment-contracts/written-terms-of-employment.
+# The page consolidates the statutory rule from section 1(3)(a)
+# of the Employment Rights Act 1996 (ERA 1996), which requires
+# the written statement of particulars to include "the scale or
+# rate of remuneration, or the method of calculating
+# remuneration" — and the page-level guidance translates the
+# statute into plain-English employer obligations. The GOV.UK
+# page is a public-domain UK government publication (Open
+# Government Licence v3.0, attribution "Contains public sector
+# information licensed under the Open Government Licence v3.0").
+#
+# The baseline text below combines (a) the ERA 1996 s.1(3)(a)
+# statutory requirement that pay be itemised in the statement
+# of particulars, and (b) the typical commercial structure of
+# a base salary, payment cadence, and discretionary bonus. The
+# statutory rule is the floor; the body captures the structure
+# the deviation spotter sees in real UK and US employment
+# agreements. Cross-references: ERA 1996 s.1(3)(a) (pay
+# itemisation), s.13–16 (paid annual leave, see
+# employment_leave_entitlements baseline for the parallel
+# statutory floor), National Minimum Wage Act 1998 (statutory
+# wage floor — out of scope for this baseline), and the
+# US/ABA "salary commensurate with experience" pattern (a
+# US drafting practice that fails the ERA 1996 s.1(3)(a)
+# specificity test for UK contracts).
+clause_id: uk-employment-remuneration-era-1996-s1-3-a
+type: employment_remuneration
+language: en
+title: Remuneration and pay itemisation under ERA 1996 s.1(3)(a)
+text: >-
+  The Employer shall pay the Employee a base salary of
+  seventy-two thousand pounds sterling (£72,000) gross per
+  annum (pro-rated for any partial year), payable in twelve
+  (12) equal monthly instalments on the last banking day of
+  each calendar month, by direct credit to a bank account
+  nominated by the Employee. The Employee shall additionally
+  be eligible for an annual discretionary bonus of up to
+  fifteen percent (15%) of base salary, payable in arrears
+  within three (3) months of the end of each financial year,
+  the award and amount of which shall be determined by the
+  Employer in its sole discretion taking into account the
+  performance of the Employee and the performance of the
+  Employer. The base salary shall be reviewed annually on or
+  around the anniversary of the commencement of employment;
+  any increase shall be effective from the next salary
+  payment date after the review and shall not, in the absence
+  of express written agreement, constitute a variation of
+  the other terms of this Agreement. The Employee's
+  remuneration shall not be less than the statutory National
+  Living Wage / National Minimum Wage rate applicable to the
+  Employee's age and circumstances from time to time. The
+  Employer shall, on or before the date on which the
+  employment relationship commences and in any event within
+  two (2) months of the date on which the employment begins,
+  provide the Employee with a written statement of
+  particulars in accordance with section 1 of the Employment
+  Rights Act 1996, itemising the scale or rate of
+  remuneration, the intervals at which it is to be paid, the
+  hours of work, the place of work, the amount of paid
+  holiday, the notice period applicable on termination, and
+  the job title or a description of the work. Any change in
+  the particulars shall be notified to the Employee in
+  writing within one (1) month of the change taking effect.
+source_url: https://www.gov.uk/employment-contracts/written-terms-of-employment
+retrieval_date: 2026-06-09
+license: >-
+  UK Government GOV.UK guidance page "Written employment
+  contract: what to include" (last reviewed 7 February 2025).
+  Published under the Open Government Licence v3.0; contains
+  public sector information licensed under the Open
+  Government Licence v3.0. Baseline text is a paraphrased
+  combination of the ERA 1996 s.1(3)(a) statutory requirement
+  and the typical commercial base-salary-plus-discretionary-
+  bonus structure, not a verbatim quote of either.
+notes: >-
+  Three deviation patterns to flag in the matrix: (a) a
+  remuneration clause that omits the specific amount and
+  instead uses vague language ("salary commensurate with
+  experience", "market rate") fails the ERA 1996 s.1(3)(a)
+  specificity test and is `unacceptable` for public-sector
+  counterparties, `material` for enterprise and SMB; (b) a
+  payment cadence of "monthly" without specifying the day or
+  the method is sub-statutory (the s.1(3)(a)(ii) requirement
+  is "the intervals at which remuneration is to be paid") and
+  is `minor` for SMB, `material` for enterprise; (c) a missing
+  statement-of-particulars delivery clause (the s.1(2)
+  requirement is delivery within 2 months) is a structural
+  failure — `unacceptable` for every counterparty type.
+  Sub-pay (working-hours × minimum-wage rate) is checked by
+  a separate compliance harness and is not in scope for this
+  baseline.

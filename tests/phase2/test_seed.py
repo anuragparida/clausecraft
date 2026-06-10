@@ -299,3 +299,175 @@ async def test_seed_de_baselines_idempotent(cleanup_playbook):
             {"v": version},
         )
     assert count2 == 5, "second DE seed created duplicate rows!"
+
+
+# ---------------------------------------------------------------------------
+# EN Employment baselines (Phase 5 card t_d23d222d) — lock the 5-baseline
+# EN Employment coverage in CI. Mirrors the EN DPA pattern (5 baselines)
+# but pivots to the Phase 5 Employment clause-type set (5 of the 11
+# employment_* enum values, the other 6 deferred to GAP.md).
+#
+# Source spread (2 distinct hosts, 5 distinct URLs):
+#   - www.gov.uk (4 × GOV.UK guidance pages, each anchored to a
+#     different section of ERA 1996: s.86, s.1(3)(a), ss.13–16, s.95)
+#   - www.americanbar.org (1 × ABA Model Employment Agreement, the
+#     Section 7 post-termination non-solicitation clause structure)
+#
+# The "no single document covers more than one clause type" rule holds:
+# the four GOV.UK pages are four distinct documents (different URLs,
+# different statutory sections, different content), and the ABA template
+# is a different host, different document kind. This is the same logic
+# the EN DPA card used to allow 2 × gdpr-info.eu (Art 28 + Art 33 are
+# different articles of the consolidated GDPR text).
+# ---------------------------------------------------------------------------
+
+EMPLOYMENT_EN_EXPECTED_TYPES = {
+    "employment_notice_period",
+    "employment_remuneration",
+    "employment_leave_entitlements",
+    "employment_termination_for_cause",
+    "employment_non_solicitation",
+}
+
+# Expected source-URL host per clause_type. The four GOV.UK pages all
+# share the www.gov.uk host because they are four distinct GOV.UK
+# guidance pages (the same way the EN DPA spread uses 2 distinct GDPR
+# articles on gdpr-info.eu). The spec's diversity rule is "no single
+# document covers more than one clause type", which is satisfied (4
+# different GOV.UK pages, each pinned to a different ERA 1996 section).
+EMPLOYMENT_EN_EXPECTED_HOSTS = {
+    "employment_notice_period": "www.gov.uk",                          # GOV.UK "Notice periods" — ERA 1996 s.86
+    "employment_remuneration": "www.gov.uk",                           # GOV.UK "Written terms of employment" — ERA 1996 s.1(3)(a)
+    "employment_leave_entitlements": "www.gov.uk",                     # GOV.UK "Holiday entitlement" — ERA 1996 ss.13–16 + WTR 1998
+    "employment_termination_for_cause": "www.gov.uk",                  # GOV.UK "Unfair dismissal" — ERA 1996 s.95
+    "employment_non_solicitation": "www.americanbar.org",              # ABA Model Employment Agreement Section 7
+}
+
+
+@pytest.mark.asyncio
+async def test_seed_employment_en_baselines_load(cleanup_playbook):
+    """All 5 EN Employment baselines parse and seed into the store with real provenance.
+
+    This locks the Phase 5 card t_d23d222d so a future change to
+    ``playbook/baselines/employment-en/`` cannot silently drop a
+    clause type, swap a source for a non-public one, or collapse
+    the source spread back to a single document.
+    """
+    version = _unique_version()
+    summaries = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="employment",
+        language="en",
+    )
+    assert len(summaries) == 1
+    assert summaries[0].contract_type == "employment"
+    assert summaries[0].language == "en"
+    assert summaries[0].clause_count == 5
+
+    factory = get_session_factory()
+    async with factory() as session:
+        rows = list(
+            (
+                await session.execute(
+                    text(
+                        "SELECT c.clause_id, c.type, c.source_url, "
+                        "c.retrieval_date, c.license, c.language "
+                        "FROM playbook_clauses c "
+                        "JOIN playbook_versions v ON v.id = c.playbook_id "
+                        "WHERE v.version = :v"
+                    ),
+                    {"v": version},
+                )
+            ).mappings()
+        )
+    assert len(rows) == 5, f"expected 5 EN Employment baselines, got {len(rows)}"
+    seen_types: set[str] = set()
+    seen_hosts: set[str] = set()
+    for r in rows:
+        # Every row must be an EN Employment baseline with a valid type and a real URL.
+        assert r["language"] == "en"
+        assert r["type"] in EMPLOYMENT_EN_EXPECTED_TYPES, (
+            f"unexpected Employment-EN type {r['type']!r}; expected one of "
+            f"{sorted(EMPLOYMENT_EN_EXPECTED_TYPES)}"
+        )
+        assert r["source_url"].startswith("http")
+        assert r["retrieval_date"] is not None
+        assert r["license"]
+        seen_types.add(r["type"])
+        # Track the source host so we can assert provenance is spread
+        # across multiple distinct public sources.
+        host = r["source_url"].split("/")[2] if "/" in r["source_url"] else ""
+        seen_hosts.add(host)
+        # Per-clause-type host check: the expected host map pins each
+        # baseline to a specific public source.
+        expected_host = EMPLOYMENT_EN_EXPECTED_HOSTS[r["type"]]
+        assert host == expected_host, (
+            f"EN Employment baseline {r['clause_id']} (type={r['type']}) is "
+            f"hosted at {host!r}, expected {expected_host!r}. Update "
+            f"EMPLOYMENT_EN_EXPECTED_HOSTS if the source change is intentional."
+        )
+    assert seen_types == EMPLOYMENT_EN_EXPECTED_TYPES
+    # The 5 baselines must come from 5 distinct source URLs — no
+    # single document covers more than one clause type. (Hosts may
+    # repeat: the 4 GOV.UK pages all share www.gov.uk; the spec's
+    # diversity rule is "no single document covers more than one
+    # clause type", satisfied by the 4 different GOV.UK pages.)
+    assert len({r["source_url"] for r in rows}) == 5
+    # Source-spread cross-check: the union of hosts covers the
+    # 2-source spread (GOV.UK + ABA). A weaker assertion is
+    # appropriate here than for the DE NDA (5 distinct hosts) or
+    # the DE DPA (≥ 4 distinct hosts): the EN Employment set
+    # is anchored to UK statutory floors which legitimately
+    # collapse to a single GOV.UK host across 4 distinct pages,
+    # plus the ABA template for the US comparator.
+    assert len(seen_hosts) >= 2, (
+        f"EN Employment baselines should come from at least 2 distinct "
+        f"hosts (GOV.UK + ABA); got {len(seen_hosts)}: {seen_hosts}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_seed_employment_en_baselines_idempotent(cleanup_playbook):
+    """Re-seeding the EN Employment baselines produces no duplicate rows.
+
+    The seeder is documented as idempotent at the row level; the
+    EN Employment coverage is no exception. The (playbook_id, clause_id)
+    PK should reject any second insert.
+    """
+    version = _unique_version()
+    first = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="employment",
+        language="en",
+    )
+    assert first[0].clause_count == 5
+    factory = get_session_factory()
+    async with factory() as session:
+        count1 = await session.scalar(
+            text(
+                "SELECT COUNT(*) FROM playbook_clauses c "
+                "JOIN playbook_versions v ON v.id = c.playbook_id "
+                "WHERE v.version = :v"
+            ),
+            {"v": version},
+        )
+    assert count1 == 5
+    second = await seed_all(
+        playbook_root=BASELINES.parent,
+        version=version,
+        contract_type="employment",
+        language="en",
+    )
+    assert second[0].clause_count == 5
+    async with factory() as session:
+        count2 = await session.scalar(
+            text(
+                "SELECT COUNT(*) FROM playbook_clauses c "
+                "JOIN playbook_versions v ON v.id = c.playbook_id "
+                "WHERE v.version = :v"
+            ),
+            {"v": version},
+        )
+    assert count2 == 5, "second EN Employment seed created duplicate rows!"
