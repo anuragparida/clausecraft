@@ -1,0 +1,108 @@
+# Playbook-Baseline — Employment (DE) — employment_non_solicitation
+#
+# Quelle: Industrie- und Handelskammer (IHK), "Muster eines
+# Arbeitsvertrages" (Stand: Januar 2025), öffentlich zugängliches
+# Vertragsmuster, das von den deutschen IHKs als kostenlose
+# Service-Leistung für ihre Mitgliedsunternehmen bereitgestellt
+# wird. Das Muster umfasst § 12 "Verschwiegenheitspflicht mit
+# Vertragsstrafe" und § 13 "Nebentätigkeit", die zusammen den
+# post-vertraglichen Schutz von Geschäftsgeheimnissen, die
+# Anzeige- und Zustimmungspflicht für Nebentätigkeiten und die
+# Abgrenzung zur nachvertraglichen Wettbewerbs- und
+# Kontaktaufnahmebeschränkung abdecken. Verfügbar auf
+# https://www.ihk.de/blueprint/servlet/resource/blob/764306/
+# 02ef8855772d2df8a4c743b497776f4d/arbeitsvertrag-muster--data.pdf
+# sowie über die IHK-Mitgliederportale.
+#
+# Diese Baseline paraphrasiert die operative Sprache des IHK
+# Musterarbeitsvertrags § 12 und § 13 in kanonische
+# Vertragsklausel-Form und kombiniert sie mit der
+# Berücksichtigungsschranke des § 138 BGB (Sittenwidrigkeit,
+# AGB-Kontrolle) für die Zulässigkeit von
+# Kontaktaufnahme-Beschränkungen im nachvertraglichen Bereich.
+# Der IHK-Mustervertrag selbst verweist in seinem Vorwort
+# ausdrücklich darauf, dass die Verwendung des Musters keine
+# fachanwaltliche Beratung ersetzt; die Baseline übernimmt die
+# Struktur des Musters und ergänzt die statutarische Berücksichtigung
+# des § 138 BGB und des § 74 HGB (Karenzentschädigung) als
+# Plausibilitätsanker. Die *Wettbewerbsverbots*-Klausel selbst
+# (Karenzentschädigung 50 % der letzten Bezüge) wird im DE-Set
+# NICHT in dieser Baseline abgedeckt, sondern gehört strukturell
+# zu `employment_non_compete` (vgl. BGB §§ 74 ff. HGB).
+clause_id: de-nachvertragliche-verschwiegenheit-und-nebentaetigkeit-ihk-muster
+type: employment_non_solicitation
+language: de
+title: Nachvertragliche Verschwiegenheit und Nebentätigkeitsbeschränkung (IHK-Muster, § 12/13)
+text: >-
+  Der Arbeitnehmer verpflichtet sich, während der Dauer des
+  Arbeitsverhältnisses und auch nach dem Ausscheiden, über alle
+  Geschäftsgeheimnisse sowie betriebliche Angelegenheiten
+  vertraulicher Natur, die als solche von der Geschäftsleitung
+  schriftlich oder mündlich bezeichnet werden bzw. offensichtlich
+  als solche zu erkennen sind, Stillschweigen zu bewahren und
+  ohne ausdrückliche Genehmigung der Geschäftsleitung keinen
+  dritten Personen zugänglich zu machen. Die Geheimhaltungspflicht
+  umfasst insbesondere technische, kaufmännische und
+  organisatorische Informationen, Kunden- und Lieferantenlisten,
+  Preis- und Konditionsgestaltungen, Verfahrens- und
+  Produktentwicklungen sowie interne Geschäftsberichte. Für
+  jeden Fall der schuldhaften Zuwiderhandlung gegen die
+  Verschwiegenheitspflicht verpflichtet sich der Arbeitnehmer
+  zur Zahlung einer Vertragsstrafe in angemessener Höhe, in der
+  Regel in Höhe einer Bruttomonatsvergütung; die Geltendmachung
+  eines weitergehenden Schadens bleibt dem Arbeitgeber
+  vorbehalten. Die Verschwiegenheitspflicht endet nicht mit
+  Beendigung des Arbeitsverhältnisses, sondern besteht nach
+  § 622 Abs. 6 BGB und § 17 UWG als nachvertragliche
+  Pflicht fort. Der Arbeitnehmer ist verpflichtet, jede
+  entgeltliche oder das Arbeitsverhältnis beeinträchtigende
+  Nebenbeschäftigung vor ihrer Aufnahme dem Arbeitgeber
+  unverzüglich in Textform anzuzeigen; eine
+  Kontaktaufnahme-Beschränkung (insbesondere die vertragliche
+  Verpflichtung, nach Beendigung des Arbeitsverhältnisses keine
+  Kunden, Lieferanten oder Mitarbeiter des Arbeitgebers
+  anzusprechen, abzuwerben oder für eigene oder fremde
+  Geschäftszwecke zu kontaktieren) bedarf zu ihrer Wirksamkeit
+  einer ausdrücklichen vertraglichen Vereinbarung, die nach
+  § 138 BGB und §§ 305 ff. BGB (AGB-Kontrolle) einer
+  Inhaltskontrolle standhält; eine bloße einseitige
+  Beschränkung ohne Karenzentschädigung oder ohne
+  vertragliche Kompensation (z. B. im Wege einer
+  Abwerbeprämie, einer Outplacement-Vereinbarung oder einer
+  Bonuszahlung) ist nach der Rechtsprechung des BAG in der
+  Regel unwirksam. Der Arbeitgeber erteilt die Zustimmung zu
+  einer angezeigten Nebentätigkeit, wenn die Wahrnehmung der
+  dienstlichen Aufgaben durch die Nebentätigkeit nicht
+  behindert und sonstige berechtigte Interessen des Arbeitgebers
+  nicht beeinträchtigt werden; die Zustimmung kann widerrufen
+  werden, wenn betriebliche Interessen dies erfordern.
+source_url: https://www.ihk.de/blueprint/servlet/resource/blob/764306/02ef8855772d2df8a4c743b497776f4d/arbeitsvertrag-muster--data.pdf
+retrieval_date: 2026-06-10
+license: >-
+  IHK Muster eines Arbeitsvertrages (Januar 2025), frei
+  zugängliches PDF der deutschen Industrie- und Handelskammern;
+  keine Registrierung erforderlich. Baseline-Sprache ist
+  eine paraphrasierte Verdichtung der § 12/§ 13 des
+  Mustervertrags in Verbindung mit § 138 BGB und § 622 Abs. 6
+  BGB, keine wortgetreue Übernahme.
+notes: >-
+  Drei Abweichungsmuster, die in der Matrix zu kennzeichnen sind:
+  (a) eine nachvertragliche Kontaktaufnahme-Beschränkung ohne
+  jede Kompensation (Karenzentschädigung, Outplacement,
+  Bonuszahlung) ist nach § 138 BGB und der BAG-Rechtsprechung in
+  der Regel unwirksam — Matrix-Verdikt „nicht akzeptabel" für
+  KMU, „material" für Großunternehmen (die eher geneigt sind,
+  eine Karenzentschädigung anzubieten); (b) eine
+  Verschwiegenheitspflicht ohne Vertragsstrafen-Klausel oder
+  ohne § 622 Abs. 6 BGB-Referenz lässt die Durchsetzbarkeit
+  zweifelhaft erscheinen — Matrix-Verdikt „minor" für KMU,
+  „aligned" für Großunternehmen; (c) das Fehlen einer
+  Anzeigepflicht für Nebentätigkeiten ist eine Lücke in der
+  vertraglichen Compliance — Matrix-Verdikt „minor" für jeden
+  Vertragspartnertyp. Die *eigentliche* Wettbewerbsverbots-
+  Klausel (Karenzentschädigung 50 % nach § 74 HGB) ist
+  *nicht* in dieser Baseline abgedeckt, sondern gehört zu
+  `employment_non_compete` (geplant für eine Folgekarte);
+  Helenas Review-Karte sollte eine Verwechslung zwischen
+  Non-Solicitation und Non-Compete als strukturelle
+  Abweichung markieren.
