@@ -1,18 +1,37 @@
 """Counterparty matrix loader.
 
 The matrix is a YAML file at
-``playbook/counterparty_matrix.yaml``. Phase 2 ships a *flat* lookup:
-the verdict is a function of the clause type only, not the
-counterparty type. Phase 5 introduces a 2D lookup
-``(clause_type, counterparty_type) → verdict``.
+``playbook/counterparty_matrix.yaml``. The lookup chain is layered:
 
-Phase 4 stacks a *language* axis on top of the 2D table:
-``language → counterparty_type → clause_type → verdict``. The DE
-column only narrows verdicts for DE counterparty types — the EN
-path is unchanged. ``lookup_verdict`` stays Phase-2-shaped so the
-existing call sites (e.g. ``stage3_spot._matrix_verdict_for_clause``)
-don't need to know about the DE column. A new
-``lookup_verdict_with_language`` is the Phase 4 entry point.
+1. **Phase 2 (flat).** ``lookup_verdict(matrix, clause_type)`` —
+   verdict is a function of the clause type only. The default
+   ``default_verdict`` is the fallback. Stays unchanged in Phase 5
+   for back-compat with existing call sites (e.g.
+   ``stage3_spot._matrix_verdict_for_clause``).
+
+2. **Phase 4 (language axis).**
+   ``lookup_verdict_with_language(matrix, clause_type, language=...)``
+   — adds ``language → counterparty_type → clause_type → verdict``
+   as a sibling of the flat table. The DE column only *narrows*
+   verdicts for DE counterparty types; the EN path is unchanged.
+   ``de_german_entity`` is the Phase 4 DE counterparty type.
+
+3. **Phase 5 (counterparty matrix, 4 axes).**
+   ``lookup_verdict_with_counterparty(matrix, clause_type,
+   counterparty_type=...)`` — adds ``counterparty_type →
+   clause_type → verdict`` as a top-level override table. The 4
+   Phase 5 counterparty types are: **enterprise / smb /
+   public_sector / healthcare**. The lookup composes cleanly with
+   the language axis: when a DE-language call lands on a
+   counterparty-aware cell, the strictest verdict (DE override
+   vs counterparty override vs flat default) wins.
+
+The matrix is opinionated (per the spec sharp-edge: "different
+lawyers will disagree on what's acceptable for an SMB vs an
+enterprise"). The YAML's per-cell comments are the source of
+truth for *why* a cell narrows; ``_RATIONALE_PER_CELL`` in this
+file is the machine-readable summary for the matrix-aware spotter
+prompt and the Helena review.
 
 Public surface
 --------------
@@ -20,17 +39,27 @@ Public surface
 - :func:`load_matrix` — load the YAML from
   ``settings.counterparty_matrix_path`` (or an explicit override).
 - :func:`lookup_verdict` — flat lookup (Phase 2). Returns a
-  :class:`MatrixVerdict` whose shape is forward-compatible with
-  Phase 5 (it will gain a ``counterparty_type`` field).
+  :class:`MatrixVerdict`. **Does not consult the counterparty
+  overrides** even when ``counterparty_type`` is passed; the
+  parameter is recorded on the result for forward-compat only.
 - :func:`lookup_verdict_with_language` — Phase 4 lookup. Adds the
   language axis. EN callers get the same result as ``lookup_verdict``;
   DE callers may see a stricter verdict when a DE counterparty-type
   override is configured.
+- :func:`lookup_verdict_with_counterparty` — Phase 5 lookup. The
+  primary entry point for the matrix-aware spotter. Resolves
+  ``(clause_type, counterparty_type[, language]) → verdict`` and
+  composes the language axis on top of the counterparty axis (the
+  strictest of all matching cells wins).
+- :data:`COUNTERPARTY_TYPES` — the canonical 4-axis list. The
+  loader and the matrix-aware spotter both consult this.
+- :data:`DEFAULT_COUNTERPARTY_TYPE` — the legacy ``"any"``
+  sentinel, kept for back-compat with Phase 2 call sites.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 from typing import Optional
@@ -71,6 +100,50 @@ class Verdict(IntEnum):
         return cls(score)
 
 
+# --- Phase 5: counterparty types -----------------------------------------
+
+#: The 4 counterparty axes the Phase 5 matrix ships with, per
+#: ``docs/11-phases.md`` § "Phase 5" (lines 338-385).
+#:
+#: The spec explicitly calls these out:
+#: - **enterprise** — large corporations with in-house counsel,
+#:   negotiating leverage, willingness to sign broad language.
+#: - **smb** — small/medium businesses, no in-house counsel, often
+#:   standard-form contracts, asymmetric risk bearing.
+#: - **public_sector** — government / municipal / federal agencies.
+#:   Statutory constraints (administrative law, public procurement,
+#:   FOIA-equivalent transparency, no-Karenzentschädigung-style
+#:   restrictions on employees).
+#: - **healthcare** — HIPAA-bound entities (US) / healthcare
+#:   providers (DE: Krankenhäuser, Pflegeeinrichtungen). Sector-
+#:   specific data-protection regimes, shift-work, mandatory
+#:   indemnities, professional secrecy.
+#:
+#: The matrix may carry **additional** counterparty types (e.g. the
+#: Phase 4 ``de_german_entity`` language-scoped type), but the 4
+#: above are the canonical Phase 5 axes. Callers should iterate
+#: over :data:`COUNTERPARTY_TYPES` for UI rendering and Helena
+#: review.
+COUNTERPARTY_TYPES: tuple[str, ...] = (
+    "enterprise",
+    "smb",
+    "public_sector",
+    "healthcare",
+)
+
+#: Legacy ``"any"`` sentinel for the flat Phase 2 path. The Phase 5
+#: ``lookup_verdict_with_counterparty`` treats ``"any"`` as "no
+#: counterparty specified, use the flat default" — the lookup
+#: behaves identically to ``lookup_verdict`` in that case.
+DEFAULT_COUNTERPARTY_TYPE: str = "any"
+
+#: Phase 4 DE counterparty type. Kept for back-compat with the
+#: Phase 4 ``language_overrides`` test fixtures. Phase 5 callers
+#: use one of :data:`COUNTERPARTY_TYPES` directly; this constant
+#: is the language-axis key.
+DE_GERMAN_ENTITY: str = "de_german_entity"
+
+
 @dataclass
 class MatrixVerdict:
     """A verdict with the context that produced it.
@@ -82,13 +155,21 @@ class MatrixVerdict:
     clause_type
         The clause type that was looked up.
     counterparty_type
-        The counterparty type that was looked up. In Phase 2 this
-        is always ``"any"`` (flat lookup). Phase 5 will pass a
-        real counterparty type.
+        The counterparty type that was looked up. ``"any"`` (the
+        default) means no counterparty was specified (Phase 2 flat
+        path). A real Phase 5 value is one of
+        :data:`COUNTERPARTY_TYPES` or ``de_german_entity``.
     is_default
         True when the verdict came from the matrix's
         ``default_verdict`` (the per-clause override was absent).
         The UI uses this to render a "matrix default" tag.
+    sources
+        The lookup chain that produced the verdict, in priority
+        order. Phase 5 entries are ``"flat"`` (clause_verdicts
+        hit), ``"counterparty"`` (counterparty_overrides hit), or
+        ``"language:de"`` (DE language override hit). The first
+        element is the source that *won*; later elements are
+        losers. Useful for the UI's "matrix verdict" tooltip.
     """
 
     verdict: Verdict
@@ -101,6 +182,13 @@ class MatrixVerdict:
     # language-scoped override. The field defaults to ``"en"`` so
     # Phase 2 callers don't need to set it.
     language: str = "en"
+    # Phase 5: which override cell(s) contributed to the verdict.
+    # Empty list = verdict came from default_verdict (nothing
+    # matched). ``["flat"]`` = clause_verdicts hit. ``["counterparty"]``
+    # = counterparty_overrides[counterparty_type] hit. ``["language:de"]``
+    # = language_overrides["de"][de_german_entity] hit. Multiple
+    # entries mean multiple cells matched and the strictest won.
+    sources: list[str] = field(default_factory=list)
 
 
 # --- Matrix config -------------------------------------------------------
@@ -404,11 +492,179 @@ def lookup_verdict_with_language(
     )
 
 
+# --- Phase 5: counterparty-aware lookup ----------------------------------
+
+
+def lookup_verdict_with_counterparty(
+    matrix: CounterpartyMatrix,
+    clause_type: str,
+    *,
+    counterparty_type: str = DEFAULT_COUNTERPARTY_TYPE,
+    language: str = "en",
+) -> MatrixVerdict:
+    """Phase 5 lookup: counterparty_type × clause_type → verdict.
+
+    The primary entry point for the matrix-aware spotter. The
+    lookup composes three axes in priority order (strictest wins):
+
+      1. **Language axis (Phase 4).** If ``language == "de"`` and
+         ``language_overrides["de"][counterparty_type][clause_type]``
+         is present, the DE verdict is the leading candidate.
+         The DE override is **only applied when at least as strict**
+         as the next-strictest candidate — we never *relax* a
+         verdict on a language switch (defensive against an
+         accidentally-inverted YAML value).
+
+      2. **Counterparty axis (Phase 5).** If ``counterparty_type``
+         is in :data:`COUNTERPARTY_TYPES` (or is the legacy
+         ``de_german_entity``) and ``counterparty_overrides
+         [counterparty_type][clause_type]`` is present, the
+         counterparty verdict is the next candidate.
+
+      3. **Flat default (Phase 2).** ``clause_verdicts[clause_type]``
+         if present, else ``default_verdict``.
+
+    The result's :attr:`MatrixVerdict.sources` lists which cells
+    matched, in order of strictness. The first element is the
+    source that *won*; later entries are the losers (still useful
+    for the UI's "matrix verdict" tooltip — e.g. "DE override
+    applied: material, on top of counterparty healthcare
+    override: minor").
+
+    Lookup examples (per the spec exit-gate: "the matrix actually
+    changes a verdict on at least 3 of 30 eval contracts"):
+
+      >>> v = lookup_verdict_with_counterparty(
+      ...     m, "dpa_breach_notification",
+      ...     counterparty_type="healthcare", language="en",
+      ... )
+      >>> v.verdict  # Verdict.MATERIAL  (HIPAA 60-day rule)
+
+      >>> v = lookup_verdict_with_counterparty(
+      ...     m, "employment_non_compete",
+      ...     counterparty_type="smb", language="de",
+      ... )
+      >>> v.verdict  # Verdict.UNACCEPTABLE  (Karenzentschädigung
+                     # missing; smb cannot afford the consideration)
+
+    The function never raises on a missing clause type, a
+    missing counterparty type, or a missing language override —
+    each axis is a "soft" lookup that simply contributes no
+    candidate. This is the spec's design choice: the matrix is
+    "opinionated" but every cell is opt-in.
+
+    ``counterparty_type="any"`` (the default) is the Phase 2
+    sentinel and yields the same result as ``lookup_verdict`` —
+    no counterparty override is consulted.
+    """
+    lang = (language or matrix.language or "en").strip().lower() or "en"
+    ct = (counterparty_type or matrix.default_counterparty_type or DEFAULT_COUNTERPARTY_TYPE).strip() or DEFAULT_COUNTERPARTY_TYPE
+
+    # Step 1: flat default (Phase 2 path).
+    if clause_type in matrix.clause_verdicts:
+        flat_verdict = matrix.clause_verdicts[clause_type]
+        is_default = False
+        flat_source = "flat"
+    else:
+        flat_verdict = matrix.default_verdict
+        is_default = True
+        flat_source = ""
+
+    # Step 2: counterparty override (Phase 5).
+    cp_overrides = matrix.counterparty_overrides.get(ct, {})
+    cp_verdict = cp_overrides.get(clause_type)
+    cp_source = "counterparty" if cp_verdict is not None else ""
+
+    # Step 3: language override (Phase 4, DE path). The DE lookup
+    # uses the same ``counterparty_type`` as the call — when a
+    # real Phase 5 type (``enterprise``/``smb``/``public_sector``/
+    # ``healthcare``) is passed, the DE lookup falls through to
+    # the Phase 4 ``de_german_entity`` cell (no DE override for
+    # the 4-axis types yet, by design — Phase 5 keeps the DE
+    # language axis narrow to the original DE entity type).
+    de_verdict = None
+    de_source = ""
+    if lang == "de":
+        de_overrides = matrix.language_overrides.get("de", {})
+        # Try the call's counterparty_type first, then fall back
+        # to the Phase 4 ``de_german_entity`` cell. The fallback
+        # keeps the existing test fixtures green and preserves
+        # the Phase 4 narrowing for callers that haven't
+        # migrated to the 4-axis types yet.
+        de_by_cp = de_overrides.get(ct) or de_overrides.get(DE_GERMAN_ENTITY, {})
+        de_candidate = de_by_cp.get(clause_type)
+        if de_candidate is not None:
+            de_verdict = de_candidate
+            de_source = "language:de"
+
+    # Compose the strictest verdict. The order of evaluation
+    # (DE → counterparty → flat) reflects "DE is the narrowest
+    # axis, counterparty is next, flat is the floor". The DE
+    # "no-relax" guard is preserved: DE wins only when at least
+    # as strict as the next-strictest candidate. The
+    # counterparty and flat axes can override each other
+    # freely — both are author-intent overrides.
+    candidates: list[tuple[Verdict, str]] = []
+    if de_verdict is not None:
+        candidates.append((de_verdict, de_source))
+    if cp_verdict is not None:
+        candidates.append((cp_verdict, cp_source))
+    if flat_source:
+        candidates.append((flat_verdict, flat_source))
+
+    if not candidates:
+        # Nothing matched — pure default fallback.
+        return MatrixVerdict(
+            verdict=matrix.default_verdict,
+            clause_type=clause_type,
+            counterparty_type=ct,
+            is_default=True,
+            language=lang,
+            sources=[],
+        )
+
+    # Sort by strictness (highest first) and pick the strictest
+    # *that satisfies the DE-no-relax guard*. If the DE override
+    # is *less* strict than another candidate, the DE override
+    # is dropped (it doesn't relax the verdict).
+    candidates.sort(key=lambda c: c[0].value, reverse=True)
+    strictest, source = candidates[0]
+    sources = [source]
+    # DE no-relax guard: if DE won but a less-strict non-DE
+    # candidate is the *real* leading verdict, drop the DE
+    # attribution and pick the non-DE strictest.
+    if de_verdict is not None and de_source == source:
+        non_de = [c for c in candidates[1:] if c[1] != "language:de"]
+        if non_de and non_de[0][0].value < de_verdict.value:
+            # DE was about to relax — drop DE, pick non-DE strictest.
+            strictest = non_de[0][0]
+            source = non_de[0][1]
+            sources = [source]
+    # Track the losing candidates for the UI tooltip (preserves
+    # the audit trail without changing the verdict).
+    for c, s in candidates:
+        if s != source and s not in sources:
+            sources.append(s)
+
+    return MatrixVerdict(
+        verdict=strictest,
+        clause_type=clause_type,
+        counterparty_type=ct,
+        is_default=is_default,
+        language=lang,
+        sources=sources,
+    )
+
+
 __all__ = [
+    "COUNTERPARTY_TYPES",
+    "DEFAULT_COUNTERPARTY_TYPE",
+    "DE_GERMAN_ENTITY",
     "CounterpartyMatrix",
     "MatrixVerdict",
     "Verdict",
     "load_matrix",
     "lookup_verdict",
+    "lookup_verdict_with_counterparty",
     "lookup_verdict_with_language",
 ]

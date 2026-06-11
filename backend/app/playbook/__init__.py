@@ -13,12 +13,13 @@ Modules:
 - ``seed``       — Idempotent seeder that reads every YAML under
                    ``playbook/baselines/`` and inserts into the store.
 - ``counterparty`` — Matrix config loader. Phase 2 ships a flat
-                  lookup; the counterparty-aware overrides arrive
-                  in Phase 5. Phase 4 stacks a *language* axis on
-                  top: ``language → counterparty_type → clause_type
-                  → verdict``, with the DE column narrowing verdicts
-                  for DE counterparty types (additive — EN path
-                  unchanged).
+                  lookup; Phase 5 promotes the 2D ``counterparty_type
+                  → clause_type → verdict`` table to a first-class
+                  source of truth (4 axes: ``enterprise``, ``smb``,
+                  ``public_sector``, ``healthcare``). Phase 4 stacks
+                  a *language* axis on top, with the DE column
+                  narrowing verdicts for DE counterparty types
+                  (additive — EN path unchanged).
 
 Public surface: this package re-exports the high-level helpers so
 ``python -m backend.app.playbook.seed`` and tests can ``from
@@ -26,11 +27,15 @@ app.playbook import ...`` without reaching into submodules.
 """
 
 from app.playbook.counterparty import (
+    COUNTERPARTY_TYPES,
+    DEFAULT_COUNTERPARTY_TYPE,
+    DE_GERMAN_ENTITY,
     CounterpartyMatrix,
     MatrixVerdict,
     Verdict,
     load_matrix,
     lookup_verdict,
+    lookup_verdict_with_counterparty,
     lookup_verdict_with_language,
 )
 from app.playbook.embeddings import (
@@ -60,10 +65,14 @@ __all__ = [
     "PlaybookTopKHit",
     "get_store",
     # counterparty
+    "COUNTERPARTY_TYPES",
+    "DEFAULT_COUNTERPARTY_TYPE",
+    "DE_GERMAN_ENTITY",
     "CounterpartyMatrix",
     "MatrixVerdict",
     "Verdict",
     "load_matrix",
     "lookup_verdict",
+    "lookup_verdict_with_counterparty",
     "lookup_verdict_with_language",
 ]
