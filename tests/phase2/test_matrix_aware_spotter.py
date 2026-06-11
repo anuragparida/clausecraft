@@ -66,11 +66,14 @@ from app.agents.deviation_spotter.schema import (
     matrix_verdict_from_score,
 )
 from app.agents.deviation_spotter.spotter import (
+    ELEVATED_RISK_COUNTERPARTY_TYPES,
     _coerce_matrix_sources,
     _coerce_matrix_verdict,
     _parse_llm_output,
     _stamp_matrix_audit_fields,
+    is_per_type_escalation,
     spot_clause,
+    verdict_for_score_and_counterparty,
 )
 from app.playbook.counterparty import (
     load_matrix,
@@ -395,11 +398,18 @@ class TestStampMatrixAuditFields:
     """``_stamp_matrix_audit_fields`` re-stamps the LLM-parsed flag with the pipeline's view."""
 
     def test_re_stamps_matrix_verdict(self) -> None:
-        """The flag's matrix_verdict is overwritten with the pipeline's value."""
+        """The flag's matrix_verdict is overwritten with the pipeline's value.
+
+        v2: the per-type rule does not fire for non-elevated
+        counterparty types (smb/any/enterprise). The test
+        uses ``smb`` so the score-2 → "material" mapping
+        holds. The healthcare path is covered in
+        ``TestStampMatrixAuditFieldsPerType``.
+        """
         si = _spot_input(
             matrix_verdict_column="material",
             matrix_sources=["counterparty", "flat"],
-            matrix_counterparty_type="healthcare",
+            matrix_counterparty_type="smb",
         )
         # Construct a flag with a different (LLM-invented) matrix_verdict.
         f = DeviationFlag(
@@ -412,7 +422,7 @@ class TestStampMatrixAuditFields:
         # The pipeline's view wins.
         assert stamped.matrix_verdict == "material"
         assert stamped.matrix_sources == ["counterparty", "flat"]
-        assert stamped.matrix_counterparty_type == "healthcare"
+        assert stamped.matrix_counterparty_type == "smb"
 
     def test_preserves_other_fields(self) -> None:
         """Score, rationale, citation, baseline_type are NOT touched."""
@@ -436,10 +446,18 @@ class TestStampMatrixAuditFields:
         assert stamped.baseline_type == "term"
 
     def test_returns_new_flag(self) -> None:
-        """``model_copy`` returns a new instance; the caller's object is untouched."""
+        """``model_copy`` returns a new instance; the caller's object is untouched.
+
+        v2: the test uses ``score=2`` so the score-2 →
+        "material" branch fires (test uses
+        ``matrix_counterparty_type="any"`` to avoid the
+        score-2-on-elevated-risk escalation). The score-0
+        path is covered in
+        ``TestStampMatrixAuditFieldsPerType``.
+        """
         si = _spot_input(matrix_verdict_column="material")
         f = DeviationFlag(
-            clause_id="c1", score=0, rationale="test", matrix_verdict=None,
+            clause_id="c1", score=2, rationale="test", matrix_verdict=None,
         )
         id(f)
         stamped = _stamp_matrix_audit_fields(f, spot_input=si)
@@ -449,7 +467,17 @@ class TestStampMatrixAuditFields:
         assert stamped.matrix_verdict == "material"
 
     def test_unverified_default_when_column_invalid(self) -> None:
-        """When the column can't be coerced, the stamp falls back to "unverified"."""
+        """When the column can't be coerced, the stamp falls back to "unverified".
+
+        v2: the test asserts that with an invalid column
+        (matrix-internal label) and ``score=0``, the
+        defensive fallback wins: the column can't be
+        coerced to a spec 4-state label so it falls back to
+        "unverified", and the score-0 rule then maps to
+        "acceptable". The point of the test is the
+        defensive fallback, not the score-3 rule (covered
+        in ``TestStampMatrixAuditFieldsPerType``).
+        """
         # Build a spot input with an invalid column. The schema
         # validator rejects this, so we have to bypass it via
         # model_construct to simulate a bug.
@@ -467,8 +495,14 @@ class TestStampMatrixAuditFields:
         )
         f = DeviationFlag(clause_id="c1", score=0, rationale="test")
         stamped = _stamp_matrix_audit_fields(f, spot_input=si)
-        # Falls back to "unverified" when the column can't be coerced.
-        assert stamped.matrix_verdict == "unverified"
+        # The defensive fallback wins: the column can't be
+        # coerced to a spec 4-state label so it falls back
+        # to "unverified", and the score-0 rule then maps
+        # to "acceptable". The defensive fallback is the
+        # most-specific signal here (the matrix couldn't
+        # reach a verdict at all), so the score-0 rule
+        # applies on top of the fallback.
+        assert stamped.matrix_verdict == "acceptable"
 
 
 # --- Parser tests -------------------------------------------------------
@@ -502,10 +536,17 @@ class TestParseLlmOutput:
         to ``None`` and the pipeline re-stamps the flag with
         the real matrix verdict. The audit trail preserves
         the raw LLM output in the Langfuse span.
+
+        v2: uses ``score=2`` so the per-type rule's score-2
+        → "material" branch fires (test uses
+        ``counterparty_type="any"`` to avoid the
+        score-2-on-elevated-risk escalation). The score-0
+        path is also covered in
+        ``TestStampMatrixAuditFieldsPerType``.
         """
         si = _spot_input(matrix_verdict_column="material")
         raw = {
-            "score": 0,
+            "score": 2,
             "rationale": "test",
             "citation": None,
             "baseline_type": "",
@@ -557,19 +598,30 @@ class TestSpotClauseMatrixAware:
     """``spot_clause`` re-stamps the matrix-aware fields end-to-end."""
 
     def test_no_baseline_short_circuit_stamps_matrix(self) -> None:
-        """The "no baseline" short-circuit still stamps the matrix fields."""
+        """The "no baseline" short-circuit still stamps the matrix fields.
+
+        v2: the test uses ``matrix_counterparty_type="smb"``
+        so the per-type rule does not fire. The
+        short-circuit abstains with ``score=0``, which the
+        per-type rule maps to "acceptable" — but that's the
+        score-0 branch, not the per-type escalation. The
+        ``counterparty"`` and ``"flat"`` sources are stamped
+        verbatim (no override marker). The healthcare path
+        is covered in ``TestSpotClausePerTypeEndToEnd``.
+        """
         si = _spot_input(
             baselines=[],
             matrix_verdict_column="material",
             matrix_sources=["counterparty", "flat"],
-            matrix_counterparty_type="healthcare",
+            matrix_counterparty_type="smb",
         )
         # The LLM is bypassed (no baselines).
         f = spot_clause(si, contract_filename="test.pdf")
         assert f.score == 0
-        assert f.matrix_verdict == "material"
+        # Score 0 maps to "acceptable" (the v2 score-0 rule).
+        assert f.matrix_verdict == "acceptable"
         assert f.matrix_sources == ["counterparty", "flat"]
-        assert f.matrix_counterparty_type == "healthcare"
+        assert f.matrix_counterparty_type == "smb"
 
     def test_rule_based_fallback_stamps_matrix(self) -> None:
         """When the LLM is unavailable, the rule-based fallback still re-stamps."""
@@ -588,11 +640,17 @@ class TestSpotClauseMatrixAware:
         assert f.matrix_counterparty_type == "any"
 
     def test_mocked_llm_path_re_stamps_matrix(self) -> None:
-        """When the LLM runs, the re-stamp overwrites the LLM's echo with the pipeline's view."""
+        """When the LLM runs, the re-stamp overwrites the LLM's echo with the pipeline's view.
+
+        v2: uses ``matrix_counterparty_type="smb"`` so the
+        score-2 → "material" mapping holds. The
+        score-2-on-healthcare escalation path is covered in
+        ``TestSpotClausePerTypeEndToEnd``.
+        """
         si = _spot_input(
             matrix_verdict_column="material",
             matrix_sources=["counterparty", "flat"],
-            matrix_counterparty_type="healthcare",
+            matrix_counterparty_type="smb",
         )
         # Mock the LLM to return a DIFFERENT matrix_verdict than the pipeline.
         llm_response = {
@@ -614,7 +672,7 @@ class TestSpotClauseMatrixAware:
         # The pipeline's view wins.
         assert f.matrix_verdict == "material"
         assert f.matrix_sources == ["counterparty", "flat"]
-        assert f.matrix_counterparty_type == "healthcare"
+        assert f.matrix_counterparty_type == "smb"
 
 
 # --- Prompt render -----------------------------------------------------
@@ -783,3 +841,835 @@ class TestMatrixComposition:
         # The exact value depends on the matrix; we just verify the call works.
         assert mv.language == "de"
         assert isinstance(mv.sources, list)
+
+
+# --- Phase 5 v2: per-type behavior (score-2 rule) ---------------------
+
+
+class TestElevatedRiskAxes:
+    """The ``ELEVATED_RISK_COUNTERPARTY_TYPES`` constant.
+
+    Per the spec ("score-2 = material OR unacceptable depending
+    on type") and the matrix config card's rationale (Apollo
+    t_33ecfb34): public-sector and healthcare entities cannot
+    absorb the same "material but negotiable" risk that an
+    enterprise or SMB can. The other 2 Phase 5 axes
+    (enterprise, smb) and the legacy "any" sentinel are
+    non-elevated.
+    """
+
+    def test_public_sector_is_elevated(self) -> None:
+        assert "public_sector" in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+    def test_healthcare_is_elevated(self) -> None:
+        assert "healthcare" in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+    def test_enterprise_is_not_elevated(self) -> None:
+        assert "enterprise" not in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+    def test_smb_is_not_elevated(self) -> None:
+        assert "smb" not in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+    def test_any_sentinel_is_not_elevated(self) -> None:
+        """The legacy Phase 2 sentinel defaults to the non-elevated branch."""
+        assert "any" not in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+    def test_de_german_entity_is_not_elevated(self) -> None:
+        """DE-narrowing is a separate axis and does not change the score-2 rule."""
+        assert "de_german_entity" not in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+
+class TestIsPerTypeEscalation:
+    """``is_per_type_escalation`` is the narrower predicate.
+
+    The predicate returns ``True`` only when the override
+    specifically promotes ``"material"`` → ``"unacceptable"``
+    for an elevated-risk counterparty type. The other
+    score-driven mappings (score 0/1 → "acceptable", score 3
+    → "unacceptable", score 2 on non-elevated axes →
+    "material") are unconditional score rules that apply to
+    every counterparty type, NOT per-type decisions, so the
+    audit trail's ``per_type_escalation`` entry should NOT
+    fire for those.
+    """
+
+    # --- the one True case: score 2 + elevated-risk + material ---
+
+    @pytest.mark.parametrize("cp_type", ["public_sector", "healthcare"])
+    def test_true_for_score_2_elevated_material(
+        self, cp_type: str
+    ) -> None:
+        """Score 2 + elevated-risk cp type + material matrix column → True."""
+        assert is_per_type_escalation(2, cp_type, "material") is True
+
+    # --- False cases: every other combination ---
+
+    @pytest.mark.parametrize("cp_type", ["enterprise", "smb", "any"])
+    def test_false_for_score_2_non_elevated(self, cp_type: str) -> None:
+        """Score 2 + non-elevated cp type → False (no escalation)."""
+        assert is_per_type_escalation(2, cp_type, "material") is False
+
+    def test_false_for_score_2_de_german_entity(self) -> None:
+        """DE-narrowing is a separate axis; score 2 on DE doesn't escalate."""
+        assert is_per_type_escalation(2, "de_german_entity", "material") is False
+
+    @pytest.mark.parametrize("cp_type", ["public_sector", "healthcare"])
+    @pytest.mark.parametrize(
+        "matrix_column",
+        ["acceptable", "unacceptable", "unverified"],
+    )
+    def test_false_for_score_2_with_stricter_or_unchanged_matrix(
+        self, cp_type: str, matrix_column: str
+    ) -> None:
+        """Score 2 + elevated cp + non-material column → False.
+
+        The escalation only fires when the matrix says
+        "material". Stricter verdicts ("unacceptable") and
+        unverified outcomes are not escalations.
+        """
+        assert is_per_type_escalation(2, cp_type, matrix_column) is False
+
+    @pytest.mark.parametrize("score", [0, 1])
+    @pytest.mark.parametrize("cp_type", ["public_sector", "healthcare"])
+    def test_false_for_score_0_or_1_even_on_elevated(
+        self, score: int, cp_type: str
+    ) -> None:
+        """Score 0/1 is the unconditional "acceptable" rule, not a per-type escalation."""
+        assert is_per_type_escalation(score, cp_type, "material") is False
+
+    @pytest.mark.parametrize("cp_type", ["public_sector", "healthcare"])
+    def test_false_for_score_3_even_on_elevated(self, cp_type: str) -> None:
+        """Score 3 is the unconditional "unacceptable" rule, not a per-type escalation."""
+        assert is_per_type_escalation(3, cp_type, "material") is False
+
+    def test_false_for_none_score(self) -> None:
+        """``None`` score (spotter abstained) → no per-type decision."""
+        for col in ("acceptable", "material", "unacceptable", "unverified"):
+            assert is_per_type_escalation(None, "public_sector", col) is False
+
+    @pytest.mark.parametrize("bad_score", [-1, 4, 5, 100])
+    def test_false_for_out_of_range_score(self, bad_score: int) -> None:
+        """Out-of-range scores are no-ops; the matrix's view stands."""
+        assert is_per_type_escalation(bad_score, "public_sector", "material") is False
+
+    def test_false_for_non_int_score(self) -> None:
+        """Non-int scores (e.g. ``"2"``, ``2.0``) → False."""
+        for bad in ("2", 2.0, [], {}):
+            assert is_per_type_escalation(bad, "public_sector", "material") is False
+
+    def test_false_for_bool_score(self) -> None:
+        """``bool`` is a subclass of ``int``; reject it."""
+        assert is_per_type_escalation(True, "public_sector", "material") is False
+        assert is_per_type_escalation(False, "public_sector", "material") is False
+
+    def test_false_for_unknown_matrix_column(self) -> None:
+        """Unknown matrix columns → False (validator catches upstream)."""
+        assert is_per_type_escalation(2, "public_sector", "") is False
+        assert is_per_type_escalation(2, "public_sector", "garbage") is False
+
+    def test_false_for_unknown_counterparty_type(self) -> None:
+        """Unknown cp types → False (treated as non-elevated)."""
+        assert is_per_type_escalation(2, "future_axis", "material") is False
+        assert is_per_type_escalation(2, "", "material") is False
+
+
+class TestUnconditionalScoreRuleBranch:
+    """The non-per-type-escalation branch of ``_stamp_matrix_audit_fields``.
+
+    When ``is_per_type_escalation`` returns ``False``, the
+    re-stamp applies the unconditional score-driven mapping
+    from :func:`verdict_for_score_and_counterparty`. This
+    branch must NOT add the ``per_type_escalation`` entry to
+    ``matrix_sources`` — the audit trail only records a
+    per-type escalation when the *narrower* predicate fires.
+    """
+
+    def test_score_0_healthcare_keeps_acceptable_no_override_marker(self) -> None:
+        """Score 0 + healthcare → "acceptable", no per_type_escalation marker.
+
+        Score 0 is the unconditional "acceptable" rule, not a
+        per-type escalation. The audit trail records the
+        original sources verbatim.
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=0,
+            rationale="aligned",
+            matrix_verdict="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "acceptable"
+        # No per_type_escalation marker — this is the
+        # unconditional score-0 rule, not a per-type
+        # decision.
+        assert stamped.matrix_sources == ["counterparty"]
+
+    def test_score_3_healthcare_keeps_unacceptable_no_override_marker(self) -> None:
+        """Score 3 + healthcare → "unacceptable", no per_type_escalation marker.
+
+        Score 3 is the unconditional "unacceptable" rule, not
+        a per-type escalation. The audit trail records the
+        original sources verbatim.
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=3,
+            rationale="unacceptable deviation",
+            matrix_verdict="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        # No per_type_escalation marker — this is the
+        # unconditional score-3 rule.
+        assert stamped.matrix_sources == ["counterparty"]
+
+    def test_score_2_smb_stays_material_no_override_marker(self) -> None:
+        """Score 2 + smb + material → "material", no per_type_escalation marker.
+
+        SMB is non-elevated, so the per-type rule doesn't
+        fire. The matrix's "material" column passes through
+        unchanged.
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type="smb",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            matrix_verdict="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type="smb",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "material"
+        assert stamped.matrix_sources == ["counterparty", "flat"]
+
+    def test_score_2_healthcare_with_unacceptable_matrix_unchanged(self) -> None:
+        """Score 2 + healthcare + matrix=unacceptable → "unacceptable", no override.
+
+        The matrix's stricter verdict wins. The per-type
+        rule doesn't fire because the column was already
+        "unacceptable" — there's no "promotion" to record in
+        the audit trail.
+        """
+        si = _spot_input(
+            matrix_verdict_column="unacceptable",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            matrix_verdict="unacceptable",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        assert stamped.matrix_sources == ["counterparty"]
+
+
+class TestVerdictForScoreAndCounterparty:
+    """The per-type escalation rule (score-2 = material or unacceptable).
+
+    The spec rule: when the spotter emits ``score=2`` (material),
+    the matrix column is escalated to ``unacceptable`` for
+    public_sector and healthcare counterparty types, and stays
+    at ``material`` for the other axes. ``score=0``/``score=1``
+    always map to ``acceptable``; ``score=3`` always maps to
+    ``unacceptable``. The escalation only fires when the matrix
+    column is ``"material"`` — the matrix's stricter verdicts
+    (``unacceptable``) and unverified outcomes win.
+    """
+
+    # --- score-2 rule: per-counterparty escalation ---
+
+    @pytest.mark.parametrize("cp_type", ["public_sector", "healthcare"])
+    def test_score_2_elevated_risk_promotes_to_unacceptable(
+        self, cp_type: str
+    ) -> None:
+        """Score 2 with an elevated-risk cp type escalates material -> unacceptable."""
+        assert (
+            verdict_for_score_and_counterparty(2, cp_type, "material")
+            == "unacceptable"
+        )
+
+    @pytest.mark.parametrize("cp_type", ["enterprise", "smb", "any"])
+    def test_score_2_non_elevated_stays_material(self, cp_type: str) -> None:
+        """Score 2 with a non-elevated cp type stays at material."""
+        assert (
+            verdict_for_score_and_counterparty(2, cp_type, "material")
+            == "material"
+        )
+
+    def test_score_2_de_german_entity_stays_material(self) -> None:
+        """Score 2 with the Phase 4 DE counterparty type stays at material.
+
+        DE-narrowing is a separate axis — it changes the
+        matrix's verdict for DE clauses, not the per-type
+        score-2 escalation.
+        """
+        assert (
+            verdict_for_score_and_counterparty(2, "de_german_entity", "material")
+            == "material"
+        )
+
+    # --- score 0/1: always acceptable ---
+
+    @pytest.mark.parametrize("score", [0, 1])
+    @pytest.mark.parametrize(
+        "cp_type",
+        ["public_sector", "healthcare", "enterprise", "smb", "any", "de_german_entity"],
+    )
+    def test_score_0_or_1_always_acceptable(
+        self, score: int, cp_type: str
+    ) -> None:
+        """Score 0 and score 1 always map to acceptable, regardless of cp type.
+
+        The matrix column is irrelevant — score 0/1 wins.
+        This holds even when the matrix says "unacceptable" or
+        "material"; the spec rule is that the spotter's "minor"
+        deviation is always acceptable, and the LLM's "aligned"
+        verdict is trivially acceptable.
+        """
+        for matrix_col in ("acceptable", "material", "unacceptable", "unverified"):
+            assert (
+                verdict_for_score_and_counterparty(score, cp_type, matrix_col)
+                == "acceptable"
+            )
+
+    # --- score 3: always unacceptable ---
+
+    @pytest.mark.parametrize(
+        "cp_type",
+        ["public_sector", "healthcare", "enterprise", "smb", "any", "de_german_entity"],
+    )
+    @pytest.mark.parametrize("matrix_col", ["acceptable", "material", "unverified"])
+    def test_score_3_always_unacceptable(
+        self, cp_type: str, matrix_col: str
+    ) -> None:
+        """Score 3 always maps to unacceptable, regardless of cp type or matrix.
+
+        The LLM's "this contradicts the baseline" verdict is
+        the final say. The matrix does not relax it.
+        """
+        assert (
+            verdict_for_score_and_counterparty(3, cp_type, matrix_col)
+            == "unacceptable"
+        )
+
+    # --- matrix-stricter-wins rule ---
+
+    def test_score_2_with_unacceptable_matrix_stays_unacceptable(self) -> None:
+        """The matrix's stricter verdicts win over the per-type rule."""
+        # If the matrix already says "unacceptable", the
+        # per-type rule doesn't change it.
+        assert (
+            verdict_for_score_and_counterparty(2, "public_sector", "unacceptable")
+            == "unacceptable"
+        )
+        assert (
+            verdict_for_score_and_counterparty(2, "healthcare", "unacceptable")
+            == "unacceptable"
+        )
+
+    def test_score_2_with_unverified_matrix_stays_unverified(self) -> None:
+        """The matrix's "unverified" outcome wins over the per-type rule."""
+        # When the matrix couldn't reach a verdict, the
+        # per-type rule doesn't override it — the audit trail
+        # records "unverified" so the reviewer knows the
+        # pipeline didn't reach a matrix call.
+        assert (
+            verdict_for_score_and_counterparty(2, "public_sector", "unverified")
+            == "unverified"
+        )
+
+    def test_score_2_with_acceptable_matrix_stays_acceptable(self) -> None:
+        """The matrix's "acceptable" verdict is never escalated by the per-type rule.
+
+        The per-type rule only escalates "material" to
+        "unacceptable" for elevated-risk axes. It does not
+        escalate "acceptable" — the matrix's "acceptable" call
+        is the final say for that cell.
+        """
+        assert (
+            verdict_for_score_and_counterparty(2, "public_sector", "acceptable")
+            == "acceptable"
+        )
+        assert (
+            verdict_for_score_and_counterparty(2, "healthcare", "acceptable")
+            == "acceptable"
+        )
+
+    # --- defensive cases ---
+
+    def test_none_score_returns_matrix_column(self) -> None:
+        """``None`` score (spotter abstained) returns the matrix column unchanged."""
+        for col in ("acceptable", "material", "unacceptable", "unverified"):
+            assert verdict_for_score_and_counterparty(None, "public_sector", col) == col
+            assert verdict_for_score_and_counterparty(None, "enterprise", col) == col
+
+    @pytest.mark.parametrize("bad_score", [-1, 4, 5, 100, -100])
+    def test_out_of_range_score_returns_matrix_column(self, bad_score: int) -> None:
+        """Out-of-range scores return the matrix column unchanged.
+
+        The Pydantic ``DeviationFlag.score`` validator clamps
+        to 0..3, but the helper is called defensively from
+        the re-stamp path (where the flag might be
+        model_construct'd with bad data).
+        """
+        for col in ("acceptable", "material", "unacceptable", "unverified"):
+            assert (
+                verdict_for_score_and_counterparty(bad_score, "public_sector", col)
+                == col
+            )
+
+    @pytest.mark.parametrize("bad_score", ["2", 2.0, None, [], {}])
+    def test_non_int_score_returns_matrix_column(self, bad_score: object) -> None:
+        """Non-integer scores return the matrix column unchanged.
+
+        ``2.0`` and ``"2"`` are intentionally rejected: the
+        helper expects a clean ``int`` (Pydantic coerces
+        upstream). The ``None`` case is also handled here as
+        a non-int path even though it has its own test above.
+        """
+        for col in ("acceptable", "material", "unacceptable", "unverified"):
+            assert (
+                verdict_for_score_and_counterparty(
+                    bad_score, "public_sector", col  # type: ignore[arg-type]
+                )
+                == col
+            )
+
+    def test_bool_score_is_rejected(self) -> None:
+        """``bool`` is a subclass of ``int`` in Python; reject it explicitly.
+
+        ``isinstance(True, int) is True`` would otherwise let
+        ``True``/``False`` slip through the int check. The
+        helper treats them as non-int inputs (defensive).
+        """
+        for col in ("acceptable", "material", "unacceptable", "unverified"):
+            assert (
+                verdict_for_score_and_counterparty(True, "public_sector", col) == col
+            )
+            assert (
+                verdict_for_score_and_counterparty(False, "public_sector", col) == col
+            )
+
+    def test_unknown_column_passes_through(self) -> None:
+        """Unknown matrix columns pass through unchanged.
+
+        The schema validator catches this upstream; the
+        per-type rule only applies to known columns.
+        """
+        # An empty string and a garbage string pass through.
+        assert verdict_for_score_and_counterparty(2, "public_sector", "") == ""
+        assert (
+            verdict_for_score_and_counterparty(2, "public_sector", "garbage")
+            == "garbage"
+        )
+
+    def test_unknown_counterparty_type_falls_through(self) -> None:
+        """Unknown counterparty types fall through to the non-elevated branch.
+
+        The 4 Phase 5 axes are documented; unknown strings
+        (e.g. a future Phase 6 axis) are treated as
+        non-elevated to keep the rule conservative. Score 2
+        with an unknown cp type stays at "material".
+        """
+        assert (
+            verdict_for_score_and_counterparty(2, "future_axis", "material")
+            == "material"
+        )
+        assert (
+            verdict_for_score_and_counterparty(2, "", "material")
+            == "material"
+        )
+
+
+class TestStampMatrixAuditFieldsPerType:
+    """``_stamp_matrix_audit_fields`` applies the per-type rule end-to-end.
+
+    The re-stamp is the surface that actually promotes
+    ``material`` → ``unacceptable`` for elevated-risk counterparty
+    types. These tests assert the full path: score 2 on a
+    healthcare spot input, with a material matrix column,
+    produces an ``unacceptable`` flag with the
+    ``per_type_escalation`` entry stamped at the front of
+    ``matrix_sources``.
+    """
+
+    def test_score_2_healthcare_promotes_to_unacceptable(self) -> None:
+        """Score 2 + healthcare + matrix=material → flag has matrix_verdict=unacceptable."""
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            matrix_verdict="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        # The override is stamped at the front of the chain.
+        assert stamped.matrix_sources[0] == "per_type_escalation"
+        # Original sources preserved as losers.
+        assert "counterparty" in stamped.matrix_sources
+        assert "flat" in stamped.matrix_sources
+
+    def test_score_2_public_sector_promotes_to_unacceptable(self) -> None:
+        """Score 2 + public_sector + matrix=material → flag has matrix_verdict=unacceptable."""
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="public_sector",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            matrix_verdict="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="public_sector",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        assert stamped.matrix_sources[0] == "per_type_escalation"
+
+    @pytest.mark.parametrize("cp_type", ["enterprise", "smb", "any"])
+    def test_score_2_non_elevated_stays_material(self, cp_type: str) -> None:
+        """Score 2 + non-elevated cp + matrix=material → flag has matrix_verdict=material."""
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type=cp_type,
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            matrix_verdict="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type=cp_type,
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "material"
+        # No per_type_escalation entry: the rule didn't fire.
+        assert "per_type_escalation" not in (stamped.matrix_sources or [])
+
+    def test_score_0_healthcare_keeps_acceptable(self) -> None:
+        """Score 0 + healthcare → flag has matrix_verdict=acceptable (score wins)."""
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=0,
+            rationale="aligned",
+            matrix_verdict="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        # Score 0 always maps to acceptable.
+        assert stamped.matrix_verdict == "acceptable"
+        # The per-type rule didn't fire (the score-2 escalation
+        # is conditional on score == 2; score 0 just lands on
+        # acceptable via the score-0/1 branch). No
+        # per_type_escalation entry.
+        assert "per_type_escalation" not in (stamped.matrix_sources or [])
+
+    def test_score_3_healthcare_keeps_unacceptable(self) -> None:
+        """Score 3 + healthcare + matrix=material → flag has matrix_verdict=unacceptable.
+
+        Score 3 always maps to unacceptable; the per-type rule
+        doesn't change anything (it was already going to land
+        on unacceptable). No ``per_type_escalation`` entry
+        because the column didn't change.
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=3,
+            rationale="unacceptable deviation",
+            matrix_verdict="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        # The column didn't change (was material, now
+        # unacceptable, but the per-type rule for score 2 is
+        # the only path that adds the override marker; score
+        # 3 maps directly via the unconditional branch).
+        assert "per_type_escalation" not in (stamped.matrix_sources or [])
+
+    def test_score_2_healthcare_with_unacceptable_matrix_unchanged(self) -> None:
+        """Score 2 + healthcare + matrix=unacceptable → flag stays unacceptable.
+
+        The matrix's stricter verdict wins. The per-type rule
+        doesn't fire (it only escalates "material" to
+        "unacceptable"; the column was already stricter).
+        """
+        si = _spot_input(
+            matrix_verdict_column="unacceptable",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            matrix_verdict="unacceptable",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        # No per_type_escalation — the column didn't change.
+        assert "per_type_escalation" not in (stamped.matrix_sources or [])
+
+    def test_per_type_escalation_respects_sources_cap(self) -> None:
+        """The 8-entry cap on ``matrix_sources`` is preserved after the override.
+
+        A 7-entry original sources list + 1
+        per_type_escalation = 8 entries (under the cap). A
+        8-entry original sources list + 1 per_type_escalation
+        = 9 entries (capped at 8 by the validator). The
+        validator trims the trailing entry.
+        """
+        # 7 original entries: total after stamp = 8 (under cap).
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["a", "b", "c", "d", "e", "f", "g"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="test",
+            matrix_verdict="material",
+            matrix_sources=["a", "b", "c", "d", "e", "f", "g"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        assert stamped.matrix_sources is not None
+        assert stamped.matrix_sources[0] == "per_type_escalation"
+        # 7 originals + 1 override = 8 (under the cap of 8).
+        assert len(stamped.matrix_sources) == 8
+
+    def test_per_type_escalation_with_full_sources_caps_at_8(self) -> None:
+        """A 8-entry original sources list + 1 override is capped at 8 by the validator."""
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["a", "b", "c", "d", "e", "f", "g", "h"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="test",
+            matrix_verdict="material",
+            matrix_sources=["a", "b", "c", "d", "e", "f", "g", "h"],
+            matrix_counterparty_type="healthcare",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        assert stamped.matrix_verdict == "unacceptable"
+        assert stamped.matrix_sources is not None
+        # The validator on DeviationFlag.matrix_sources caps
+        # at 8: the 8 originals + 1 override = 9, but the
+        # validator trims to 8 (the per_type_escalation is at
+        # the front; the trailing entry "h" is dropped).
+        assert stamped.matrix_sources[0] == "per_type_escalation"
+        assert len(stamped.matrix_sources) == 8
+
+    def test_per_type_escalation_does_not_touch_score(self) -> None:
+        """The override only changes matrix_verdict, not the spotter's score."""
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        f = DeviationFlag(
+            clause_id="c1",
+            score=2,
+            rationale="material deviation",
+            citation=None,
+            unverified=True,
+            baseline_type="term",
+        )
+        stamped = _stamp_matrix_audit_fields(f, spot_input=si)
+        # The LLM's score is preserved — the per-type rule
+        # only escalates the matrix column, not the spot score.
+        assert stamped.score == 2
+        assert stamped.rationale == "material deviation"
+        assert stamped.baseline_type == "term"
+        assert stamped.unverified is True
+
+
+class TestSpotClausePerTypeEndToEnd:
+    """End-to-end ``spot_clause`` integration with the per-type rule.
+
+    The spotter's three paths (short-circuit, LLM, rule-based
+    fallback) all flow through ``_stamp_matrix_audit_fields``,
+    so the per-type rule applies uniformly. These tests cover
+    each path.
+    """
+
+    def test_short_circuit_path_with_healthcare_promotes(self) -> None:
+        """No-baseline short-circuit still applies the per-type rule.
+
+        The short-circuit abstains (``score=0``) but the
+        re-stamp records the matrix view. The per-type rule
+        for score 0 maps to "acceptable" regardless of cp
+        type — no per_type_escalation entry.
+        """
+        si = _spot_input(
+            baselines=[],  # no baselines → short-circuit
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        flag = spot_clause(si, contract_filename="test.pdf")
+        # Short-circuit: score 0, rationale mentions "no baseline".
+        assert flag.score == 0
+        # The matrix column was re-stamped.
+        assert flag.matrix_verdict == "acceptable"
+        # Score 0 → no per_type_escalation entry.
+        assert "per_type_escalation" not in (flag.matrix_sources or [])
+
+    def test_rule_based_fallback_with_healthcare_promotes(self) -> None:
+        """The placeholder-key rule-based fallback applies the per-type rule.
+
+        The fallback returns ``score=0`` (abstention), so
+        score 0 maps to "acceptable" — the per-type rule
+        doesn't escalate. The matrix's view is still stamped.
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty"],
+            matrix_counterparty_type="healthcare",
+        )
+        # Placeholder key → rule-based fallback path.
+        with patch(
+            "app.agents.deviation_spotter.spotter.settings.llm_api_key",
+            "placeholder",
+        ):
+            flag = spot_clause(si, contract_filename="test.pdf")
+        # Fallback: score 0, unverified=True, rationale mentions
+        # "fallback" or "LLM unavailable".
+        assert flag.score == 0
+        assert flag.unverified is True
+        # Score 0 maps to acceptable (not the per-type rule's
+        # "material" → "unacceptable" path).
+        assert flag.matrix_verdict == "acceptable"
+        assert "per_type_escalation" not in (flag.matrix_sources or [])
+
+    def test_llm_path_with_healthcare_and_score_2_promotes(self) -> None:
+        """The LLM path with score 2 + healthcare + matrix=material promotes.
+
+        Mocks the LLM to return a score-2 flag with a valid
+        citation, then asserts the re-stamp escalates the
+        matrix column.
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type="healthcare",
+        )
+        # Valid baseline + a real-ish citation.
+        baseline = si.baselines[0]
+        llm_payload = {
+            "score": 2,
+            "rationale": "material deviation in healthcare DPA",
+            "citation": {
+                "playbook_clause_id": baseline.clause_id,
+                "contract_text_excerpt": "seven (7) years",
+            },
+            "baseline_type": baseline.type,
+            "matrix_verdict": "material",  # LLM echoes the column
+            "matrix_sources": ["counterparty", "flat"],
+        }
+        with patch(
+            "app.agents.deviation_spotter.spotter.settings.llm_api_key",
+            "sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890",  # real-shape
+        ):
+            with patch(
+                "app.agents.deviation_spotter.spotter._call_llm_for_spot",
+                return_value=llm_payload,
+            ):
+                flag = spot_clause(si, contract_filename="test.pdf")
+        # Score preserved.
+        assert flag.score == 2
+        # The per-type rule escalated material → unacceptable.
+        assert flag.matrix_verdict == "unacceptable"
+        # The override is recorded.
+        assert flag.matrix_sources is not None
+        assert flag.matrix_sources[0] == "per_type_escalation"
+
+    def test_llm_path_with_smb_and_score_2_stays_material(self) -> None:
+        """The LLM path with score 2 + smb + matrix=material stays at material.
+
+        SMB is a non-elevated axis; the per-type rule doesn't
+        fire. The flag's matrix_verdict stays at "material".
+        """
+        si = _spot_input(
+            matrix_verdict_column="material",
+            matrix_sources=["counterparty", "flat"],
+            matrix_counterparty_type="smb",
+        )
+        baseline = si.baselines[0]
+        llm_payload = {
+            "score": 2,
+            "rationale": "material deviation in SMB contract",
+            "citation": {
+                "playbook_clause_id": baseline.clause_id,
+                "contract_text_excerpt": "five (5) years",
+            },
+            "baseline_type": baseline.type,
+            "matrix_verdict": "material",
+            "matrix_sources": ["counterparty", "flat"],
+        }
+        with patch(
+            "app.agents.deviation_spotter.spotter.settings.llm_api_key",
+            "sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890",
+        ):
+            with patch(
+                "app.agents.deviation_spotter.spotter._call_llm_for_spot",
+                return_value=llm_payload,
+            ):
+                flag = spot_clause(si, contract_filename="test.pdf")
+        assert flag.score == 2
+        assert flag.matrix_verdict == "material"
+        # No per_type_escalation entry.
+        assert "per_type_escalation" not in (flag.matrix_sources or [])

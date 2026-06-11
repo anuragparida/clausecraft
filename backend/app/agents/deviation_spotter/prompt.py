@@ -187,6 +187,44 @@ unacceptable stays unacceptable even when the matrix says \
 "acceptable". Use it as a counterparty-specific severity \
 multiplier, not as a hard rule.
 
+Phase 5 v2 — per-type escalation (score-2 rule)
+-----------------------------------------------
+When you emit a **material** deviation (`score=2`), the \
+matrix column is escalated per counterparty type:
+
+- **public_sector** and **healthcare** — `score=2` is \
+escalated to the matrix column **unacceptable**. A material \
+deviation in a public-sector contract (procurement \
+constraints, FOIA-equivalent transparency, no \
+post-contractual non-compete, statutory indemnity floors) or \
+a healthcare contract (HIPAA, BSI/KRITIS, sector-specific \
+data-protection) is a deal-breaker, not a "negotiable" \
+deviation. The pipeline applies this rule automatically \
+after your call; the audit trail records the override as a \
+new entry `per_type_escalation` in `matrix_sources`.
+
+- **enterprise**, **smb**, and the legacy **any** sentinel — \
+`score=2` maps to the matrix column **material**. These \
+counterparty types can absorb a "material but negotiable" \
+deviation; the spotter's reasoning still applies.
+
+- `score=0` (aligned) and `score=1` (minor) always map to \
+**acceptable**, regardless of counterparty type. A "minor" \
+deviation is always acceptable; an aligned flag is trivially \
+acceptable.
+
+- `score=3` (unacceptable) always maps to **unacceptable**, \
+regardless of counterparty type. The LLM's "this contradicts \
+the baseline" verdict is the final say — the matrix does not \
+relax it.
+
+This rule is **separate from the matrix verdict's HINT/\
+ceiling property above**: the matrix can never *cap* your \
+score, and the per-type rule can never *cap* your score. The \
+per-type rule only maps `score=2` to a stricter or \
+non-stricter matrix column. If you would have emitted \
+`score=3`, emit `score=3` — the pipeline does not relax it.
+
 ## Examples
 
 ### Example 1 — material deviation with citation
@@ -380,6 +418,50 @@ inakzeptable Klausel bleibt inakzeptabel, auch wenn die \
 Matrix "acceptable" sagt. Verwenden Sie es als \
 gegenpartei-spezifischen Schwere-Multiplikator, nicht als \
 harte Regel.
+
+Phase 5 v2 — Eskalation pro Gegenpartei-Typ (Score-2-Regel)
+------------------------------------------------------------
+Wenn Sie eine **wesentliche** Abweichung ausgeben \
+(`score=2`), wird die Matrix-Spalte je nach Gegenpartei-Typ \
+eskaliert:
+
+- **public_sector** (öffentlicher Sektor) und **healthcare** \
+(Gesundheitswesen) — `score=2` wird auf die Matrix-Spalte \
+**unacceptable** eskaliert. Eine wesentliche Abweichung in \
+einem Vertrag mit dem öffentlichen Sektor \
+(Vergaberechtliche Beschränkungen, IFG-Transparenz, \
+keine nachvertragliche Wettbewerbsbeschränkung, gesetzliche \
+Mindesthaftung) oder im Gesundheitswesen (HIPAA, BSI/KRITIS, \
+sektor-spezifischer Datenschutz) ist ein Deal-Breaker, nicht \
+eine "verhandelbare" Abweichung. Die Pipeline wendet diese \
+Regel automatisch nach Ihrem Aufruf an; der Audit-Trail \
+verzeichnet die Außerkraftsetzung als neuen Eintrag \
+`per_type_escalation` in `matrix_sources`.
+
+- **enterprise**, **smb** und der Legacy-Sentinel **any** — \
+`score=2` wird auf die Matrix-Spalte **material** \
+abgebildet. Diese Gegenpartei-Typen können eine \
+"wesentliche, aber verhandelbare" Abweichung absorbieren; \
+Ihre Begründung als Spotter bleibt anwendbar.
+
+- `score=0` (konform) und `score=1` (geringfügig) werden \
+immer auf **acceptable** abgebildet, unabhängig vom \
+Gegenpartei-Typ. Eine "geringfügige" Abweichung ist immer \
+akzeptabel; eine konforme Flagge ist trivialerweise \
+akzeptabel.
+
+- `score=3` (inakzeptabel) wird immer auf **unacceptable** \
+abgebildet, unabhängig vom Gegenpartei-Typ. Die \
+LLM-Entscheidung "dies widerspricht der Baseline" ist \
+endgültig — die Matrix lockert sie nicht.
+
+Diese Regel ist **getrennt von der HINWEIS/Obergrenzen-\
+Eigenschaft des Matrix-Verdicts oben**: die Matrix kann \
+Ihren Score niemals *begrenzen*, und die Pro-Typ-Regel kann \
+Ihren Score niemals *begrenzen*. Die Pro-Typ-Regel bildet \
+`score=2` nur auf eine strengere oder nicht strengere \
+Matrix-Spalte ab. Wenn Sie `score=3` ausgeben würden, \
+geben Sie `score=3` aus — die Pipeline lockert es nicht.
 
 ## Beispiele
 

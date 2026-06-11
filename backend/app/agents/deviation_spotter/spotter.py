@@ -397,6 +397,208 @@ def _coerce_matrix_sources(value: Any) -> Optional[list[str]]:
     return cleaned[:8]
 
 
+# --- Phase 5: per-type behavior -----------------------------------------
+
+#: Counterparty types where a material deviation (spot score 2)
+#: should be **promoted to unacceptable** at the matrix column.
+#:
+#: Per the spec ("score-2 = material OR unacceptable depending
+#: on type") and the matrix config card's rationale (Apollo
+#: t_33ecfb34): public-sector and healthcare entities cannot
+#: absorb the same "material but negotiable" risk that an
+#: enterprise or SMB can. A material deviation in a
+#: public-sector DPA, or a healthcare HIPAA-bound employment
+#: clause, is a deal-breaker — the matrix column escalates
+#: "material" to "unacceptable" for these counterparty types.
+#:
+#: The other axes (enterprise, smb) and the legacy ``"any"``
+#: sentinel (Phase 2 flat path) keep the default "score-2
+#: = material" mapping. The DE-specific language axis
+#: (``de_german_entity``) is treated as a non-elevated axis
+#: here — DE-narrowing is a separate dimension that does not
+#: change the score-2 escalation rule.
+ELEVATED_RISK_COUNTERPARTY_TYPES: frozenset[str] = frozenset(
+    {"public_sector", "healthcare"}
+)
+
+
+def verdict_for_score_and_counterparty(
+    score: Optional[int],
+    counterparty_type: str,
+    matrix_column: str,
+) -> str:
+    """Apply the per-type escalation rule to the matrix column.
+
+    The spec's score scale (0..3) and the matrix's 4-state
+    column (``acceptable`` / ``material`` / ``unacceptable`` /
+    ``unverified``) are bridged per-counterparty-type:
+
+    - score 0 (aligned) and score 1 (minor) → ``"acceptable"``,
+      regardless of counterparty type. A "minor" deviation is
+      always acceptable; an "aligned" flag is always
+      acceptable.
+    - score 2 (material) → ``"material"`` for enterprise / smb
+      / the legacy ``"any"`` sentinel; ``"unacceptable"`` for
+      public_sector / healthcare (the elevated-risk axes). The
+      escalation only fires when the matrix's column is
+      ``"material"`` — if the matrix is stricter
+      (``"unacceptable"``) or the lookup couldn't reach a
+      verdict (``"unverified"``), the matrix wins.
+    - score 3 (unacceptable) → ``"unacceptable"``,
+      regardless of counterparty type. The LLM's "this
+      contradicts the baseline" verdict is the final say.
+
+    The function is **defensive** about inputs:
+
+    - ``None`` score → returns the matrix column unchanged
+      (the spotter abstained; the matrix's view stands).
+    - Out-of-range / non-integer scores → returns the matrix
+      column unchanged. The Pydantic ``DeviationFlag.score``
+      validator already clamps to 0..3, but this function
+      is called from ``_stamp_matrix_audit_fields`` which
+      might see unvalidated inputs (e.g. from
+      ``model_construct`` paths).
+    - Unknown counterparty types → fall through to the
+      non-elevated branch (the default ``"material"``
+      mapping). The matrix config card documents the
+      4-axis list; unknown strings are treated as
+      non-elevated to keep the rule conservative.
+
+    Parameters
+    ----------
+    score
+        The spotter's score (0..3), or ``None`` when the
+        spotter abstained.
+    counterparty_type
+        The counterparty type the matrix was consulted
+        with. The 4 Phase 5 axes are ``"enterprise"``,
+        ``"smb"``, ``"public_sector"``, ``"healthcare"``;
+        ``"any"`` is the legacy sentinel.
+    matrix_column
+        The matrix's column form (``"acceptable"``,
+        ``"material"``, ``"unacceptable"``,
+        ``"unverified"``). Unknown columns pass through
+        unchanged.
+
+    Returns
+    -------
+    str
+        The matrix column with the per-type escalation
+        rule applied. The string is always a member of
+        :data:`MATRIX_VERDICT_VALUES` — the function
+        never invents labels the UI can't render.
+
+    Examples
+    --------
+
+    >>> verdict_for_score_and_counterparty(2, "enterprise", "material")
+    'material'
+    >>> verdict_for_score_and_counterparty(2, "public_sector", "material")
+    'unacceptable'
+    >>> verdict_for_score_and_counterparty(2, "healthcare", "material")
+    'unacceptable'
+    >>> verdict_for_score_and_counterparty(3, "smb", "material")
+    'unacceptable'
+    >>> verdict_for_score_and_counterparty(0, "healthcare", "material")
+    'acceptable'
+    >>> verdict_for_score_and_counterparty(2, "healthcare", "unacceptable")
+    'unacceptable'
+    >>> verdict_for_score_and_counterparty(None, "healthcare", "material")
+    'material'
+    """
+    # If the spotter abstained, defer to the matrix's view.
+    if score is None:
+        return matrix_column
+    # Out-of-range / non-integer score: defer to the matrix.
+    # The Pydantic validator clamps 0..3, but this function
+    # is called defensively from the re-stamp path.
+    if not isinstance(score, int) or isinstance(score, bool):
+        return matrix_column
+    if score < 0 or score > 3:
+        return matrix_column
+    # Unknown matrix column: pass through. The schema
+    # validator catches this upstream; the per-type rule
+    # only applies to known columns.
+    if matrix_column not in MATRIX_VERDICT_VALUES:
+        return matrix_column
+    # Score 0/1: always acceptable. A "minor" deviation is
+    # still acceptable; an aligned flag is trivially
+    # acceptable. No per-type escalation.
+    if score <= 1:
+        return "acceptable"
+    # Score 3: always unacceptable. The LLM's "this
+    # contradicts the baseline" verdict is the final say.
+    # No per-type relaxation.
+    if score >= 3:
+        return "unacceptable"
+    # Score 2 (material): per-type escalation. The rule
+    # only fires when the matrix says "material" — the
+    # matrix's stricter verdicts (unacceptable) and
+    # unverified outcomes win.
+    if matrix_column != "material":
+        return matrix_column
+    if counterparty_type in ELEVATED_RISK_COUNTERPARTY_TYPES:
+        return "unacceptable"
+    return "material"
+
+
+def is_per_type_escalation(
+    score: Optional[int],
+    counterparty_type: str,
+    matrix_column: str,
+) -> bool:
+    """Whether the score-vs-counterparty rule is a per-type escalation.
+
+    This is a *narrower* predicate than
+    :func:`verdict_for_score_and_counterparty` — it returns
+    ``True`` only when the override specifically promotes
+    ``"material"`` to ``"unacceptable"`` for an elevated-risk
+    counterparty type. The other score-driven mappings (score
+    0/1 → "acceptable", score 3 → "unacceptable", score 2 on
+    non-elevated axes → "material") are NOT per-type
+    escalations — they're unconditional score rules that apply
+    to every counterparty type.
+
+    The flag's :attr:`DeviationFlag.matrix_sources` records a
+    ``"per_type_escalation"`` entry only when this predicate
+    returns ``True``, so the audit trail doesn't claim an
+    "escalation" for cases that aren't escalations (e.g. a
+    score-0 short-circuit landing on "acceptable" via the
+    score-0 rule, not via a per-type decision).
+
+    Returns ``False`` for any input that
+    :func:`verdict_for_score_and_counterparty` passes through
+    unchanged (``None`` score, out-of-range score, unknown
+    column, score 0/1, score 3, score 2 with non-elevated cp,
+    score 2 with stricter matrix column).
+
+    Examples
+    --------
+
+    >>> is_per_type_escalation(2, "public_sector", "material")
+    True
+    >>> is_per_type_escalation(2, "healthcare", "material")
+    True
+    >>> is_per_type_escalation(2, "smb", "material")
+    False
+    >>> is_per_type_escalation(2, "public_sector", "unacceptable")
+    False
+    >>> is_per_type_escalation(0, "healthcare", "material")
+    False
+    >>> is_per_type_escalation(3, "healthcare", "material")
+    False
+    """
+    if score is None:
+        return False
+    if not isinstance(score, int) or isinstance(score, bool):
+        return False
+    if score != 2:
+        return False
+    if matrix_column != "material":
+        return False
+    return counterparty_type in ELEVATED_RISK_COUNTERPARTY_TYPES
+
+
 def _stamp_matrix_audit_fields(
     flag: DeviationFlag, *, spot_input: SpotInput
 ) -> DeviationFlag:
@@ -411,6 +613,18 @@ def _stamp_matrix_audit_fields(
     here overwrites the LLM's echo with the pipeline's view so
     the audit trail and the UI's verdict column show the same
     value regardless of what the LLM hallucinated.
+
+    **Phase 5 v2 (per-type behavior):** the re-stamp also
+    applies the per-type escalation rule from
+    :func:`verdict_for_score_and_counterparty` — when the
+    spotter emitted a material deviation (score 2) on a
+    public-sector or healthcare counterparty type, the matrix
+    column is promoted from ``"material"`` to
+    ``"unacceptable"``. This is the spec's "score-2 = material
+    OR unacceptable depending on type" rule. The override is
+    recorded in :attr:`DeviationFlag.matrix_sources` as a new
+    entry ``"per_type_escalation"`` so the audit trail shows
+    the override happened.
 
     The function returns a *new* :class:`DeviationFlag` via
     ``model_copy`` so the caller's object is untouched.
@@ -434,9 +648,41 @@ def _stamp_matrix_audit_fields(
     if column not in MATRIX_VERDICT_VALUES:
         column = "unverified"
 
+    # Phase 5 v2: apply the per-type escalation rule. The
+    # helper is defensive about None / out-of-range scores
+    # and unknown columns, so the re-stamp never breaks the
+    # audit trail. The override is recorded in `sources`
+    # only when it's a *true* per-type escalation (the
+    # narrower predicate ``is_per_type_escalation``); other
+    # score-driven mappings (score 0/1 → "acceptable", score
+    # 3 → "unacceptable") are unconditional score rules
+    # that apply to every counterparty type, not
+    # per-type decisions, so the audit trail doesn't claim
+    # an "escalation" for those.
+    if is_per_type_escalation(flag.score, cp_type, column):
+        # Stamped at the front of the chain so the tooltip
+        # shows the override first; the original sources
+        # are preserved as losers. The cap of 8 still
+        # applies — we trim manually here because
+        # ``model_copy`` does not re-run the
+        # :attr:`DeviationFlag.matrix_sources` validator
+        # (Pydantic validators fire at construction, not at
+        # copy).
+        sources = (["per_type_escalation"] + sources)[:8]
+        column = "unacceptable"
+    else:
+        # Apply the unconditional score-driven mapping
+        # (e.g. score 0/1 → "acceptable", score 3 →
+        # "unacceptable", score 2 on a non-elevated axis
+        # → "material"). This is NOT recorded as a
+        # per-type escalation in the audit trail.
+        column = verdict_for_score_and_counterparty(
+            flag.score, cp_type, column
+        )
+
     # The pipeline's view wins. ``column`` is already validated
     # against the spec's 4-state column by the SpotInput
-    # validator, so it's safe to stamp.
+    # validator and the helper above, so it's safe to stamp.
     return flag.model_copy(
         update={
             "matrix_verdict": column,
@@ -663,4 +909,8 @@ __all__ = [
     "_coerce_matrix_verdict",
     "_coerce_matrix_sources",
     "_stamp_matrix_audit_fields",
+    # Phase 5 v2: per-type behavior.
+    "ELEVATED_RISK_COUNTERPARTY_TYPES",
+    "verdict_for_score_and_counterparty",
+    "is_per_type_escalation",
 ]
