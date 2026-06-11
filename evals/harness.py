@@ -101,6 +101,14 @@ CONTRACTS_DIR = REPO_ROOT_PATH / "examples" / "contracts"
 EXPECTED_DIR = REPO_ROOT_PATH / "examples" / "expected"
 RUNS_DIR = EVALS_DIR_PATH / "runs"
 EVAL_CONTRACTS: list[tuple[str, str]] = [
+    # NOTE: This is a thin shadow of evals/conftest.py:EVAL_CONTRACTS
+    # kept for the parametrised ``test_contract_ingests_and_classifies``
+    # smoke test only. The end-to-end harness test
+    # (``test_eval_set_runs_end_to_end``) reads the live list from
+    # conftest. Keep both in sync when the eval set changes. As of
+    # Phase 5 v1 (card t_463d603d) the live set has 18 contracts
+    # (15 NDA + 3 DPA); the per-contract smoke test is a
+    # diagnostic and runs against this shadow.
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
     ("examples/contracts/public/nda-003.pdf", "examples/expected/public-003.yaml"),
@@ -125,6 +133,40 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     (
         "examples/contracts/hand-curated/nda-003.pdf",
         "examples/expected/hand-curated-003.yaml",
+    ),
+    # Phase 4 (t_b238eff4): DE contracts (mirrors conftest).
+    (
+        "examples/contracts/public-de/nda-001.pdf",
+        "examples/expected/public-de-001.yaml",
+    ),
+    (
+        "examples/contracts/public-de/nda-002.pdf",
+        "examples/expected/public-de-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/nda-003.pdf",
+        "examples/expected/public-de-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/nda-001.pdf",
+        "examples/expected/synthetic-de-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/nda-002.pdf",
+        "examples/expected/synthetic-de-002.yaml",
+    ),
+    # Phase 5 v1 (t_463d603d): DPA eval set, 3 contracts EN+DE.
+    (
+        "examples/contracts/public/dpa-001.pdf",
+        "examples/expected/dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/dpa-001.pdf",
+        "examples/expected/synthetic-dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/dpa-001.pdf",
+        "examples/expected/synthetic-dpa-de-001.yaml",
     ),
 ]
 
@@ -1211,7 +1253,10 @@ def test_contract_ingests_and_classifies(
     # expected top-level keys. The cached loader parses
     # once and reuses the dict across the session.
     golden = eval_cache.golden_yaml(expected_path)
-    assert golden.get("type") == "nda"
+    # Phase 5 v1: contract type is "nda" for Phase 2/4 NDA
+    # contracts and "dpa" for the Phase 5 DPA eval set.
+    # Future expansion (Employment in v2) will add "employment".
+    assert golden.get("type") in {"nda", "dpa"}
     assert isinstance(golden.get("expected_clauses"), list)
 
     # Phase 4: skip if the contract's language is filtered out.

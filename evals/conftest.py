@@ -114,16 +114,22 @@ EXPECTED_DIR: Path = REPO_ROOT / "examples" / "expected"
 RUNS_DIR: Path = EVALS_DIR / "runs"
 
 
-# --- Eval set: 10 contracts (the spec's mandated Phase 2 set) ---------
+# --- Eval set: 18 contracts (Phase 2 + Phase 4 + Phase 5 v1) ----------
 
 
-# The 10-contract eval set as of the 3→10 expansion (card
-# t_3050d680). The starter 3 are kept verbatim; 7 more were
-# added on 2026-06-08. Layout:
-#   public/      nda-001 .. nda-005  (5 public-template-style clean baselines)
-#   synthetic/   nda-001, nda-002    (2 stress contracts with hand-injected deviations)
-#   hand-curated/ nda-001 .. nda-003  (3 realistic deviation contracts)
-# 5 + 2 + 3 = 10.
+# The eval set as of the Phase 5 v1 expansion (card t_463d603d).
+# Layout:
+#   public/        nda-001 .. nda-005  (5 public-template-style clean baselines, Phase 2)
+#                   dpa-001            (1 public DPA clean baseline, Phase 5 v1, GDPR Art. 28+33 anchored)
+#   synthetic/     nda-001, nda-002    (2 stress contracts, Phase 2)
+#                   dpa-001            (1 stress contract, Phase 5 v1, 3 deviations)
+#   hand-curated/  nda-001 .. nda-003  (3 realistic deviation contracts, Phase 2)
+#   public-de/     nda-001 .. nda-003  (3 DE clean baselines, Phase 4.1)
+#   synthetic-de/  nda-001, nda-002    (2 DE stress contracts, Phase 4.1)
+#                   dpa-001            (1 DE stress contract, Phase 5 v1, 3 deviations)
+# 5 + 1 + 2 + 1 + 3 + 3 + 2 + 1 = 18.
+# Phase 5 v2 (t_f3212fc0) will grow the dpa_* count to 7 + 3 = 10
+# once v1's F1 is acceptable.
 EVAL_CONTRACTS: list[tuple[str, str]] = [
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
@@ -171,6 +177,28 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     (
         "examples/contracts/synthetic-de/nda-002.pdf",
         "examples/expected/synthetic-de-002.yaml",
+    ),
+    # Phase 5 v1 (t_463d603d): DPA eval set, 3 contracts EN+DE.
+    # 1 public-EN clean baseline (GDPR Art. 28+33 anchored) +
+    # 1 synthetic-EN stress (3 deviations across 3 dpa_* types) +
+    # 1 synthetic-DE stress (3 deviations across 3 dpa_* types).
+    # Public clean baseline carries 0 expected_deviations; the
+    # 2 synthetic stress contracts carry 3 hand-injected deviations
+    # each (6 total). 7 dpa_* taxonomy values are exercised across
+    # the 3 contracts (above the 3-minimum acceptance criterion).
+    # The v2 expansion (t_f3212fc0) grows the set to 10 once v1's
+    # F1 is acceptable.
+    (
+        "examples/contracts/public/dpa-001.pdf",
+        "examples/expected/dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/dpa-001.pdf",
+        "examples/expected/synthetic-dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/dpa-001.pdf",
+        "examples/expected/synthetic-dpa-de-001.yaml",
     ),
 ]
 

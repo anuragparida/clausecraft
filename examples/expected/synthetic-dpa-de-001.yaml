@@ -1,0 +1,161 @@
+# Golden set — synthetic-de/dpa-001.pdf.
+#
+# This is the DE stress contract of the Phase 5 v1 DPA eval starter.
+# It has 3 hand-injected deviations from the dpa-de playbook
+# baselines, calibrated to a German-lawyer reviewer's expected
+# verdict. The deviations are documented in
+# scripts/build_dpa_eval_contracts.py — the PDF is generated, not
+# curated from a public source, so the eval can pin text_excerpt
+# matches against the deterministic output.
+#
+# Why this contract is synthetic
+# ------------------------------
+# Phase 5's dpa-de playbook has 6 baselines (designation, sub-
+# processor consent, sub-processor flowdown, transfer mechanism,
+# breach notification, audit rights) — see
+# playbook/baselines/dpa-de/ on phase5/dpa-de-baselines (card
+# t_70c2599d). To measure the spotter's quality we need a contract
+# where:
+#   1. The clauses are text-extractable (pymupdf reads them
+#      without OCR).
+#   2. The DE stopword heuristic labels every clause
+#      language="de" (post-card-3 parser — see
+#      backend/app/parse/language.py).
+#   3. At least 2-3 deviations are clearly written into the
+#      text and a real LLM-driven spotter (or a
+#      DSGVO-trained German reviewer) would catch them.
+#   4. The text is stable (idempotent PDF generation, no
+#      random IDs or timestamps) so the eval is reproducible.
+#
+# The 3 deviations
+# ----------------
+# 1. **c1 (dpa_controller_processor_designation) — material
+#    deviation.** Drops the Art. 28(3) DSGVO Bezugnahme. The
+#    c1 clause designates the parties as Verantwortlicher +
+#    Auftragsverarbeiter but does not anchor the designation
+#    to Art. 28(3) DSGVO and does not reference the documented
+#    instructions mechanism. Material because a German
+#    reviewer would treat the missing statutory anchor as a
+#    structural gap — Art. 28(3) DSGVO is the
+#    mandatory-contents test the DSK Kurzpapier Nr. 13
+#    baseline and the IAPP / EDPB baseline both reference.
+# 2. **c4 (dpa_transfer_mechanism) — material deviation.**
+#    Replaces the explicit EU SCCs 2021/914 reference with a
+#    vague "angemessene Garantien" reference. The c4 clause
+#    requires "appropriate safeguards" without naming the
+#    SCCs or an adequacy decision. Material because the IAPP /
+#    EDPB / DSK Kurzpapier Nr. 13 baseline requires the
+#    explicit SCCs 2021/914 Module Two or Module Three
+#    reference. A vague "appropriate safeguards" reference
+#    gives the Auftragsverarbeiter discretion to pick the
+#    transfer mechanism, which is what Art. 46 DSGVO says
+#    *cannot* happen — the safeguards must be specific.
+# 3. **c6 (dpa_audit_rights) — minor deviation.** Stretches
+#    audit-once-per-year to "at the controller's cost" with
+#    30-day notice. The c6 clause requires 30-day prior
+#    notice and shifts audit costs to the Verantwortlicher.
+#    Minor because the audit right itself is preserved; only
+#    the cost allocation and notice window are tweaked. The
+#    IAPP / EDPB / DSK Kurzpapier Nr. 13 baseline places
+#    audit costs on the processor for compliance audits, so
+#    a German reviewer would flag the cost shift as a
+#    one-notch deviation.
+#
+# The other 3 clauses (c2, c3, c5) are clean baselines — no
+# expected deviations. The eval records any false positives in
+# the run report.
+
+contract: examples/contracts/synthetic-de/dpa-001.pdf
+type: dpa
+language: de
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "Diese Auftragsverarbeitungsvereinbarung (nachfolgend „Vereinbarung“)"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Bezeichnung der Parteien"
+  - id: c3
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "2. Unterauftragsverarbeiter"
+  - id: c4
+    type: dpa_subprocessor_consent
+    text_excerpt: "3. Vorherige Genehmigung"
+  - id: c5
+    type: dpa_transfer_mechanism
+    text_excerpt: "4. Internationale Übermittlungen"
+  - id: c6
+    type: dpa_breach_notification
+    text_excerpt: "5. Meldung von Datenschutzverletzungen"
+  - id: c7
+    type: dpa_audit_rights
+    text_excerpt: "6. Audit-Rechte"
+
+# Three expected deviations. The harness compares each to the
+# spotter's actual flags. A real LLM-driven spotter (or a
+# German-lawyer reviewer) is expected to flag all three.
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: missing_art_28_3_anchor
+    rationale: >-
+      The clause drops the Art. 28(3) DSGVO statutory
+      anchor. The baseline
+      (playbook/baselines/dpa-de/dpa_controller_processor_designation.yaml,
+      EUR-Lex CELEX:32016R0679, Amtsblatt L 119 DE)
+      requires the explicit Art. 28(3) Bezugnahme and the
+      documented-instructions mechanism. The c1 clause
+      designates the parties but does not anchor the
+      designation to Art. 28(3) DSGVO. Material because
+      a German reviewer would treat the loss of the
+      statutory anchor as a structural gap — Art. 28(3)
+      DSGVO is the mandatory-contents test the DSK
+      Kurzpapier Nr. 13 baseline and the IAPP / EDPB
+      baseline both reference. Removing the anchor leaves
+      the Auftragsverarbeitungs-Verhältnis without the
+      load-bearing legal basis.
+    citation:
+      playbook_clause_id: bezeichnung-der-parteien-art-28-3
+      source_url: "https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32016R0679#Art.28"
+  - clause_id: c4
+    severity: 2
+    category: missing_eu_sccs_reference
+    rationale: >-
+      The clause replaces the explicit EU SCCs 2021/914
+      reference with a vague "angemessene Garantien"
+      reference. The c4 clause requires "appropriate
+      safeguards" without naming the SCCs or an
+      adequacy decision. Material because the IAPP / EDPB
+      / DSK Kurzpapier Nr. 13 baseline (and the
+      playbook/baselines/dpa-de/dpa_transfer_mechanism.yaml
+      baseline) requires the explicit SCCs 2021/914
+      Module Two or Module Three reference. Art. 46 DSGVO
+      requires the safeguards to be specific — a vague
+      reference gives the Auftragsverarbeiter discretion
+      to pick the transfer mechanism, which Art. 46
+      DSGVO says *cannot* happen.
+    citation:
+      playbook_clause_id: internationale-uebermittlungen-eu-sccs
+      source_url: "https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32021D0914"
+  - clause_id: c6
+    severity: 1
+    category: audit_cost_burden_shift
+    rationale: >-
+      The clause shifts audit costs to the Verantwortlicher
+      and requires 30-day prior notice. The c6 clause says
+      "Die Kosten eines solchen Audits trägt der
+      Verantwortliche" — the controller bears the audit
+      cost. The IAPP / EDPB / DSK Kurzpapier Nr. 13
+      baseline (and the
+      playbook/baselines/dpa-de/dpa_audit_rights.yaml
+      baseline) places audit costs on the
+      Auftragsverarbeiter for compliance audits, so a
+      German reviewer would flag the cost shift as a
+      one-notch deviation. The 30-day notice is fine
+      (industry-standard) but the cost burden shift is
+      the structural change. Minor because the audit
+      right itself is preserved.
+    citation:
+      playbook_clause_id: audit-rechte-art-28-3-h
+      source_url: "https://www.datenschutzkonferenz-online.de/media/kp/dsk_kpnr_13.pdf"
