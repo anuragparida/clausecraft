@@ -171,6 +171,22 @@ the matrix says "aligned" but the contract clause is clearly \
 worse than the baseline (e.g. perpetual term against a 3-year \
 baseline), emit the higher score. The matrix does not cap you.
 
+Phase 5 — matrix verdict column
+---------------------------------
+The counterparty matrix produces a per-cell verdict in the \
+spec's 4-state column form: **acceptable**, **material**, \
+**unacceptable**, or **unverified** ("acceptable" is the union \
+of the matrix's internal "aligned" and "minor" labels). The \
+user message below renders this column along with the lookup \
+chain (e.g. `matrix_verdict: material (counterparty, flat)`) \
+that produced it — the chain is the audit trail of which axis \
+won (counterparty override, language override, or the flat \
+default). The matrix verdict is a HINT, not a ceiling: the \
+column can never cap your score. A clause that's clearly \
+unacceptable stays unacceptable even when the matrix says \
+"acceptable". Use it as a counterparty-specific severity \
+multiplier, not as a hard rule.
+
 ## Examples
 
 ### Example 1 — material deviation with citation
@@ -343,8 +359,27 @@ Das Feld `counterparty_matrix_verdict` ist die pauschale \
 Standardeinstellung der Matrix für diesen Klauseltyp. Es ist ein \
 HINWEIS, keine Obergrenze. Wenn die Matrix "konform" sagt, die \
 Vertragsklausel aber eindeutig schlechter ist als die Baseline \
-(z. B. unbegrenzte Laufzeit gegen eine 3-Jahres-Baseline), geben \
+(z. B. unbegrenzte Laufzeit gegen eine 3-Jahre-Baseline), geben \
 Sie den höheren Score aus. Die Matrix begrenzt Sie nicht.
+
+Phase 5 — Matrix-Verdict-Spalte
+---------------------------------
+Die Gegenpartei-Matrix liefert pro Zelle ein Verdict in der \
+Spezifikations-Spaltenform (4 Zustände): **acceptable** \
+(annehmbar), **material** (wesentlich), **unacceptable** \
+(inakzeptabel) oder **unverified** (nicht verifiziert). \
+"acceptable" vereint die Matrix-internen Labels "aligned" \
+(konform) und "minor" (geringfügig). Die Benutzer-Nachricht \
+unten gibt diese Spalte zusammen mit der Lookup-Kette aus \
+(z. B. `matrix_verdict: material (counterparty, flat)`) — \
+die Kette ist der Audit-Trail, welche Achse gewonnen hat \
+(Gegenpartei-Override, Sprach-Override oder flacher Default). \
+Das Matrix-Verdict ist ein HINWEIS, keine Obergrenze: die \
+Spalte kann Ihren Score niemals begrenzen. Eine klar \
+inakzeptable Klausel bleibt inakzeptabel, auch wenn die \
+Matrix "acceptable" sagt. Verwenden Sie es als \
+gegenpartei-spezifischen Schwere-Multiplikator, nicht als \
+harte Regel.
 
 ## Beispiele
 
@@ -429,8 +464,13 @@ def build_user_message(
     1. **Contract clause** — the text the spotter reads.
     2. **Top-3 playbook baselines** — the comparison set, ordered
        by similarity (most-similar first).
-    3. **Counterparty context** — the matrix's flat verdict for
-       the clause's type.
+    3. **Counterparty context** — the matrix's 4-state verdict
+       column for the clause's
+       ``(clause_type, counterparty_type[, language])`` cell,
+       followed by the lookup chain that produced it (e.g.
+       ``matrix_verdict: material (counterparty, flat)``). The
+       legacy ``counterparty_verdict`` / ``counterparty_type``
+       lines are kept for back-compat with older readers.
     4. **Instruction** — the per-call "compare and emit a flag"
        prompt.
 
@@ -450,6 +490,26 @@ def build_user_message(
     language-agnostic. The instruction text at the bottom is in
     the same language as the system prompt so the LLM's
     per-call task framing matches its role framing.
+
+    Phase 5: matrix verdict rendering
+    ---------------------------------
+    The "Counterparty context" section now renders three
+    matrix-aware lines, in this order:
+
+    1. ``matrix_verdict (clause_type=<type>): <column>`` — the
+       spec's 4-state column (acceptable | material |
+       unacceptable | unverified). When the lookup chain is
+       non-empty, the chain is rendered as a parenthetical
+       after the column value: ``matrix_verdict: material
+       (counterparty, flat)``. The chain is ordered by
+       strictness — the first element is the winning source.
+    2. ``counterparty_type: <type>`` — the counterparty type
+       the matrix was consulted with.
+    3. The legacy ``counterparty_verdict (legacy): <v>`` and
+       ``counterparty_type (legacy): <t>`` lines are kept
+       (suffixed with ``(legacy)``) for back-compat with
+       older readers that key on the flat ``lookup_verdict``
+       result.
     """
     if language == "en":
         header_contract = "## Contract clause"
@@ -515,6 +575,15 @@ def build_user_message(
     # Escape any triple-backticks in the clause text so we don't
     # accidentally close the JSON block early.
     safe_clause = spot_input.clause_text.replace("```", "ʼʼʼ")
+
+    # Phase 5: matrix verdict column. The lookup chain is rendered
+    # as a parenthetical after the column value when non-empty —
+    # e.g. ``matrix_verdict: material (counterparty, flat)``.
+    sources = list(spot_input.matrix_sources or [])
+    sources_suffix = (
+        f" ({', '.join(sources)})" if sources else ""
+    )
+
     return (
         f"{header_contract} (clause_id={spot_input.clause_id}, "
         f"type={spot_input.clause_type})\n\n"
@@ -527,8 +596,15 @@ def build_user_message(
         "```\n\n"
         f"{header_counterparty}\n\n"
         f"- {matrix_verdict_label} (clause_type={spot_input.clause_type}): "
+        f"`{spot_input.matrix_verdict_column}`{sources_suffix}\n"
+        f"- {counterparty_type_label}: "
+        f"`{spot_input.matrix_counterparty_type}`\n"
+        # Legacy lines: kept for back-compat with older readers
+        # that key on the Phase 2 flat ``lookup_verdict`` result.
+        f"- counterparty_verdict (legacy): "
         f"`{spot_input.counterparty_verdict}`\n"
-        f"- {counterparty_type_label}: `{spot_input.counterparty_type}`\n\n"
+        f"- counterparty_type (legacy): "
+        f"`{spot_input.counterparty_type}`\n\n"
         f"{header_task}\n\n"
         f"{task_text}"
     )

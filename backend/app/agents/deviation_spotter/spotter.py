@@ -52,6 +52,7 @@ from typing import Any, Optional
 
 from app.agents.deviation_spotter.prompt import build_messages
 from app.agents.deviation_spotter.schema import (
+    MATRIX_VERDICT_VALUES,
     Citation,
     DeviationFlag,
     SpotInput,
@@ -284,9 +285,20 @@ def _parse_llm_output(
     field validation, score clamping). We catch the
     ValidationError here and re-raise as ``ValueError` so the
     retry loop in :func:`spot_clause` can catch it.
+
+    Phase 5: the LLM may echo ``matrix_verdict`` and
+    ``matrix_sources`` fields. The parser captures them
+    leniently (the LLM is not the source of truth for matrix
+    lookups — the re-stamp in :func:`_stamp_matrix_audit_fields`
+    overwrites whatever the LLM echoed with the pipeline's
+    view from :attr:`SpotInput.matrix_verdict_column` /
+    :attr:`SpotInput.matrix_sources` /
+    :attr:`SpotInput.matrix_counterparty_type`).
     """
     citation = _coerce_citation(raw.get("citation"))
     baseline_type = str(raw.get("baseline_type", "") or "").strip()
+    matrix_verdict = _coerce_matrix_verdict(raw.get("matrix_verdict"))
+    matrix_sources = _coerce_matrix_sources(raw.get("matrix_sources"))
     try:
         flag = DeviationFlag(
             clause_id=spot_input.clause_id,
@@ -296,12 +308,142 @@ def _parse_llm_output(
             citation=citation,
             unverified=False,
             baseline_type=baseline_type,
+            matrix_verdict=matrix_verdict,
+            matrix_sources=matrix_sources,
+            matrix_counterparty_type=spot_input.matrix_counterparty_type,
         )
     except Exception as exc:  # noqa: BLE001
         raise ValueError(f"flag validation failed: {exc}") from exc
     if not flag.rationale:
         raise ValueError("rationale must be non-empty")
     return flag
+
+
+# --- Phase 5: matrix-aware helpers --------------------------------------
+
+
+def _coerce_matrix_verdict(value: Any) -> Optional[str]:
+    """Leniently read the LLM's ``matrix_verdict`` echo.
+
+    Accepts the spec's 4-state column values (case-insensitive)
+    and the matrix's internal 4-state labels (``aligned`` /
+    ``minor`` collapse to ``acceptable``). Unknown labels and
+    non-string inputs return ``None`` so the re-stamp writes the
+    pipeline's view cleanly. The spec column values pass through
+    as-is; the matrix's internal labels are rejected here
+    because they don't match the spec column — the re-stamp is
+    the source of truth.
+
+    Returns ``None`` for the "LLM had no opinion" / "LLM
+    hallucinated" cases; the validator at the call site treats
+    ``None`` as "use the pipeline's view".
+
+    Examples
+    --------
+
+    >>> _coerce_matrix_verdict("material")
+    'material'
+    >>> _coerce_matrix_verdict("Aligned") is None
+    True
+    >>> _coerce_matrix_verdict(None) is None
+    True
+    >>> _coerce_matrix_verdict(42) is None
+    True
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    normalised = value.strip().lower()
+    if not normalised:
+        return None
+    if normalised in MATRIX_VERDICT_VALUES:
+        return normalised
+    return None
+
+
+def _coerce_matrix_sources(value: Any) -> Optional[list[str]]:
+    """Leniently read the LLM's ``matrix_sources`` echo.
+
+    Accepts a list of strings (cleaned + capped at 8) or a single
+    string (wrapped in a one-element list). Returns ``None`` for
+    empty / missing / non-list-non-string inputs — the re-stamp
+    writes the pipeline's view in that case.
+
+    Examples
+    --------
+
+    >>> _coerce_matrix_sources(["counterparty", "flat"])
+    ['counterparty', 'flat']
+    >>> _coerce_matrix_sources("counterparty")
+    ['counterparty']
+    >>> _coerce_matrix_sources(None) is None
+    True
+    >>> _coerce_matrix_sources([]) is None
+    True
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cleaned_one = value.strip()
+        return [cleaned_one] if cleaned_one else None
+    if not isinstance(value, list):
+        return None
+    cleaned = [
+        s.strip() for s in value if isinstance(s, str) and s.strip()
+    ]
+    if not cleaned:
+        return None
+    return cleaned[:8]
+
+
+def _stamp_matrix_audit_fields(
+    flag: DeviationFlag, *, spot_input: SpotInput
+) -> DeviationFlag:
+    """Re-stamp the LLM-parsed flag with the pipeline's matrix view.
+
+    The LLM is not the source of truth for matrix lookups. The
+    pipeline (:mod:`app.pipeline.stage3_spot`) consults the
+    counterparty matrix and stamps the result into
+    :attr:`SpotInput.matrix_verdict_column` /
+    :attr:`SpotInput.matrix_sources` /
+    :attr:`SpotInput.matrix_counterparty_type`. The re-stamp
+    here overwrites the LLM's echo with the pipeline's view so
+    the audit trail and the UI's verdict column show the same
+    value regardless of what the LLM hallucinated.
+
+    The function returns a *new* :class:`DeviationFlag` via
+    ``model_copy`` so the caller's object is untouched.
+
+    When the pipeline didn't stamp a value (e.g. the orchestrator
+    is a Phase 2 caller that didn't know about the matrix axis),
+    the function falls back to the LLM's echo, or to the safe
+    ``"unverified"`` default when both are missing.
+    """
+    column = spot_input.matrix_verdict_column
+    sources = list(spot_input.matrix_sources)
+    cp_type = spot_input.matrix_counterparty_type
+
+    # Defensive: when the spot input was built via ``model_construct``
+    # (bypassing the validator) and the column is not in the spec's
+    # 4-state set, fall back to ``"unverified"`` so the audit trail
+    # never carries a label the UI can't render. The validator on
+    # :attr:`SpotInput.matrix_verdict_column` catches the typo
+    # case in normal flow, so this is belt-and-braces for the
+    # ``model_construct`` path.
+    if column not in MATRIX_VERDICT_VALUES:
+        column = "unverified"
+
+    # The pipeline's view wins. ``column`` is already validated
+    # against the spec's 4-state column by the SpotInput
+    # validator, so it's safe to stamp.
+    return flag.model_copy(
+        update={
+            "matrix_verdict": column,
+            "matrix_sources": sources,
+            "matrix_counterparty_type": cp_type,
+        }
+    )
 
 
 # --- Public surface ----------------------------------------------------
@@ -322,7 +464,14 @@ def spot_clause(
        ``"deviation_spot"`` with the contract filename as a tag.
     3. Calls the LLM (or the rule-based fallback) with retries.
     4. Parses the output and enforces the citation rule.
-    5. Returns a :class:`DeviationFlag` with ``unverified`` set
+    5. **Phase 5:** re-stamps the matrix audit fields with the
+       pipeline's view from
+       :attr:`SpotInput.matrix_verdict_column` /
+       :attr:`SpotInput.matrix_sources` /
+       :attr:`SpotInput.matrix_counterparty_type`. The LLM is
+       not the source of truth for matrix lookups; the
+       orchestrator is.
+    6. Returns a :class:`DeviationFlag` with ``unverified`` set
        per the enforcement logic.
 
     This is the **sync** entry point. The async orchestrator
@@ -340,6 +489,10 @@ def spot_clause(
                 "clause_type": spot_input.clause_type,
                 "baseline_count": len(spot_input.baselines),
                 "clause_length": len(spot_input.clause_text),
+                "matrix_verdict_column": spot_input.matrix_verdict_column,
+                "matrix_counterparty_type": (
+                    spot_input.matrix_counterparty_type
+                ),
             },
         )
     except Exception:  # noqa: BLE001
@@ -347,7 +500,9 @@ def spot_clause(
 
     valid_clause_ids = {b.clause_id for b in spot_input.baselines}
 
-    # Short-circuit: no baselines → abstain.
+    # Short-circuit: no baselines → abstain. The matrix audit
+    # fields are still stamped so the audit trail records
+    # "matrix says X, spotter abstained (no baseline)".
     if not spot_input.baselines:
         flag = DeviationFlag(
             clause_id=spot_input.clause_id,
@@ -357,6 +512,7 @@ def spot_clause(
             unverified=True,
             baseline_type="",
         )
+        flag = _stamp_matrix_audit_fields(flag, spot_input=spot_input)
         _finish_trace(span, flag, used_fallback=False, error_summary=None)
         return flag
 
@@ -397,6 +553,12 @@ def spot_clause(
         flag = _rule_based_spot(spot_input)
         used_fallback = True
 
+    # Phase 5: re-stamp the matrix audit fields with the
+    # pipeline's view. The LLM's echo is overwritten here so
+    # the audit trail and the UI's verdict column show the
+    # same value regardless of what the LLM hallucinated.
+    flag = _stamp_matrix_audit_fields(flag, spot_input=spot_input)
+
     _finish_trace(span, flag, used_fallback=used_fallback, error_summary=error_summary)
     return flag
 
@@ -422,6 +584,10 @@ def _finish_trace(
                     "unverified": flag.unverified,
                     "baseline_type": flag.baseline_type,
                     "used_fallback": used_fallback,
+                    "matrix_verdict": flag.matrix_verdict,
+                    "matrix_counterparty_type": (
+                        flag.matrix_counterparty_type
+                    ),
                 },
                 metadata={"error": error_summary} if error_summary else {},
             )
@@ -492,4 +658,9 @@ def _spot_in_executor(
 __all__ = [
     "spot_clause",
     "spot_clauses",
+    # Phase 5: matrix-aware helpers (exposed for tests; not
+    # part of the public LLM-call surface).
+    "_coerce_matrix_verdict",
+    "_coerce_matrix_sources",
+    "_stamp_matrix_audit_fields",
 ]
