@@ -1,0 +1,51 @@
+# Golden set — public/employment-001.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# EN PUBLIC CLEAN BASELINE #1 — ABA Model Employment Agreement
+# (US-anchored, California, 6-month garden leave + 12-month non-compete
+# with explicit California Business & Professions Code section 16600
+# carve-out per Edwards v. Arthur Andersen LLP (2008) 44 Cal. 4th 937).
+#
+# Phase 5 v2 coverage: this contract exercises the 3 GAP.md values
+# (garden_leave + non_compete) that v1's 3-contract starter did not
+# cover. Public clean baseline means ZERO expected deviations.
+#
+# The contract is intentionally the cleanest possible US employment
+# agreement: 30-day notice, 20 days vacation, 30-day termination
+# notice, 12-month non-solicit, 3-year confidentiality survival.
+# Spotter should classify cleanly; the deviation count is 0.
+#
+# Source: American Bar Association Model Employment Agreement
+# https://www.americanbar.org/groups/business_law/resources/model-employment-agreement/
+
+contract: examples/contracts/public/employment-001.pdf
+type: employment
+language: en
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Notice Period. Either Party may terminate this Agreement by giving the other Party not less than thirty (30) days' prior written notice"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Compensation. The Company shall pay the Employee an annual base salary of the amount set out in Schedule A, payable in equal semi-monthly installments in arrears"
+  - id: c3
+    type: employment_leave_entitlements
+    text_excerpt: "3. Vacation and Leave. The Employee shall be entitled to twenty (20) paid vacation days per calendar year, accruing pro rata, in addition to public holidays"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Termination for Cause. The Company may terminate this Agreement for cause, including but not limited to: (a) material breach of this Agreement by the Employee"
+  - id: c5
+    type: employment_non_compete
+    text_excerpt: "5. Non-Compete. For a period of twelve (12) months following the termination of the Employee's employment, the Employee shall not, directly or indirectly, engage in any business that competes with the Company's business in the United States"
+  - id: c6
+    type: employment_garden_leave
+    text_excerpt: "6. Garden Leave. For a period of up to six (6) months following notice of termination (whether by the Company or the Employee), the Company may, at its sole discretion, place the Employee on garden leave"
+  - id: c7
+    type: employment_non_solicitation
+    text_excerpt: "7. Non-Solicitation. For a period of twelve (12) months following the termination of the Employee's employment, the Employee shall not, directly or indirectly, solicit any employee, contractor, customer, or client of the Company"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Confidentiality; Survival. The Employee shall maintain the confidentiality of all Confidential Information of the Company both during and after the term of employment, for a period of three (3) years following termination"
+
+# Clean baseline: no expected deviations.
+expected_deviations: []

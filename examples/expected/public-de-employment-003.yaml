@@ -1,0 +1,54 @@
+# Golden set — public-de/employment-003.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# DE PUBLIC CLEAN BASELINE #3 — Arbeitnehmererfindungsgesetz
+# (ArbEG) anchored IP-Assignment agreement. Diensterfindung
+# Meldepflicht (§ 4 ArbEG), Inanspruchnahme-Frist (§ 6 ArbEG),
+# Vergütungsanspruch (§ 9 + § 15 ArbEG), Freie-Erfindungen-
+# Meldepflicht (§ 18 ArbEG).
+#
+# Phase 5 v2 coverage: this contract exercises the third DE GAP.md
+# value (ip_assignment) that v1's 3-contract starter did not cover.
+# Public clean baseline means ZERO expected deviations.
+#
+# The contract follows the ArbEG framework: 4-month Inanspruchnahme
+# window for Diensterfindungen, Vergütung calculated per § 15 ArbEG
+# (wirtschaftliche Verwertbarkeit, Aufgabenstellung, Unternehmensanteil),
+# Freie Erfindungen separately meldepflichtig per § 18 ArbEG.
+#
+# Source: Gesetz über Arbeitnehmererfindungen (ArbEG)
+# https://www.gesetze-im-internet.de/arbeg/index.html
+# (the DE IP-Assignment anchor that mirrors the US California
+# Labor Code § 2870 carve-out framework for the DE eval set)
+
+contract: examples/contracts/public-de/employment-003.pdf
+type: employment
+language: de
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Kündigungsfristen. Das Arbeitsverhältnis kann von beiden Parteien unter Einhaltung der gesetzlichen Kündigungsfristen des § 622 BGB ordentlich gekündigt werden"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Vergütung. Der Arbeitnehmer erhält eine monatliche Bruttovergütung in der in Anlage A vereinbarten Höhe"
+  - id: c3
+    type: employment_leave_entitlements
+    text_excerpt: "3. Urlaub. Der Arbeitnehmer hat Anspruch auf einen Jahresurlaub von dreißig (30) Arbeitstagen bei einer Fünf-Tage-Woche, zuzüglich der gesetzlichen Feiertage am Betriebsort"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Außerordentliche Kündigung. Das Recht zur außerordentlichen Kündigung gemäß § 626 BGB bleibt unberührt"
+  - id: c5
+    type: employment_ip_assignment
+    text_excerpt: "5. Erfindungen und Verbesserungsvorschläge. Der Arbeitnehmer ist verpflichtet, alle Diensterfindungen gemäß § 4 Abs. 1 ArbEG, die er während der Dauer des Arbeitsverhältnisses macht, dem Arbeitgeber unverzüglich schriftlich zu melden"
+  - id: c6
+    type: employment_working_hours
+    text_excerpt: "6. Arbeitszeit. Die regelmäßige wöchentliche Arbeitszeit beträgt vierzig (40) Stunden, verteilt auf fünf (5) Werktage von Montag bis Freitag, gemäß § 3 ArbZG"
+  - id: c7
+    type: employment_probation
+    text_excerpt: "7. Probezeit. Die ersten sechs (6) Monate des Arbeitsverhältnisses gelten als Probezeit. Während der Probezeit kann das Arbeitsverhältnis von beiden Parteien mit einer Frist von zwei (2) Wochen gekündigt werden, gemäß § 622 Abs. 3 BGB"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Verschwiegenheit; Fortbestand. Der Arbeitnehmer verpflichtet sich, alle Betriebs- und Geschäftsgeheimnisse des Arbeitgebers während und nach Beendigung des Arbeitsverhältnisses geheim zu halten"
+
+# Clean baseline: no expected deviations.
+expected_deviations: []
