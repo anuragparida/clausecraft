@@ -1,0 +1,89 @@
+# Playbook-Baseline — Employment (DE) — employment_leave_entitlements
+#
+# Quelle: § 3 Bundesurlaubsgesetz (BUrlG) — Dauer des Urlaubs,
+# amtliche Fassung veröffentlicht auf gesetze-im-internet.de
+# (Bundesministerium der Justiz / Bundesamt für Justiz,
+# https://www.gesetze-im-internet.de/burlg/__3.html). § 3 Abs. 1
+# BUrlG setzt den gesetzlichen Mindesturlaub auf 24
+# Werktage pro Kalenderjahr (Bemessungsgrundlage: Sechs-Tage-Woche
+# mit Werktagen Montag bis Samstag); § 3 Abs. 2 BUrlG definiert
+# Werktage als alle Kalendertage, die nicht Sonn- oder
+# gesetzliche Feiertage sind. Bei der heute üblichen
+# Fünf-Tage-Woche entsprechen 24 Werktage nach § 3 Abs. 1 BUrlG
+# einem Mindesturlaub von 20 Arbeitstagen (vgl. BAG, ständige
+# Rechtsprechung zur Umrechnung). Bundesgesetzestexte sind gemäß
+# § 5 Abs. 1 UrhG vom deutschen Urheberrecht ausgenommen; die
+# Veröffentlichung auf gesetze-im-internet.de erfolgt durch das
+# BMJ ohne Nutzungsbeschränkung.
+#
+# Diese Baseline paraphrasiert die operative Sprache des § 3
+# BUrlG in kanonische Vertragsklausel-Form. Sie ist die
+# *Mindest*-Baseline: jeder Vertrag, der weniger als den
+# gesetzlichen Mindesturlaub vorsieht, ist nach § 13 BUrlG
+# insoweit nichtig und wird auf den gesetzlichen Mindesturlaub
+# zurückgeführt. Die in der Praxis häufige Kombination aus
+# gesetzlichem Mindesturlaub und vertraglichem Zusatzurlaub ist
+# in der Baseline abgedeckt; der Zusatzurlaub kann
+# einzelvertraglich frei vereinbart werden.
+clause_id: de-mindesturlaub-burlg-3
+type: employment_leave_entitlements
+language: de
+title: Gesetzlicher Mindesturlaub nach § 3 BUrlG
+text: >-
+  Der Arbeitnehmer hat in jedem Kalenderjahr Anspruch auf den
+  gesetzlichen Mindesturlaub von mindestens 24 Werktagen,
+  ausgehend von einer Sechs-Tage-Woche. Bei einer
+  Fünf-Tage-Woche entspricht dies einem Mindesturlaub von 20
+  Arbeitstagen pro Kalenderjahr. Werktage im Sinne des § 3
+  Abs. 2 BUrlG sind alle Kalendertage, die nicht Sonn- oder
+  gesetzliche Feiertage sind. Der gesetzliche Mindesturlaub
+  dient der Erholung des Arbeitnehmers und kann nach der
+  Rechtsprechung des Bundesarbeitsgerichts grundsätzlich nicht
+  auf das folgende Kalenderjahr übertragen werden; eine
+  Übertragung ist nur dann zulässig, wenn der Arbeitnehmer
+  aufgrund betrieblicher Gründe oder wegen Arbeitsunfähigkeit
+  den Urlaub nicht im laufenden Kalenderjahr nehmen konnte, und
+  ist in diesem Fall innerhalb der ersten drei Monate des
+  folgenden Kalenderjahres nachzuholen. Der gesetzliche
+  Mindesturlaub verfällt nicht, wenn der Arbeitnehmer
+  arbeitsunfähig erkrankt ist; er verfällt in diesem Fall
+  erst 15 Monate nach Ende des Urlaubsjahres (vgl. BAG,
+  ständige Rechtsprechung). Bei Beendigung des
+  Arbeitsverhältnisses sind verbleibende gesetzliche
+  Urlaubsansprüche, die nicht mehr innerhalb der Kündigungsfrist
+  genommen werden können, vom Arbeitgeber abzugelten
+  (Urlaubsabgeltung nach § 7 Abs. 4 BUrlG). Der vertragliche
+  Zusatzurlaub, der über den gesetzlichen Mindesturlaub
+  hinausgeht, kann einzelvertraglich oder durch Tarifvertrag
+  abweichend geregelt werden, insbesondere hinsichtlich der
+  Übertragbarkeit und des Verfalls.
+source_url: https://www.gesetze-im-internet.de/burlg/__3.html
+retrieval_date: 2026-06-10
+license: >-
+  § 3 BUrlG, amtliche Fassung des Bundesministeriums der Justiz
+  (BMJ), veröffentlicht auf gesetze-im-internet.de. Gemäß § 5
+  Abs. 1 UrhG sind Bundesgesetzestexte vom deutschen Urheberrecht
+  ausgenommen; die Veröffentlichung erfolgt ohne
+  Nutzungsbeschränkung. Die Baseline-Sprache ist eine paraphrasierte
+  Verdichtung des § 3 BUrlG, keine wortgetreue Übernahme des
+  Verordnungstextes.
+notes: >-
+  Drei Abweichungsmuster, die in der Matrix zu kennzeichnen sind:
+  (a) ein vertraglicher Urlaubsanspruch, der den gesetzlichen
+  Mindesturlaub von 24 Werktagen (Sechs-Tage-Woche) bzw. 20
+  Arbeitstagen (Fünf-Tage-Woche) unterschreitet, ist nach § 13
+  BUrlG nichtig und wird auf den gesetzlichen Mindesturlaub
+  zurückgeführt — Matrix-Verdikt „nicht akzeptabel" für jeden
+  Vertragspartnertyp, da die Statutarik nicht verhandelbar ist;
+  (b) eine Verfallklausel, die den gesetzlichen Mindesturlaub
+  ohne Rücksicht auf eine Arbeitsunfähigkeit am 31. Dezember
+  verfallen lässt, ist nach der BAG-Rechtsprechung
+  (Urlaubsverfall-Richtlinie 2003/88/EG) unwirksam — struktureller
+  Mangel, „nicht akzeptabel" für jeden Vertragspartnertyp; (c)
+  das Fehlen einer Abgeltungsklausel für den gesetzlichen
+  Mindesturlaub bei Beendigung des Arbeitsverhältnisses ist
+  Matrix-Verdikt „material" (kein Abgeltungsautomatismus im
+  Vertrag, aber § 7 Abs. 4 BUrlG als statutarischer Auffang);
+  eine vertragliche Abgeltungsklausel ist nicht erforderlich.
+  Helenas Review-Karte sollte eine fehlende § 3 BUrlG-Referenz
+  unabhängig vom Vertragspartnertyp als „material" markieren.

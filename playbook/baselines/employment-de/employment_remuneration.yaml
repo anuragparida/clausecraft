@@ -1,0 +1,85 @@
+# Playbook-Baseline — Employment (DE) — employment_remuneration
+#
+# Quelle: § 611a Bürgerliches Gesetzbuch (BGB) — Arbeitsvertrag,
+# amtliche Fassung veröffentlicht auf gesetze-im-internet.de
+# (Bundesministerium der Justiz / Bundesamt für Justiz,
+# https://www.gesetze-im-internet.de/bgb/__611a.html). § 611a
+# Abs. 1 BGB definiert den Arbeitsvertrag als die Verpflichtung
+# des Arbeitnehmers, im Dienste eines anderen weisungsgebundene
+# Arbeit in persönlicher Abhängigkeit zu leisten; § 611a Abs. 2
+# BGB verankert die zentrale Vergütungspflicht des Arbeitgebers
+# ("Der Arbeitgeber ist zur Zahlung der vereinbarten Vergütung
+# verpflichtet."). Die Paragraphen-Ergänzung erfolgte durch das
+# Gesetz zur Modernisierung des Arbeitsrechts (Arbeitsrechts-
+# modernisierungsgesetz) vom 24. August 2017 (BGBl. I S. 3208).
+# Bundesgesetzestexte sind gemäß § 5 Abs. 1 UrhG vom deutschen
+# Urheberrecht ausgenommen; die Veröffentlichung auf
+# gesetze-im-internet.de erfolgt durch das BMJ ohne
+# Nutzungsbeschränkung.
+#
+# Diese Baseline paraphrasiert die operative Vergütungspflicht
+# des § 611a Abs. 2 BGB in kanonische Vertragsklausel-Form. Sie
+# deckt die *Pflicht zur Zahlung der vereinbarten Vergütung* ab
+# (nicht die einzelvertragliche Höhe, nicht die Fälligkeit, nicht
+# die Art der Auszahlung — diese werden im deutschen
+# Arbeitsvertrag typischerweise in der
+# Vergütungs-Vereinbarungsklausel spezifiziert, vgl. IHK
+# Musterarbeitsvertrag § 6 Abs. 1). Die Nachweispflicht für die
+# "wesentlichen Vertragsbedingungen" einschließlich der
+# Vergütungsbestandteile ergibt sich aus § 2 Abs. 1 Satz 7 Nr. 7
+# NachwG; die Baseline verzichtet bewusst auf die
+# NachwG-Querverweise, da die *Vergütungspflicht selbst* in
+# § 611a Abs. 2 BGB statutarisch verankert ist.
+clause_id: de-verguetungspflicht-bgb-611a-abs-2
+type: employment_remuneration
+language: de
+title: Vergütungspflicht des Arbeitgebers nach § 611a Abs. 2 BGB
+text: >-
+  Der Arbeitgeber ist verpflichtet, dem Arbeitnehmer die im
+  Arbeitsvertrag vereinbarte Vergütung für die geleistete Arbeit
+  zu zahlen. Die Vergütung umfasst die im Vertrag festgelegte
+  Grundvergütung (Monatsgehalt oder Stundenlohn) sowie alle im
+  Vertrag ausdrücklich vereinbarten weiteren Bestandteile wie
+  Zuschläge, Zulagen, Prämien, Sonderzahlungen und
+  Sachbezüge, jeweils in der vereinbarten Höhe und zu den
+  vereinbarten Fälligkeitszeitpunkten. Die Vergütung ist am Ende
+  des jeweiligen Kalendermonats fällig, sofern im Vertrag kein
+  anderer Fälligkeitstermin vereinbart ist, und wird bargeldlos
+  auf ein vom Arbeitnehmer benanntes Konto überwiesen. Eine
+  einseitige Herabsetzung der vereinbarten Vergütung durch den
+  Arbeitgeber ist nur durch Änderungskündigung oder im Wege
+  einer einvernehmlichen Vertragsänderung (Änderungsvertrag)
+  möglich; eine einseitige Anrechnung von Überstunden auf die
+  Grundvergütung ohne ausdrückliche vertragliche Abgeltungsklausel
+  ist unwirksam, soweit sie zu einer Unterschreitung des
+  gesetzlichen Mindestlohns nach dem Mindestlohngesetz (MiLoG)
+  führt. Der Anspruch auf die vereinbarte Vergütung wird durch
+  die gesetzliche Vergütungsfortzahlung im Krankheitsfall
+  (Entgeltfortzahlungsgesetz, EntgFG) und durch bezahlte
+  Freistellungsansprüche (z. B. § 616 BGB, soweit nicht
+  einzelvertraglich abbedungen) nicht berührt.
+source_url: https://www.gesetze-im-internet.de/bgb/__611a.html
+retrieval_date: 2026-06-10
+license: >-
+  § 611a BGB, amtliche Fassung des Bundesministeriums der Justiz
+  (BMJ), veröffentlicht auf gesetze-im-internet.de. Gemäß § 5
+  Abs. 1 UrhG sind Bundesgesetzestexte vom deutschen Urheberrecht
+  ausgenommen; die Veröffentlichung erfolgt ohne
+  Nutzungsbeschränkung. Die Baseline-Sprache ist eine paraphrasierte
+  Verdichtung des § 611a Abs. 2 BGB, keine wortgetreue Übernahme
+  des Verordnungstextes.
+notes: >-
+  Zwei Abweichungsmuster, die in der Matrix zu kennzeichnen sind:
+  (a) eine Vergütungsklausel, die die Höhe der Vergütung nicht
+  beziffert oder die Bestandteile nicht spezifiziert, verstößt
+  gegen die Nachweispflicht aus § 2 Abs. 1 Satz 7 Nr. 7 NachwG —
+  Matrix-Verdikt „material" für KMU (häufiger Verstoß in
+  kleinbetrieblichen Verträgen), „minor" für Großunternehmen; (b)
+  eine „Freiwilligkeitsklausel" für Sonderzahlungen, die sich auf
+  alle zukünftigen Leistungen unabhängig von Art und
+  Entstehungsgrund bezieht, ist nach ständiger Rechtsprechung des
+  BAG unwirksam — struktureller Mangel, Matrix-Verdikt
+  „unacceptable" für jeden Vertragspartnertyp. Die
+  Vergütungspflicht selbst ist nach § 611a Abs. 2 BGB nicht
+  verhandelbar; eine fehlende Vergütungspflicht-Klausel ist
+  unabhängig vom Vertragspartnertyp „nicht akzeptabel".

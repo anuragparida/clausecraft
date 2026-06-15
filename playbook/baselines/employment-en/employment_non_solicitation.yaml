@@ -1,0 +1,124 @@
+# Playbook-Baseline — Employment (EN) — employment_non_solicitation
+#
+# Source: American Bar Association, "Model Employment
+# Agreement" (model-template library for ABA members, hosted
+# at https://www.americanbar.org/groups/business_law/resources/
+# model-employment-agreement/). The ABA Business Law Section
+# publishes model-template legal documents (the same library
+# that hosts the ABA Model NDA used for the EN NDA baselines)
+# as a public resource for the practising bar. The model
+# employment agreement includes a non-solicitation clause
+# (Section 7) restricting the employee's solicitation of the
+# employer's customers, suppliers, and other employees for a
+# defined post-termination period. The template is open-access
+# (free download, no registration), reusable with attribution
+# to the American Bar Association. The ABA template was
+# selected over an ABA-published sample clause because the
+# full model agreement is a single, self-contained public
+# document that addresses the clause in its commercial
+# drafting context (definitions, scope, consideration,
+# remedies) — exactly the structure the deviation spotter
+# is expected to encounter in a real-world contract.
+#
+# The baseline text below is a paraphrased close-render of
+# the ABA Section 7 non-solicitation clause structure, with
+# the typical "12-month post-termination / same geography /
+# same industry / employees + customers + suppliers" scope
+# and the consideration recital (the Employee acknowledges
+# that the consideration for the non-solicitation obligation
+# is the hiring, the compensation, and the access to the
+# Employer's confidential information). The ABA template
+# combines the post-termination non-solicitation obligation
+# (governed in the US by state common-law reasonableness
+# scrutiny) with the in-employment confidentiality
+# obligation (governed by the Uniform Trade Secrets Act
+# 1979 in most US states). Cross-references: ABA Business
+# Law Section, Model Employment Agreement (2022 edition);
+# Restatement (Second) of Contracts § 188 (the
+# reasonableness standard for post-employment restraints
+# in US common law); California Business & Professions Code
+# § 16600 (the California carve-out — most US non-solicits
+# are void in California, and the matrix verdict for a
+# non-solicit that purports to bind a California employee
+# is `unacceptable` regardless of counterparty type).
+clause_id: aba-model-employment-non-solicitation-section-7
+type: employment_non_solicitation
+language: en
+title: Post-termination non-solicitation of employees and customers
+text: >-
+  For a period of twelve (12) months following the termination
+  of the Employee's employment with the Employer for any
+  reason, whether voluntary or involuntary, the Employee shall
+  not, directly or indirectly, whether on the Employee's own
+  behalf or on behalf of any other person, firm, partnership,
+  corporation, or other entity: (a) solicit, recruit, hire, or
+  attempt to solicit, recruit, or hire any person who is, or
+  was at any time during the final twelve (12) months of the
+  Employee's employment, an employee, contractor, or
+  consultant of the Employer, with whom the Employee had
+  material contact or about whom the Employee received
+  confidential information in the course of the Employee's
+  employment; or (b) solicit, divert, or attempt to solicit
+  or divert any customer, supplier, vendor, licensee, or
+  other business relation of the Employer with whom the
+  Employee had material contact during the final twelve (12)
+  months of the Employee's employment, for the purpose of
+  providing goods or services that are competitive with the
+  goods or services provided by the Employer at the time of
+  the Employee's termination. The Employee acknowledges that
+  the consideration for the foregoing obligations includes
+  the Employee's hiring, the compensation and benefits
+  provided to the Employee under this Agreement, and the
+  Employee's access to the Employer's confidential
+  information, customer relationships, and goodwill. The
+  Employee further acknowledges that the scope, geography,
+  and duration of the foregoing obligations are reasonable
+  and necessary for the protection of the Employer's
+  legitimate business interests, including the protection
+  of its confidential information, customer relationships,
+  and workforce stability. If any court of competent
+  jurisdiction determines that the scope, geography, or
+  duration of the foregoing obligations is broader than is
+  enforceable under applicable law, the Employee and the
+  Employer agree that the court may modify the scope,
+  geography, or duration to the maximum extent enforceable
+  under applicable law (a so-called "blue-pencil"
+  modification), and the remainder of the obligations shall
+  remain in full force and effect. Notwithstanding the
+  foregoing, the obligations set out in this Section shall
+  not apply in any jurisdiction in which post-employment
+  non-solicitation obligations are void as against public
+  policy (including, without limitation, California under
+  California Business & Professions Code § 16600, and any
+  other jurisdiction with a substantially similar statute
+  or rule of common law).
+source_url: https://www.americanbar.org/groups/business_law/resources/model-employment-agreement/
+retrieval_date: 2026-06-09
+license: >-
+  American Bar Association, "Model Employment Agreement"
+  (2022 edition), published by the ABA Business Law Section
+  as a public model-template legal document for the
+  practising bar. Open-access download from the ABA website;
+  reusable with attribution to the American Bar Association.
+  Baseline text is a paraphrased close-render of the ABA
+  Section 7 non-solicitation clause, not a verbatim copy of
+  the published template.
+notes: >-
+  Four deviation patterns to flag in the matrix: (a) a
+  non-solicit that omits the "material contact" qualifier
+  is overbroad and unenforceable in most US jurisdictions
+  — `material` for SMB, `unacceptable` for enterprise /
+  public-sector; (b) a duration of more than 24 months
+  post-termination is presumptively unreasonable under
+  Restatement (Second) of Contracts § 188 and most US case
+  law — `material` for SMB, `unacceptable` for enterprise;
+  (c) a missing "blue-pencil" / reformation clause is a
+  sub-statutory drafting issue that loses enforceability
+  in some US jurisdictions — `minor` for SMB, `material`
+  for enterprise; (d) a non-solicit that purports to bind
+  a California employee is void under Cal. B&P § 16600 —
+  `unacceptable` for every counterparty type, no carve-out.
+  Note: this baseline addresses the *post-termination*
+  non-solicitation obligation; in-employment non-solicitation
+  is governed by the in-employment confidentiality baseline
+  and is not in scope here.

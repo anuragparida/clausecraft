@@ -1,0 +1,98 @@
+# Playbook-Baseline — Employment (DE) — employment_termination_for_cause
+#
+# Quelle: § 626 Bürgerliches Gesetzbuch (BGB) — Fristlose
+# Kündigung aus wichtigem Grund, amtliche Fassung veröffentlicht
+# auf gesetze-im-internet.de (Bundesministerium der Justiz /
+# Bundesamt für Justiz, https://www.gesetze-im-internet.de/bgb/__626.html).
+# § 626 Abs. 1 BGB definiert den außerordentlichen
+# Kündigungsgrund als Tatsachen, "auf Grund derer dem Kündigenden
+# unter Berücksichtigung aller Umstände des Einzelfalles und unter
+# Abwägung der Interessen beider Vertragsteile die Fortsetzung
+# des Dienstverhältnisses bis zum Ablauf der Kündigungsfrist oder
+# bis zu der vereinbarten Beendigung des Dienstverhältnisses nicht
+# zugemutet werden kann". § 626 Abs. 2 BGB setzt die
+# Ausschlussfrist auf zwei Wochen ab Kenntnis der
+# maßgeblichen Tatsachen und verpflichtet zur schriftlichen
+# Mitteilung des Kündigungsgrundes auf Verlangen. § 626 BGB ist
+# die zentrale Norm für die verhaltens- und personenbedingte
+# fristlose Kündigung im deutschen Arbeitsrecht; sie wird durch
+# § 1 Abs. 2 KSchG für Betriebe mit mehr als sechsmonatigem
+# Bestand des Arbeitsverhältnisses und mehr als zehn
+# Arbeitnehmern (seit 2004) um die Sozialgerechtigkeitsprüfung
+# ergänzt. Bundesgesetzestexte sind gemäß § 5 Abs. 1 UrhG vom
+# deutschen Urheberrecht ausgenommen; die Veröffentlichung auf
+# gesetze-im-internet.de erfolgt durch das BMJ ohne
+# Nutzungsbeschränkung.
+#
+# Diese Baseline paraphrasiert die operative Sprache des § 626
+# Abs. 1 und Abs. 2 BGB in kanonische Vertragsklausel-Form. Sie
+# deckt die *Voraussetzungen* und die *Ausschlussfrist* der
+# außerordentlichen Kündigung ab (nicht die Kündigungsgründe im
+# Detail, die in der Rechtsprechung des BAG zu den einzelnen
+# Fallgruppen — Diebstahl, Arbeitsverweigerung, Beleidigung,
+# etc. — weiter konkretisiert sind).
+clause_id: de-fristlose-kuendigung-bgb-626
+type: employment_termination_for_cause
+language: de
+title: Außerordentliche Kündigung aus wichtigem Grund nach § 626 BGB
+text: >-
+  Das Arbeitsverhältnis kann von beiden Parteien fristlos aus
+  wichtigem Grund gemäß § 626 BGB gekündigt werden, wenn
+  Tatsachen vorliegen, auf Grund derer der kündigenden Partei
+  unter Berücksichtigung aller Umstände des Einzelfalles und
+  unter Abwägung der Interessen beider Vertragsteile die
+  Fortsetzung des Arbeitsverhältnisses bis zum Ablauf der
+  Kündigungsfrist oder bis zu der vereinbarten Beendigung des
+  Arbeitsverhältnisses nicht zugemutet werden kann. Ein
+  wichtiger Grund liegt nach der Rechtsprechung des
+  Bundesarbeitsgerichts insbesondere vor bei schweren
+  Pflichtverletzungen wie Diebstahl, Unterschlagung oder
+  Betrug, Tätlichkeiten oder Beleidigungen gegenüber
+  Vorgesetzten, Kollegen oder Kunden, erheblicher
+  Arbeitsverweigerung, dem vorsätzlichen oder grob fahrlässigen
+  Verstoß gegen arbeitsvertragliche
+  Verschwiegenheitspflichten, der Annahme von Schmiergeldern
+  oder Bestechungsgeldern, der beharrlichen Verletzung der
+  Arbeitspflicht trotz Abmahnung sowie bei beharrlicher
+  Unpünktlichkeit, sofern diese den Betriebsablauf erheblich
+  stört. Die Kündigung kann nur innerhalb einer Ausschlussfrist
+  von zwei Wochen erfolgen. Die Frist beginnt mit dem
+  Zeitpunkt, in dem die kündigungsberechtigte Person von den
+  für die Kündigung maßgeblichen Tatsachen Kenntnis erlangt.
+  Die kündigende Partei muss der anderen Vertragspartei auf
+  Verlangen den Kündigungsgrund unverzüglich schriftlich
+  mitteilen. Nach Ablauf der Zwei-Wochen-Frist ist die
+  Kündigung ausgeschlossen; später bekannt werdende Tatsachen
+  können nur dann eine neue Ausschlussfrist auslösen, wenn sie
+  ohne grobe Fahrlässigkeit nicht früher bekannt waren. Die
+  außerordentliche Kündigung erfolgt schriftlich; die
+  elektronische Form ist nach § 623 BGB ausgeschlossen.
+source_url: https://www.gesetze-im-internet.de/bgb/__626.html
+retrieval_date: 2026-06-10
+license: >-
+  § 626 BGB, amtliche Fassung des Bundesministeriums der Justiz
+  (BMJ), veröffentlicht auf gesetze-im-internet.de. Gemäß § 5
+  Abs. 1 UrhG sind Bundesgesetzestexte vom deutschen Urheberrecht
+  ausgenommen; die Veröffentlichung erfolgt ohne
+  Nutzungsbeschränkung. Die Baseline-Sprache ist eine paraphrasierte
+  Verdichtung des § 626 Abs. 1 und Abs. 2 BGB, keine wortgetreue
+  Übernahme des Verordnungstextes.
+notes: >-
+  Drei Abweichungsmuster, die in der Matrix zu kennzeichnen sind:
+  (a) eine außerordentliche Kündigung ohne wichtigen Grund oder
+  mit Gründen, die nach der BAG-Rechtsprechung keinen wichtigen
+  Grund darstellen, ist nach § 626 Abs. 1 BGB unwirksam —
+  Matrix-Verdikt „nicht akzeptabel" für jeden Vertragspartnertyp;
+  (b) eine Kündigung außerhalb der Zwei-Wochen-Ausschlussfrist des
+  § 626 Abs. 2 BGB ist ebenfalls unwirksam — struktureller
+  Mangel, „nicht akzeptabel" für jeden Vertragspartnertyp; (c)
+  das Fehlen der Schriftform (§ 623 BGB, elektronische Form
+  ausgeschlossen) ist ein Formmangel, der die Kündigung
+  insgesamt unwirksam macht — Matrix-Verdikt „nicht akzeptabel"
+  unabhängig vom Vertragspartnertyp. Die Sozialgerechtigkeits-
+  prüfung nach § 1 Abs. 2 KSchG ist *zusätzlich* zu § 626 BGB
+  anwendbar, wenn das Arbeitsverhältnis länger als sechs Monate
+  in einem Betrieb mit in der Regel mehr als zehn Arbeitnehmern
+  bestanden hat; eine § 626-Klausel, die die KSchG-Prüfung
+  ausblendet, ist „material" und sollte in der Matrix
+  entsprechend gekennzeichnet werden.
