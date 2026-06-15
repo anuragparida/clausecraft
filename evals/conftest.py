@@ -884,6 +884,14 @@ def assert_run_report() -> Any:
             "aggregate_by_language",
             "gap_assertions",
             "language_filter",
+            # --- Phase 5 v3: matrix verdict rollup
+            # ``matrix_aggregate`` is the run-wide 5-bucket
+            # histogram of every flag's matrix verdict;
+            # ``matrix_changed_contracts_count`` is the
+            # Phase 5 exit-gate signal (>= 3 of 30 eval
+            # contracts must have a changed verdict).
+            "matrix_aggregate",
+            "matrix_changed_contracts_count",
         ):
             assert key in data, f"Run report missing key {key!r}: {list(data.keys())}"
         agg = data["aggregate"]
@@ -918,6 +926,15 @@ def assert_run_report() -> Any:
                 "deviation_f1",
                 "severity_mismatch_count",
                 "citation_completeness",
+                # --- Phase 5 v3: matrix verdict rollup
+                # Per-language matrix_aggregate is the
+                # 5-bucket histogram of every flag on this
+                # language; matrix_verdict_changed_count
+                # is the count of flags on this language
+                # whose matrix verdict was changed from the
+                # flat baseline.
+                "matrix_aggregate",
+                "matrix_verdict_changed_count",
             ):
                 assert key in lang_agg, (
                     f"Run report aggregate_by_language[{lang!r}] "
