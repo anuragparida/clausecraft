@@ -301,3 +301,155 @@ describe("TriagePage — Phase 4 language picker wiring", () => {
     });
   });
 });
+
+describe("TriagePage — Phase 5 counterparty type picker wiring", () => {
+  it("renders the counterparty picker on the upload form", () => {
+    render(withQueryClient(<TriagePage />));
+    expect(
+      screen.getByTestId("counterparty-picker"),
+    ).toBeInTheDocument();
+    for (const v of [
+      "enterprise",
+      "smb",
+      "public_sector",
+      "healthcare",
+      "any",
+    ]) {
+      expect(
+        screen.getByTestId(`counterparty-picker-option-${v}`),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("defaults the counterparty picker to 'enterprise' on first mount", () => {
+    render(withQueryClient(<TriagePage />));
+    expect(screen.getByTestId("counterparty-picker")).toHaveAttribute(
+      "data-value",
+      "enterprise",
+    );
+    expect(
+      screen.getByTestId("counterparty-picker-option-enterprise"),
+    ).toHaveAttribute("data-checked", "true");
+  });
+
+  it("forwards the picked counterparty_type='healthcare' on the form", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const form = init.body as FormData;
+      expect(form.get("counterparty_type")).toBe("healthcare");
+      return new Response(JSON.stringify(fakeIngestResponse()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const user = userEvent.setup();
+    render(withQueryClient(<TriagePage />));
+
+    // 1. Pick "healthcare" in the counterparty picker.
+    await user.click(
+      screen.getByTestId("counterparty-picker-input-healthcare"),
+    );
+    expect(screen.getByTestId("counterparty-picker")).toHaveAttribute(
+      "data-value",
+      "healthcare",
+    );
+
+    // 2. Upload a file.
+    const file = makeFile("nda-en.txt", EN_BODY);
+    const input = screen.getByTestId(
+      "triage-file-input",
+    ) as HTMLInputElement;
+    await user.upload(input, file);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("forwards the default 'enterprise' counterparty_type when the user does not touch the picker", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const form = init.body as FormData;
+      expect(form.get("counterparty_type")).toBe("enterprise");
+      return new Response(JSON.stringify(fakeIngestResponse()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const user = userEvent.setup();
+    render(withQueryClient(<TriagePage />));
+
+    const file = makeFile("nda-en.txt", EN_BODY);
+    const input = screen.getByTestId(
+      "triage-file-input",
+    ) as HTMLInputElement;
+    await user.upload(input, file);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("forwards counterparty_type='any' (the Phase 2 back-compat fallback) when picked", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const form = init.body as FormData;
+      expect(form.get("counterparty_type")).toBe("any");
+      return new Response(JSON.stringify(fakeIngestResponse()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const user = userEvent.setup();
+    render(withQueryClient(<TriagePage />));
+
+    // Pick "any" (the Phase 2 back-compat fallback).
+    await user.click(screen.getByTestId("counterparty-picker-input-any"));
+
+    const file = makeFile("nda-en.txt", EN_BODY);
+    const input = screen.getByTestId(
+      "triage-file-input",
+    ) as HTMLInputElement;
+    await user.upload(input, file);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("disables the counterparty picker during an in-flight upload", async () => {
+    // A never-resolving fetch keeps the mutation in
+    // "pending" state so we can assert disabled=true.
+    const fetchMock = vi.fn(
+      () => new Promise<Response>(() => {}),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const user = userEvent.setup();
+    render(withQueryClient(<TriagePage />));
+
+    const file = makeFile("nda-en.txt", EN_BODY);
+    const input = screen.getByTestId(
+      "triage-file-input",
+    ) as HTMLInputElement;
+    await user.upload(input, file);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    for (const v of [
+      "enterprise",
+      "smb",
+      "public_sector",
+      "healthcare",
+      "any",
+    ]) {
+      expect(
+        screen.getByTestId(`counterparty-picker-input-${v}`),
+      ).toBeDisabled();
+    }
+  });
+});

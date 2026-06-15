@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { DisclaimerFooter } from "@/components/DisclaimerFooter";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { CitationPopover, type Citation } from "@/components/CitationPopover";
+import { MatrixVerdictCell, type MatrixVerdict, type CounterpartyTypeForCell } from "@/components/MatrixVerdictCell";
 import { cn } from "@/lib/utils";
 import type { Decision } from "@/lib/api";
 
@@ -48,6 +49,13 @@ export interface DeviationFlag {
   citation: Citation | null;
   unverified: boolean;
   baseline_type: string;
+  // Phase 5: the matrix verdict + lookup chain that
+  // produced the spotter's audit column. Optional
+  // because the Phase 2/3/4 backends never set them
+  // (the spec locks the 4-state column forward-only).
+  matrix_verdict?: MatrixVerdict;
+  matrix_sources?: string[];
+  matrix_counterparty_type?: CounterpartyTypeForCell;
 }
 
 /** Subset of `SpotResponse` this page consumes. */
@@ -521,15 +529,13 @@ function FlagTable({
                   )}
                 </td>
                 <td className="px-3 py-2 text-xs">
-                  <span
-                    data-testid={`flag-matrix-verdict-${flag.clause_id}`}
-                    data-matrix-verdict={scoreToVerdictLabel(flag.score)}
-                  >
-                    {scoreToVerdictLabel(flag.score)}
-                  </span>
-                  <div className="text-[10px] text-muted-foreground">
-                    flat baseline (Phase 5 adds matrix)
-                  </div>
+                  <MatrixVerdictCell
+                    clauseId={flag.clause_id}
+                    matrixVerdict={flag.matrix_verdict}
+                    matrixSources={flag.matrix_sources}
+                    matrixCounterpartyType={flag.matrix_counterparty_type}
+                    score={flag.score}
+                  />
                 </td>
                 <td className="px-3 py-2">
                   <CitationPopover
@@ -609,6 +615,15 @@ const SAMPLE_FLAG: DeviationFlag = {
   },
   unverified: false,
   baseline_type: "term",
+  // Phase 5 sample: the matrix verdict for a term-clause
+  // against an enterprise counterparty type. The lookup
+  // chain shows the cell that produced the verdict.
+  matrix_verdict: "material",
+  matrix_sources: [
+    "term (counterparty, enterprise)",
+    "term (counterparty, flat)",
+  ],
+  matrix_counterparty_type: "enterprise",
 };
 
 const SAMPLE_NO_BASELINE_FLAG: DeviationFlag = {
@@ -620,15 +635,46 @@ const SAMPLE_NO_BASELINE_FLAG: DeviationFlag = {
   baseline_type: "",
 };
 
+/** A second matrix-aware row demonstrating the
+ *  unacceptable verdict on a healthcare counterparty
+ *  type — the per-type escalation card's v2 rule
+ *  promotes score-2 to "unacceptable" for healthcare
+ *  and public_sector (see card t_7c0ca277). The
+ *  popover surfaces the lookup chain. */
+const SAMPLE_MATRIX_ESCALATION_FLAG: DeviationFlag = {
+  clause_id: "c3",
+  score: 2,
+  rationale:
+    "Audit rights clause: 30-day notice vs. baseline 14-day — material deviation escalated to unacceptable for healthcare (HIPAA / sector-specific data protection).",
+  citation: {
+    playbook_clause_id: "dpa-en::dpa_audit_rights::001",
+    contract_text_excerpt:
+      "The Processor shall make available to the Controller, upon 30 days' prior written notice, all information necessary to demonstrate compliance with this DPA.",
+    source_url: "https://example.com/dpa-baselines/audit-rights",
+  },
+  unverified: false,
+  baseline_type: "dpa_audit_rights",
+  matrix_verdict: "unacceptable",
+  matrix_sources: [
+    "dpa_audit_rights (counterparty, healthcare)",
+    "dpa_audit_rights (counterparty, flat)",
+  ],
+  matrix_counterparty_type: "healthcare",
+};
+
 export const SAMPLE_DEVIATION_REVIEW_DATA: DeviationReviewData = {
   filename: "sample-nda.pdf",
-  flag_count: 2,
-  flagged_count: 1,
+  flag_count: 3,
+  flagged_count: 2,
   unverified_count: 1,
   no_baseline_count: 1,
-  matrix_version: "phase2-flat",
+  matrix_version: "phase5-4axis",
   embedding_provider: "stub",
-  flags: [SAMPLE_FLAG, SAMPLE_NO_BASELINE_FLAG],
+  flags: [
+    SAMPLE_FLAG,
+    SAMPLE_NO_BASELINE_FLAG,
+    SAMPLE_MATRIX_ESCALATION_FLAG,
+  ],
 };
 
 // --- Page ---------------------------------------------------------------

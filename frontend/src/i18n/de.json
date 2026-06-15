@@ -3,7 +3,7 @@
     "_comment": "Phase 4 minimal i18n — DE UI strings for the upload form + deviation review flow. Loaded by the i18n shim from card 7 (DE UI language picker wiring). Scope is page titles + button labels (NOT a full localization) per docs/11-phases.md §Phase 4 and the DE UI strings card. Keys are organised by page → region so the consumer (card 7) can do a simple lookup. Keep this file flat-ish (per-page top-level keys, no deep nesting) until Phase 5 or later forces a restructure.",
     "language": "de",
     "register": "juristischer Sprachstil (German legal register). 'Freigeben' for Approve (NOT 'Genehmigen' — that is too bureaucratic for an interactive UI).",
-    "scope": "NDA only; Phase 4. No DPA / employment / counterparty matrix UI here.",
+    "scope": "NDA, DPA, Employment; Phase 5 adds the counterparty matrix UI (verdict column + counterparty picker).",
     "out_of_scope_reminder": "Audit log view, dashboard, admin pages, README, and Langfuse trace labels are NOT translated here. Per the card body those are Phase 4 'do not do' items. NOTE: the task body's 'rough starting set' also named 'Counterparty / Vertragspartner', 'Governing law / Anwendbares Recht', 'Term / Laufzeit', 'Confidential information / Vertrauliche Informationen', and 'Upload contract / Vertrag hochladen' — these are NOT user-visible strings in the current frontend. Counterparty/governing law/term/confidential are ClauseType values that the backend emits as raw `c.type` strings rendered through the Badge component; translating them needs a backend clause-type → display-label mapping (Phase 5 counterparty-matrix work). 'Upload contract' is a route intent, not a button label — the actual button is 'Triage contracts' (translated here as 'Vertragsprüfung starten', see judgment_calls). The 'Upload' heading on the upload card IS translated here as 'Hochladen' under triage.card_upload_title.",
     "judgment_calls": [
       "'Citation' → 'Quelle' (the standard legal-register word for cited source; 'Quellenangabe' or 'Zitat' are alternatives but 'Quelle' is the shortest correct term).",
@@ -16,7 +16,11 @@
       "'Pipeline' kept as 'Pipeline' in the audit-log decision labels — it is a loanword used identically in DE engineering/legal-tech jargon; translating it to 'Verarbeitungskette' would obscure what the row actually refers to.",
       "'flag' kept as 'Markierung' throughout (a flag in DE compliance UI is a 'Markierung' or 'Kennzeichnung'; 'Flagge' is the literal-bad translation and 'Vorbehalt' is too strong a legal term).",
       "'Triage contracts' → 'Vertragsprüfung' (the spec uses 'Triage' as a loanword; in DE legal-register the operational step of 'initial fast classification of a contract' is 'Vertragsprüfung' / 'Vertragsanalyse'. 'Vertragstriage' is also defensible loanword usage but reads as software/ops jargon; 'Vertragsprüfung' is what a Rechtsanwalt would say in a UI string).",
-      "'PDF / .docx / .json' filenames kept in Latin script — these are the actual file extensions and the spec/architecture uses them as-is."
+      "'PDF / .docx / .json' filenames kept in Latin script — these are the actual file extensions and the spec/architecture uses them as-is.",
+      "'Counterparty type' picker label → 'Vertragspartner-Typ' (the spec uses 'Counterparty' as a loanword; the DE legal term for the matrix's 4-axis column is 'Vertragspartner' — 'Vertragspartner-Typ' is the compound).",
+      "'SMB' kept as 'KMU' (the standard DE business acronym for 'kleine und mittlere Unternehmen').",
+      "'Any' picker option → 'Beliebig' (the standard DE word for 'any' in form contexts; 'Irgendwelche' is clunky).",
+      "'Lookup chain' popover label → 'Matrix-Lookup-Kette' (mirrors the spotter prompt's DE term; 'Kette' emphasises the chain-of-overrides ordering)."
     ],
     "card_relationship": "t_5cf4cb97 (this card's body) — child of t_b238eff4 (DE UI language picker wiring, Perseus), blocked-on card 2 (DE playbook baselines). The picker reads this file at runtime; Perseus's card 7 wires the consumer."
   },
@@ -39,7 +43,14 @@
     "download_pdf": "PDF herunterladen",
     "download_docx": ".docx herunterladen",
     "downloading": "Wird heruntergeladen…",
-    "view_audit_log": "Audit-Protokoll ansehen"
+    "view_audit_log": "Audit-Protokoll ansehen",
+    "counterparty_picker_label": "Vertragspartner-Typ",
+    "counterparty_picker_option_enterprise": "Unternehmen",
+    "counterparty_picker_option_smb": "KMU",
+    "counterparty_picker_option_public_sector": "Öffentlicher Sektor",
+    "counterparty_picker_option_healthcare": "Gesundheitswesen",
+    "counterparty_picker_option_any": "Beliebig (Phase 2-Standard)",
+    "counterparty_picker_help": "Die 4-Achsen-Spalte der Matrix. Die Abweichungsprüfung konsultiert die Zelle (Klauseltyp, Vertragspartner-Typ)."
   },
   "home": {
     "title": "clausecraft",
@@ -115,7 +126,18 @@
     "generate_redline_ready": "Jede Markierung hat eine Entscheidung. Der Änderungsvorschlag kann jetzt generiert werden.",
     "generate_redline_waiting": "Erst alle Markierungen entscheiden (Freigeben / Ablehnen / Bearbeiten / Kontext hinzufügen), dann den Änderungsvorschlag generieren.",
     "generate_redline": "Änderungsvorschlag generieren",
-    "generating": "Wird generiert…"
+    "generating": "Wird generiert…",
+    "matrix_verdict_popover_label": "Matrix-Lookup-Kette",
+    "matrix_verdict_popover_close": "Matrix-Urteil-Popover schließen",
+    "matrix_verdict_acceptable": "akzeptabel",
+    "matrix_verdict_material": "wesentlich",
+    "matrix_verdict_unacceptable": "inakzeptabel",
+    "matrix_verdict_unverified": "unverifiziert",
+    "counterparty_type_enterprise": "Unternehmen",
+    "counterparty_type_smb": "KMU",
+    "counterparty_type_public_sector": "Öffentlicher Sektor",
+    "counterparty_type_healthcare": "Gesundheitswesen",
+    "counterparty_type_any": "Beliebig (flache Vergleichsklausel)"
   },
   "citation_popover": {
     "panel_heading": "Quelle",

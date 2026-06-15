@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DisclaimerFooter } from "@/components/DisclaimerFooter";
 import { LanguagePicker, type PickerValue } from "@/components/LanguagePicker";
+import {
+  CounterpartyPicker,
+  type CounterpartyType,
+} from "@/components/CounterpartyPicker";
 import { detectLanguageFromFile } from "@/lib/detectLanguage";
 import { resolveLanguage, t as i18nT, type SupportedLanguage } from "@/i18n";
 
@@ -232,6 +236,14 @@ export function TriagePage() {
   // The detector's best-effort guess. ``null`` until a file
   // is selected. Phase 4 default is "en" (per the spec).
   const [detected, setDetected] = useState<SupportedLanguage | null>(null);
+  // Phase 5: the picked counterparty type. The default is
+  // ``"enterprise"`` (the spec's "most common" axis). The
+  // value is forwarded to the ingest endpoint as a form
+  // field so the spot stage can consult the right matrix
+  // cell. ``"any"`` is the Phase 2 back-compat fallback
+  // (no matrix lookup, flat baseline).
+  const [counterpartyValue, setCounterpartyValue] =
+    useState<CounterpartyType>("enterprise");
   // The display language for chrome strings (the i18n
   // shim looks up DE from de.json when this is "de").
   // Resolves "auto" → detected → "en" (fallback).
@@ -241,7 +253,11 @@ export function TriagePage() {
   );
 
   const ingest = useMutation({
-    mutationFn: async (args: { file: File; language: SupportedLanguage }): Promise<IngestResponse> => {
+    mutationFn: async (args: {
+      file: File;
+      language: SupportedLanguage;
+      counterpartyType: CounterpartyType;
+    }): Promise<IngestResponse> => {
       const form = new FormData();
       form.append("file", args.file);
       // The backend re-detects per-clause at parse time (card
@@ -251,6 +267,11 @@ export function TriagePage() {
       // picker's raw "auto" value, so the backend always
       // gets a concrete "en" | "de".
       form.append("language", args.language);
+      // Phase 5: forward the picked counterparty type so
+      // the spot stage can consult the matrix's
+      // (clause_type, counterparty_type) cell. The backend
+      // normalises unknown values to "any" (v1 plumbing).
+      form.append("counterparty_type", args.counterpartyType);
       const res = await fetch(`${API_BASE}/contracts/ingest`, {
         method: "POST",
         body: form,
@@ -298,14 +319,18 @@ export function TriagePage() {
       // matches the Phase 1 default behaviour exactly.
       const resolved: SupportedLanguage =
         pickerValue === "auto" ? detected ?? "en" : pickerValue;
-      ingest.mutate({ file, language: resolved });
+      ingest.mutate({
+        file,
+        language: resolved,
+        counterpartyType: counterpartyValue,
+      });
     },
-    // Include pickerValue + detected in deps so the latest
-    // values are read on every upload. The mutation
-    // function captures the latest ``ingest`` (which is
-    // stable across renders in practice) and the current
-    // picker / detect state.
-    [ingest, pickerValue, detected],
+    // Include pickerValue + detected + counterpartyValue in
+    // deps so the latest values are read on every upload.
+    // The mutation function captures the latest ``ingest``
+    // (which is stable across renders in practice) and the
+    // current picker / detect / counterparty state.
+    [ingest, pickerValue, detected, counterpartyValue],
   );
 
   const result = ingest.data;
@@ -347,6 +372,12 @@ export function TriagePage() {
                 onChange={setPickerValue}
                 displayLanguage={displayLanguage}
                 detected={detected ?? undefined}
+                disabled={ingest.isPending}
+              />
+              <CounterpartyPicker
+                value={counterpartyValue}
+                onChange={setCounterpartyValue}
+                displayLanguage={displayLanguage}
                 disabled={ingest.isPending}
               />
               <Dropzone

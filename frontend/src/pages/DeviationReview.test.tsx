@@ -152,21 +152,94 @@ describe("DeviationReviewPage", () => {
     ).toHaveTextContent("no baseline");
   });
 
-  it("renders the matrix verdict column with the flat baseline verdict", () => {
+  it("renders the matrix verdict column with the flat baseline verdict (Phase 2/3/4 fallback)", () => {
     const data = makeData([
       makeFlag({ clause_id: "c1", score: 1 }),
       makeFlag({ clause_id: "c2", score: 3 }),
     ]);
     render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+    // No matrix verdict emitted → the cell falls back to
+    // the score-derived label, with a "flat baseline"
+    // caption, and marks the cell data-fallback="true".
+    const c1 = screen.getByTestId("matrix-verdict-cell-c1");
+    expect(c1).toHaveAttribute("data-fallback", "true");
+    const c1Badge = screen.getByTestId("matrix-verdict-badge-c1");
+    expect(c1Badge).toHaveAttribute("data-matrix-verdict", "minor");
+    expect(c1Badge).toHaveTextContent("minor");
+    expect(c1).toHaveTextContent(/flat baseline/);
+    const c2 = screen.getByTestId("matrix-verdict-cell-c2");
+    expect(c2).toHaveAttribute("data-fallback", "true");
+    const c2Badge = screen.getByTestId("matrix-verdict-badge-c2");
+    expect(c2Badge).toHaveAttribute("data-matrix-verdict", "unacceptable");
+  });
+
+  it("renders the matrix verdict column with the matrix verdict (Phase 5 path)", () => {
+    const data = makeData([
+      makeFlag({
+        clause_id: "c1",
+        score: 2,
+        matrix_verdict: "material",
+        matrix_sources: ["clause_type (counterparty, public_sector)"],
+        matrix_counterparty_type: "public_sector",
+      }),
+      makeFlag({
+        clause_id: "c2",
+        score: 2,
+        matrix_verdict: "acceptable",
+        // No sources → no popover, just a static badge.
+        matrix_sources: [],
+        matrix_counterparty_type: "enterprise",
+      }),
+    ]);
+    render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+    // c1: material verdict, popover trigger present.
+    const c1 = screen.getByTestId("matrix-verdict-cell-c1");
+    expect(c1).toHaveAttribute("data-fallback", "false");
     expect(
-      screen.getByTestId("flag-matrix-verdict-c1")
-    ).toHaveAttribute("data-matrix-verdict", "minor");
+      screen.getByTestId("matrix-verdict-popover-trigger-c1"),
+    ).toBeInTheDocument();
     expect(
-      screen.getByTestId("flag-matrix-verdict-c1")
-    ).toHaveTextContent("minor");
+      screen.getByTestId("matrix-verdict-counterparty-c1"),
+    ).toHaveAttribute("data-counterparty-type", "public_sector");
+    // c2: acceptable verdict, no popover (empty sources).
+    const c2 = screen.getByTestId("matrix-verdict-cell-c2");
+    expect(c2).toHaveAttribute("data-fallback", "false");
     expect(
-      screen.getByTestId("flag-matrix-verdict-c2")
-    ).toHaveAttribute("data-matrix-verdict", "unacceptable");
+      screen.getByTestId("matrix-verdict-badge-c2"),
+    ).toHaveAttribute("data-matrix-verdict", "acceptable");
+    expect(
+      screen.queryByTestId("matrix-verdict-popover-trigger-c2"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("matrix verdict popover opens with the lookup chain when the trigger is clicked", async () => {
+    const user = userEvent.setup();
+    const sources = [
+      "clause_type (counterparty, healthcare)",
+      "clause_type (counterparty, flat)",
+    ];
+    const data = makeData([
+      makeFlag({
+        clause_id: "c1",
+        score: 2,
+        matrix_verdict: "unacceptable",
+        matrix_sources: sources,
+        matrix_counterparty_type: "healthcare",
+      }),
+    ]);
+    render(<DeviationReviewPage {...RENDER_PROPS} data={data} />);
+    await user.click(
+      screen.getByTestId("matrix-verdict-popover-trigger-c1"),
+    );
+    const panel = screen.getByTestId(
+      "matrix-verdict-popover-panel-c1",
+    );
+    expect(panel).toBeInTheDocument();
+    for (let i = 0; i < sources.length; i++) {
+      expect(
+        screen.getByTestId(`matrix-verdict-source-c1-${i}`),
+      ).toHaveTextContent(sources[i]);
+    }
   });
 
   it("Approve button mutates the local action state for the row", async () => {

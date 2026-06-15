@@ -215,6 +215,18 @@ export interface SpotResponse {
     citation: Citation | null;
     unverified: boolean;
     baseline_type: string;
+    // Phase 5: the matrix verdict + lookup chain that
+    // produced the spotter's audit column. Optional
+    // because the Phase 2/3/4 backends never set them
+    // (the spec locks the 4-state column forward-only).
+    matrix_verdict?: "acceptable" | "material" | "unacceptable" | "unverified";
+    matrix_sources?: string[];
+    matrix_counterparty_type?:
+      | "enterprise"
+      | "smb"
+      | "public_sector"
+      | "healthcare"
+      | "any";
   }>;
 }
 
@@ -227,6 +239,16 @@ export function spotResponseToReviewData(r: SpotResponse): DeviationReviewData {
     citation: f.citation,
     unverified: f.unverified,
     baseline_type: f.baseline_type,
+    // Phase 5: forward the matrix verdict + lookup chain
+    // so the deviation table's "Matrix verdict" column
+    // can render a 4-state badge with a popover. The
+    // Phase 2/3/4 backends never set these fields, in
+    // which case ``matrix_verdict`` is ``undefined`` and
+    // the UI falls back to the score-derived label (the
+    // Phase 2 flat-baseline behaviour).
+    matrix_verdict: f.matrix_verdict,
+    matrix_sources: f.matrix_sources,
+    matrix_counterparty_type: f.matrix_counterparty_type,
   }));
   return {
     filename: r.filename,
