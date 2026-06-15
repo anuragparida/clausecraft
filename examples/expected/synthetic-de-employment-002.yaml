@@ -1,0 +1,108 @@
+# Golden set — synthetic-de/employment-002.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# DE SYNTHETIC STRESS #2 — BGB-anchored stress contract (mirror of
+# v1's DE synthetic #1 with DIFFERENT deviations to test the spotter
+# on a second BGB-anchored stress contract).
+#
+# Three hand-injected deviations calibrated to a German
+# Arbeitsrechtsanwalt reviewer's expected verdict:
+#
+# 1. c1 (employment_notice_period) — material: 4-month notice vs.
+#    BGB § 622 statutory Kündigungsfrist of 4 weeks scaling to
+#    7 months only for 20+ years tenure. 4 months is materially
+#    above the § 622 baseline for a new hire.
+# 2. c2 (employment_remuneration) — minor: explicit no-13th-month-
+#    salary / no-Sonderzahlung language vs. IHK Mustervertrag
+#    Januar 2025 § 2 standard (13. Monatsgehalt). Below IHK norm
+#    but above the bare minimum wage. Minor because § 2 IHK is a
+#    model template, not a binding standard.
+# 3. c3 (employment_leave_entitlements) — minor: 24 Werktage at
+#    6-Tage-Woche (= 20 Werktage at 5-Tage-Woche) vs. BUrlG § 3
+#    minimum of 24 Werktage at 6-Tage-Woche. The contract meets
+#    the BUrlG § 3 floor exactly (24/6 = 4 weeks), but is
+#    unusual to express in 6-Tage-Woche terms in modern practice.
+#    Minor because it formally complies with § 3 BUrlG.
+
+contract: examples/contracts/synthetic-de/employment-002.pdf
+type: employment
+language: de
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    # ABWEICHUNG: "vier (4) Monaten" über BGB § 622 statutory Kündigungsfrist
+    text_excerpt: "1. Kündigungsfristen. Das Arbeitsverhältnis kann von beiden Parteien unter Einhaltung einer Kündigungsfrist von vier (4) Monaten zum Monatsende ordentlich gekündigt werden"
+  - id: c2
+    type: employment_remuneration
+    # ABWEICHUNG: "Ein 13. Monatsgehalt, Urlaubsgeld oder eine sonstige Sonderzahlung wird nicht geschuldet"
+    text_excerpt: "2. Vergütung. Der Arbeitnehmer erhält eine monatliche Bruttovergütung in der in Anlage A vereinbarten Höhe, die am Monatsende auf das vom Arbeitnehmer benannte Bankkonto überwiesen wird. Die Vergütung wird jährlich zum 1. Januar überprüft. Ein 13. Monatsgehalt, Urlaubsgeld oder eine sonstige Sonderzahlung wird nicht geschuldet"
+  - id: c3
+    type: employment_leave_entitlements
+    # ABWEICHUNG: "vierundzwanzig (24) Arbeitstagen bei einer Sechs-Tage-Woche" (BUrlG § 3 ambiguous)
+    text_excerpt: "3. Urlaub. Der Arbeitnehmer hat Anspruch auf einen Jahresurlaub von vierundzwanzig (24) Arbeitstagen bei einer Sechs-Tage-Woche, zuzüglich der gesetzlichen Feiertage am Betriebsort"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Außerordentliche Kündigung. Das Recht zur außerordentlichen Kündigung gemäß § 626 BGB bleibt unberührt. Ein wichtiger Grund liegt insbesondere vor bei schweren Pflichtverletzungen, Arbeitsverweigerung, strafbaren Handlungen oder nachhaltiger Verletzung der arbeitsvertraglichen Pflichten"
+  - id: c5
+    type: employment_non_solicitation
+    text_excerpt: "5. Wettbewerbsverbot und Nebentätigkeit. Dem Arbeitnehmer ist es für die Dauer von zwölf (12) Monaten nach Beendigung des Arbeitsverhältnisses untersagt, in Konkurrenz zum Arbeitgeber tätig zu werden, Kunden abzuwerben oder Mitarbeiter abzuwerben. Eine Karenzentschädigung wird nicht gezahlt"
+  - id: c6
+    type: employment_working_hours
+    text_excerpt: "6. Arbeitszeit. Die regelmäßige wöchentliche Arbeitszeit beträgt vierzig (40) Stunden, verteilt auf fünf (5) Werktage von Montag bis Freitag. Die tägliche Arbeitszeit darf acht (8) Stunden nicht überschreiten, gemäß § 3 ArbZG"
+  - id: c7
+    type: employment_probation
+    text_excerpt: "7. Probezeit. Die ersten sechs (6) Monate des Arbeitsverhältnisses gelten als Probezeit. Während der Probezeit kann das Arbeitsverhältnis von beiden Parteien mit einer Frist von zwei (2) Wochen gekündigt werden, gemäß § 622 Abs. 3 BGB"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Verschwiegenheit; Fortbestand. Der Arbeitnehmer verpflichtet sich, alle Betriebs- und Geschäftsgeheimnisse des Arbeitgebers während und nach Beendigung des Arbeitsverhältnisses geheim zu halten. Die Verpflichtung besteht für einen Zeitraum von drei (3) Jahren nach Beendigung des Arbeitsverhältnisses fort"
+
+# Drei erwartete Abweichungen.
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: kuendigungsfrist_4_monate_neue_einstellung
+    rationale: >-
+      „vier (4) Monaten zum Monatsende" überschreitet die
+      gesetzliche Kündigungsfrist des § 622 BGB für eine
+      neue Einstellung erheblich. § 622 BGB sieht für die
+      Grundkündigungsfrist vier Wochen zum 15. oder Ende
+      des Monats vor; eine Staffelung auf sieben Monate
+      greift erst nach 20 Jahren Betriebszugehörigkeit. Die
+      vertragliche Kündigungsfrist von vier Monaten ist
+      damit um ein Vielfaches zu lang und benachteiligt den
+      Arbeitnehmer unangemessen.
+    citation:
+      playbook_clause_id: employment-notice-period
+      source_url: "https://www.gesetze-im-internet.de/bgb/__622.html"
+  - clause_id: c2
+    severity: 1
+    category: keine_sonderzahlung
+    rationale: >-
+      Der ausdrückliche Ausschluss eines 13. Monatsgehalts,
+      Urlaubsgelds und jeder sonstigen Sonderzahlung weicht
+      von der IHK-Standardregelung ab (IHK
+      Musterarbeitsvertrag Januar 2025 § 2 sieht 13.
+      Monatsgehalt vor, hälftig im Juni und November
+      ausgezahlt). Die Abweichung ist geringfügig, da das
+      IHK-Muster eine Vorlage, keine zwingende Norm ist;
+      die Vergütung liegt jedoch erkennbar unter dem
+      branchenüblichen Niveau.
+    citation:
+      playbook_clause_id: employment-remuneration
+      source_url: "https://www.ihk.de/blueprint/servlet/resource/blob/764306/02ef8855772d2df8a4c743b497776f4d/arbeitsvertrag-muster--data.pdf"
+  - clause_id: c3
+    severity: 1
+    category: urlaub_24_werktage_6_tage_woche
+    rationale: >-
+      „vierundzwanzig (24) Arbeitstagen bei einer
+      Sechs-Tage-Woche" entspricht rechnerisch dem
+      gesetzlichen Mindesturlaub des § 3 BUrlG (24
+      Werktage bei 6-Tage-Woche = 20 Werktage bei
+      5-Tage-Woche). Die Angabe in Werktagen ist mit
+      § 3 BUrlG formal konform, in der Praxis jedoch
+      unüblich und für den Arbeitnehmer schwer zu
+      prüfen. Die Klausel ist damit nicht
+      gesetzeswidrig, aber intransparent.
+    citation:
+      playbook_clause_id: employment-leave-entitlements
+      source_url: "https://www.gesetze-im-internet.de/burlg/__3.html"

@@ -1,0 +1,51 @@
+# Golden set — public-de/employment-001.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# DE PUBLIC CLEAN BASELINE #1 — IHK-Musterarbeitsvertrag Januar 2025
+# (IHK-anchored, § 12 Wettbewerbsverbot + § 13 Freistellung).
+#
+# Phase 5 v2 coverage: this contract exercises the 2 DE GAP.md values
+# (garden_leave + non_compete) that v1's 3-contract starter did not
+# cover. Public clean baseline means ZERO expected deviations.
+#
+# The contract follows the IHK-Musterarbeitsvertrag Januar 2025,
+# with § 12 (Wettbewerbsverbot ohne Karenzentschädigung, weil die
+# Verbotsdauer der Dauer des Arbeitsverhältnisses entspricht) and
+# § 13 (Freistellung mit Vergütungsfortzahlung). 30 Tage Urlaub
+# (above BUrlG § 3 minimum of 24 Werktage at 6-Tage-Woche).
+#
+# Source: IHK Musterarbeitsvertrag Januar 2025
+# https://www.ihk.de/blueprint/servlet/resource/blob/764306/
+# 02ef8855772d2df8a4c743b497776f4d/arbeitsvertrag-muster--data.pdf
+
+contract: examples/contracts/public-de/employment-001.pdf
+type: employment
+language: de
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Kündigungsfristen. Das Arbeitsverhältnis kann von beiden Parteien unter Einhaltung der gesetzlichen Kündigungsfristen des § 622 BGB ordentlich gekündigt werden"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Vergütung. Der Arbeitnehmer erhält eine monatliche Bruttovergütung in der in Anlage A vereinbarten Höhe, die am Monatsende auf das vom Arbeitnehmer benannte Bankkonto überwiesen wird"
+  - id: c3
+    type: employment_leave_entitlements
+    text_excerpt: "3. Urlaub. Der Arbeitnehmer hat Anspruch auf einen Jahresurlaub von dreißig (30) Arbeitstagen bei einer Fünf-Tage-Woche, zuzüglich der gesetzlichen Feiertage am Betriebsort, gemäß § 3 BUrlG"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Außerordentliche Kündigung. Das Recht zur außerordentlichen Kündigung gemäß § 626 BGB bleibt unberührt. Ein wichtiger Grund liegt insbesondere vor bei schweren Pflichtverletzungen"
+  - id: c5
+    type: employment_non_compete
+    text_excerpt: "5. Wettbewerbsverbot. Dem Arbeitnehmer ist es für die Dauer von zwölf (12) Monaten nach Beendigung des Arbeitsverhältnisses untersagt, in Konkurrenz zum Arbeitgeber tätig zu werden, Kunden abzuwerben oder Mitarbeiter abzuwerben (§ 12 IHK)"
+  - id: c6
+    type: employment_garden_leave
+    text_excerpt: "6. Freistellung (Garden Leave). Nach Zugang der Kündigung kann der Arbeitgeber den Arbeitnehmer jederzeit unter Fortzahlung der vertraglichen Vergütung von der Arbeitspflicht freistellen (§ 13 IHK)"
+  - id: c7
+    type: employment_working_hours
+    text_excerpt: "7. Arbeitszeit. Die regelmäßige wöchentliche Arbeitszeit beträgt vierzig (40) Stunden, verteilt auf fünf (5) Werktage von Montag bis Freitag, gemäß § 3 ArbZG"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Verschwiegenheit; Fortbestand. Der Arbeitnehmer verpflichtet sich, alle Betriebs- und Geschäftsgeheimnisse des Arbeitgebers während und nach Beendigung des Arbeitsverhältnisses geheim zu halten"
+
+# Clean baseline: no expected deviations.
+expected_deviations: []
