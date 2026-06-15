@@ -320,7 +320,10 @@ def _make_synthetic_de_flag(clause_id: str, *, score: int = 2) -> DeviationFlag:
 
 
 async def _spot_stub_synthetic_de(
-    clauses: list[Any], *, contract_filename: str = ""
+    *,
+    clauses: list[Any],
+    contract_filename: str = "",
+    counterparty_type: str = "any",
 ) -> Any:
     """Spot-stage stub: emit one score=2 flag per input clause.
 

@@ -391,7 +391,10 @@ def drafter_always_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def _spot_stub_synthetic(
-    clauses: list[Any], *, contract_filename: str = ""
+    *,
+    clauses: list[Any],
+    contract_filename: str = "",
+    counterparty_type: str = "any",
 ) -> Any:
     """Spot-stage stub: emit one ``score=2`` flag per input clause.
 
@@ -405,6 +408,13 @@ async def _spot_stub_synthetic(
     :class:`Stage3Result` with one ``score=2`` flag per
     clause, so the downstream ``/decisions`` path has flags
     to act on.
+
+    The Phase 5 ``counterparty_type`` kwarg is accepted for
+    forward-compat with :func:`app.main.post_contracts_spot`
+    (which forwards the request's ``counterparty_type`` to
+    :func:`run_stage3`); the stub ignores it because the
+    stub is contract-agnostic and emits a score-2 flag
+    regardless of the counterparty axis.
     """
     from app.pipeline.stage3_spot import Stage3Result
 
