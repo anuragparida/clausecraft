@@ -106,8 +106,8 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     # smoke test only. The end-to-end harness test
     # (``test_eval_set_runs_end_to_end``) reads the live list from
     # conftest. Keep both in sync when the eval set changes. As of
-    # Phase 5 v1 (card t_463d603d) the live set has 18 contracts
-    # (15 NDA + 3 DPA); the per-contract smoke test is a
+    # Phase 5 v2 (card t_0d594e5e) the live set has 25 contracts
+    # (15 NDA + 10 DPA); the per-contract smoke test is a
     # diagnostic and runs against this shadow.
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
@@ -167,6 +167,35 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     (
         "examples/contracts/synthetic-de/dpa-001.pdf",
         "examples/expected/synthetic-dpa-de-001.yaml",
+    ),
+    # Phase 5 v2 (t_0d594e5e): DPA eval set expansion, 7 more.
+    (
+        "examples/contracts/public/dpa-002.pdf",
+        "examples/expected/dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public/dpa-003.pdf",
+        "examples/expected/dpa-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/dpa-002.pdf",
+        "examples/expected/synthetic-dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-001.pdf",
+        "examples/expected/public-de-dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-002.pdf",
+        "examples/expected/public-de-dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-003.pdf",
+        "examples/expected/public-de-dpa-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/dpa-002.pdf",
+        "examples/expected/synthetic-dpa-de-002.yaml",
     ),
 ]
 

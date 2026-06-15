@@ -114,22 +114,31 @@ EXPECTED_DIR: Path = REPO_ROOT / "examples" / "expected"
 RUNS_DIR: Path = EVALS_DIR / "runs"
 
 
-# --- Eval set: 18 contracts (Phase 2 + Phase 4 + Phase 5 v1) ----------
+# --- Eval set: 25 contracts (Phase 2 + Phase 4 + Phase 5 v1 + Phase 5 v2) -
 
 
-# The eval set as of the Phase 5 v1 expansion (card t_463d603d).
+# The eval set as of the Phase 5 v2 expansion (card t_0d594e5e).
 # Layout:
 #   public/        nda-001 .. nda-005  (5 public-template-style clean baselines, Phase 2)
 #                   dpa-001            (1 public DPA clean baseline, Phase 5 v1, GDPR Art. 28+33 anchored)
+#                   dpa-002            (1 public DPA clean baseline, Phase 5 v2, EDPB Guidelines 07/2020 § 6 anchored)
+#                   dpa-003            (1 public DPA clean baseline, Phase 5 v2, IAPP Model DPA anchored)
 #   synthetic/     nda-001, nda-002    (2 stress contracts, Phase 2)
 #                   dpa-001            (1 stress contract, Phase 5 v1, 3 deviations)
+#                   dpa-002            (1 stress contract, Phase 5 v2, 3 NEW deviation categories)
 #   hand-curated/  nda-001 .. nda-003  (3 realistic deviation contracts, Phase 2)
 #   public-de/     nda-001 .. nda-003  (3 DE clean baselines, Phase 4.1)
+#                   dpa-001            (1 DE public DPA clean baseline, Phase 5 v2, Art. 28 DSGVO anchored)
+#                   dpa-002            (1 DE public DPA clean baseline, Phase 5 v2, DSK Kurzpapier Nr. 13 anchored)
+#                   dpa-003            (1 DE public DPA clean baseline, Phase 5 v2, BDSG § 62 anchored)
 #   synthetic-de/  nda-001, nda-002    (2 DE stress contracts, Phase 4.1)
 #                   dpa-001            (1 DE stress contract, Phase 5 v1, 3 deviations)
-# 5 + 1 + 2 + 1 + 3 + 3 + 2 + 1 = 18.
-# Phase 5 v2 (t_f3212fc0) will grow the dpa_* count to 7 + 3 = 10
-# once v1's F1 is acceptable.
+#                   dpa-002            (1 DE stress contract, Phase 5 v2, 3 NEW deviation categories)
+# 5 NDA public + 3 DPA public + 2 NDA synth + 1 DPA synth v1 + 1 DPA synth v2
+# + 3 NDA hand-curated + 3 NDA public-de + 3 DPA public-de
+# + 2 NDA synth-de + 1 DPA synth-de v1 + 1 DPA synth-de v2
+# = 5+3+2+1+1+3+3+3+2+1+1 = 25.
+# Phase 5 v2 (t_0d594e5e) grew the dpa_* count from 3 (v1) to 10 (v2).
 EVAL_CONTRACTS: list[tuple[str, str]] = [
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
@@ -186,8 +195,6 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     # 2 synthetic stress contracts carry 3 hand-injected deviations
     # each (6 total). 7 dpa_* taxonomy values are exercised across
     # the 3 contracts (above the 3-minimum acceptance criterion).
-    # The v2 expansion (t_f3212fc0) grows the set to 10 once v1's
-    # F1 is acceptable.
     (
         "examples/contracts/public/dpa-001.pdf",
         "examples/expected/dpa-001.yaml",
@@ -199,6 +206,46 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     (
         "examples/contracts/synthetic-de/dpa-001.pdf",
         "examples/expected/synthetic-dpa-de-001.yaml",
+    ),
+    # Phase 5 v2 (t_0d594e5e): DPA eval set expansion, 7 more
+    # contracts. 2 more public-EN clean baselines (EDPB Guidelines
+    # 07/2020 § 6 + IAPP Model DPA) + 1 more synthetic-EN stress
+    # (3 NEW deviation categories: subprocessor_flowdown,
+    # data_subject_rights, data_return_deletion) + 3 more
+    # public-DE clean baselines (Art. 28 DSGVO + DSK Kurzpapier
+    # Nr. 13 + BDSG § 62) + 1 more synthetic-DE stress (3 NEW
+    # deviation categories: subprocessor_flowdown,
+    # international_transfer, data_return_deletion).
+    # Combined v1 + v2: 10 DPA contracts spanning 6 distinct
+    # public hosts (3 EN + 3 DE) and 12 distinct deviation
+    # categories across 9 dpa_* ClauseType values.
+    (
+        "examples/contracts/public/dpa-002.pdf",
+        "examples/expected/dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public/dpa-003.pdf",
+        "examples/expected/dpa-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/dpa-002.pdf",
+        "examples/expected/synthetic-dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-001.pdf",
+        "examples/expected/public-de-dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-002.pdf",
+        "examples/expected/public-de-dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-003.pdf",
+        "examples/expected/public-de-dpa-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/dpa-002.pdf",
+        "examples/expected/synthetic-dpa-de-002.yaml",
     ),
 ]
 
