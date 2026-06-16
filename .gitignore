@@ -53,6 +53,10 @@ clausecraft_postgres_data/
 evals/runs/*.json
 !evals/runs/.gitkeep
 
+# Asciinema recording artifacts (the .cast and .sh are committed;
+# the rendered .docx is a runtime copy of demo/expected-redline.docx)
+demo/redline-from-cast.docx
+
 # Eval cache (PDF text, embeddings, golden YAMLs — re-built from inputs)
 evals/.cache/*.json
 !evals/.cache/.gitkeep

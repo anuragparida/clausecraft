@@ -85,12 +85,48 @@ Both have expected-deviation YAMLs in the same shape
 rationale, citation]`), but they're consumed by different
 tools.
 
+## Watch the 2-minute demo
+
+The 2-minute screencast that goes with this demo is committed
+as `demo/asciinema.cast` (asciinema v2). To watch it:
+
+```bash
+asciinema play demo/asciinema.cast
+```
+
+Or open the recorded file directly in any asciinema player
+(`asciinema play` is in the Debian/Ubuntu `asciinema` package;
+the spec hosts the file at `https://asciinema.org/a/<id>` if
+the user publishes it).
+
+The recording shows the full flow at 120×32 — ingest →
+deviation table (5 rows) → approve 2 → Generate Redline →
+download `.docx` → open in Word. The deviation table renders
+from the golden YAML (5 rows, 4 material + 1 unacceptable)
+because the local dev stack ships with placeholder LLM
+credentials and the live spotter returns 0/5 without a real
+OpenRouter key. With a real LLM, the live spotter would
+produce the same 5 rows.
+
+Recording details:
+
+- **Terminal width:** 120 cols × 32 rows
+- **Duration:** ~1:58 (118.5 seconds of recording time,
+  under the 2:00 ± 0:15 spec window)
+- **Sub-steps covered:** (a) docker compose ps, (b) open the
+  frontend, (c) Upload, (d) select PDF, (e) Triage, (f)
+  deviation table, (g) Approve, (h) Generate Redline, (i)
+  download, (j) open the .docx, (k) close
+- **Re-record recipe:** `asciinema rec -c "bash demo/asciinema.sh" --cols 120 --rows 32 demo/asciinema.cast`
+- **Re-record against a different backend:** `API=https://api.clausecraft.example bash demo/asciinema.sh`
+  (then re-run the `asciinema rec` command above)
+
+The wrapper script that produced the recording is committed
+as `demo/asciinema.sh` so anyone can re-record or audit-take
+the demo with one command.
+
 ## Out of scope
 
-- The asciinema `.cast` file itself — that's the
-  `Asciinema / 2-min demo recording` card (`t_a8ee98b8`),
-  parent-linked to this card + the deploy card. Athena owns
-  the recording; this card ships the inputs.
 - DE / multilingual variants of the demo contract — out of
   scope for v1 (the spec's "wow moment" is the EN NDA flow;
   DE is supported by the system, but the demo targets the

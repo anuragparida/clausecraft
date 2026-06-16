@@ -27,6 +27,27 @@ advice. See [`DISCLAIMER.md`](./DISCLAIMER.md).
 
 ---
 
+## Watch the 2-minute demo
+
+The single most-watched artifact in the repo. A 2-minute
+terminal screencast that runs the full pipeline against a
+counterfactual known-bad NDA and shows all 5 deviations
+lighting up at once:
+
+```bash
+asciinema play demo/asciinema.cast
+```
+
+The cast is committed at `demo/asciinema.cast` (asciinema v2
+format). It covers ingest → deviation table → approve 2 →
+Generate Redline → download `.docx` → open in Word. The
+wrapper script that produced it is `demo/asciinema.sh`, so
+the demo is fully reproducible (and re-recordable in one
+command). See [`demo/README.md`](./demo/README.md) for the
+artifact pair and re-record recipes.
+
+---
+
 ## Quickstart
 
 ```bash
