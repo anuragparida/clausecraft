@@ -246,6 +246,38 @@ mocked LLM responses), so re-runs are sub-second once the cache is warm.
 
 ---
 
+## Deploy
+
+The repo ships a single-host production overlay on top of the dev
+Docker Compose stack: Caddy as the reverse proxy with auto-TLS via
+Let's Encrypt, a `docker-compose.prod.yml` that extends the dev
+stack without duplicating it, a `.env.prod.example` template, and a
+`scripts/render-env-prod.sh` that fills the secrets with
+`openssl rand -hex 32`. The full runbook (provision, DNS, cert
+issuance, smoke test, the seven-step deploy) lives in
+[`docs/DEPLOY.md`](./docs/DEPLOY.md).
+
+**First time checklist**
+
+1. Pick a host (Hetzner or Fly.io — your call, per the spec).
+2. `cp .env.prod.example .env.prod && ./scripts/render-env-prod.sh` —
+   fills `POSTGRES_PASSWORD`, `BACKEND_API_KEY`, the three Langfuse
+   secrets. You then edit `.env.prod` to set `DOMAIN`, `ACME_EMAIL`,
+   and (optionally) real `LLM_API_KEY` / `EMBEDDING_API_KEY`.
+3. `docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d`
+4. Point `app.${DOMAIN}`, `api.${DOMAIN}`, `langfuse.${DOMAIN}` A/AAAA
+   records at the host's public IP.
+5. Caddy auto-issues Let's Encrypt certs on the first request to
+   each hostname. `curl -I https://app.${DOMAIN}` returns 200 once
+   the cert is in place (~30s after DNS propagates).
+
+The actual public deploy (host provision, DNS, cert challenge) is
+intentionally **not** automated in the repo — picking a target,
+provisioning, and pointing DNS are Anurag's call. The artifacts
+are target-agnostic; the runbook is the contract.
+
+---
+
 ## Layout
 
 ```
@@ -253,10 +285,19 @@ clausecraft/
 ├── backend/            # FastAPI + SQLAlchemy + LangGraph (uv, Python 3.12)
 ├── frontend/           # Vite + TS + React + Tailwind + shadcn-style dark mode (pnpm)
 ├── docs/               # 11 spec docs (overview, features, architecture, ...)
-├── docker-compose.yml  # single-host stack
-├── .env.example        # all env vars stubbed, no real secrets
+├── docker-compose.yml  # single-host dev stack
+├── docker-compose.prod.yml  # production overlay (adds Caddy, strips dev ports)
+├── Caddyfile           # Caddy config (3 routes: app/api/langfuse.${DOMAIN})
+├── scripts/
+│   ├── caddy-entrypoint.sh  # envsubst + caddy validate + caddy run
+│   └── render-env-prod.sh   # fills .env.prod with openssl rand -hex 32
+├── .env.example        # dev env vars stubbed, no real secrets
+├── .env.prod.example   # prod env template (use render-env-prod.sh to fill)
 └── DISCLAIMER.md       # the "not legal advice" text
 ```
+
+See [`docs/DEPLOY.md`](./docs/DEPLOY.md) for the full deploy runbook
+and the file-level role of each new artifact.
 
 ---
 

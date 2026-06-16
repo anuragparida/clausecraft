@@ -1,0 +1,109 @@
+name: clausecraft-prod
+
+# Production overlay for the clausecraft single-host deploy.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#       --env-file .env.prod up -d
+#
+# Docker Compose merges files left-to-right, so this overlay:
+#   1. Adds the `caddy` reverse-proxy service.
+#   2. Strips the dev-stack port publishes (18000/15173/13000/13001)
+#      so the dev ports are not exposed on the public IP. We use
+#      compose's `!reset` merge syntax to clear the inherited
+#      `ports:` list, then re-declare nothing (so the service is
+#      reachable only via the docker network, never via the host).
+#   3. Overrides NEXTAUTH_URL on the langfuse-web service so the
+#      OAuth callback works against the public langfuse.${DOMAIN}.
+#
+# What this overlay does NOT do:
+#   - Pick a deploy target (Hetzner vs Fly.io is Anurag's call). The
+#     overlay runs on any single Linux host that has Docker + ports
+#     80/443.
+#   - Provision DNS. Pointing A/AAAA records at the host is a
+#     separate step in `docs/DEPLOY.md`.
+#   - Provision the host. That's the same doc's first step.
+#   - Generate production secrets. `scripts/render-env-prod.sh` fills
+#     `.env.prod` with `openssl rand -hex 32` values; never commit it.
+
+services:
+  caddy:
+    image: docker.io/caddy:2-alpine
+    container_name: clausecraft-caddy
+    # Host network so port 80/443 + the Let's Encrypt HTTP-01 challenge
+    # work without a cert volume on the host. Caddy stores the issued
+    # certs in /data inside the container (named volume below), so the
+    # host network doesn't lose them on container restart.
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set in .env.prod (e.g. example.com)}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@${DOMAIN}}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      # Bind-mount the Caddyfile as a template. The entrypoint runs
+      # envsubst on it to resolve ${DOMAIN} / ${ACME_EMAIL} /
+      # ${ACME_CA} from the .env.prod file before exec'ing caddy.
+      - ./Caddyfile:/etc/caddy/Caddyfile.template:ro
+      - ./scripts/caddy-entrypoint.sh:/usr/local/bin/caddy-entrypoint.sh:ro
+    command: ["/usr/local/bin/caddy-entrypoint.sh"]
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+      langfuse-web:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---- Override dev-stack services for prod ----
+  #
+  # The dev compose publishes 18000/15173/13000/13001 to the host. In
+  # prod we strip those publishes — Caddy (on the host network) talks
+  # to the services via their docker network aliases, and we don't
+  # want the dev ports reachable on the public IP.
+  #
+  # Compose v2.24+ supports the `!reset` YAML tag to clear an
+  # inherited list before merging. So `ports: !reset []` clears
+  # the dev compose's port publishes. The service is reachable only
+  # via the docker network, never via the host.
+
+  postgres:
+    # Postgres stays on the internal docker network in prod. The
+    # backend and langfuse-web reach it via `postgres:5432`. The dev
+    # compose's 15432:5432 publish is for local dev tooling (psql,
+    # pgAdmin, Alembic) and must NOT be exposed on the public IP in
+    # prod.
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+
+  frontend:
+    ports: !reset []
+
+  langfuse-web:
+    ports: !reset []
+    # Override NEXTAUTH_URL — in prod it's the public langfuse.${DOMAIN}
+    # URL, not localhost:13000. The default in docker-compose.yml
+    # points at the dev port, which would break the OAuth callback in
+    # prod.
+    environment:
+      NEXTAUTH_URL: https://langfuse.${DOMAIN}
+
+volumes:
+  caddy_data:
+    name: clausecraft_caddy_data
+  caddy_config:
+    name: clausecraft_caddy_config

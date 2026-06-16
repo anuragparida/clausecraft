@@ -32,6 +32,15 @@ build/
 .env
 .env.local
 .env.*.local
+# Production env (per Phase 6 / card t_7a84ecb6). The .example
+# template is committed; the real secrets (Postgres password, Langfuse
+# NextAuth + Salt + Encryption key, backend API key) NEVER are.
+.env.prod
+.env.prod.local
+# Caddy state (per Phase 6). Caddy's data dir holds the issued Let's
+# Encrypt certs; keep that out of git.
+caddy_data/
+caddy_config/
 
 # Generated / runtime
 *.log
