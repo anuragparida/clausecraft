@@ -1,332 +1,121 @@
 # clausecraft
 
-> Upload a contract, get a deviation table against a public-source playbook,
-> approve the redlines you want, download a tracked-changes .docx. Every flag
-> is cited. Nothing is trusted by default. Not legal advice.
+> Upload a contract, get a deviation table against a public-source playbook, approve the redlines you want, download a tracked-changes .docx. Every flag is cited. Nothing is trusted by default.
 
-A multi-agent pipeline — ingest, classify, deviation-spot, redline,
-human-review, output — that takes a privacy or commercial contract in **EN
-or DE**, parses it into clauses, scores each clause 0–3 against a
-public-source baseline playbook (EU SCCs, IAPP, BGB, ABA, DSGVO,
-Tarifvertrag), and produces a tracked-changes .docx with a deviation table
-and a plain-language summary memo. The dev agent cites the specific
-playbook clause AND the contract text it compared; flags without citations
-are downgraded to "unverified." A counterparty matrix encodes when a
-deviation is acceptable vs material (e.g. "LoL 1y cap → acceptable for
-SaaS, material for healthcare vendor") — see
-[§ Supported contract types](#supported-contract-types) for the matrix
-claim. Every decision is logged to an immutable Postgres audit table and
-traced through Langfuse.
+A multi-agent pipeline — **ingest → classify → deviation-spot → redline → human-review → output** — that takes a privacy or commercial contract in **English or German**, parses it into clauses, scores each clause 0–3 against a public-source baseline playbook (EU SCCs, IAPP, BGB, ABA, DSGVO, Tarifvertrag), and produces a tracked-changes `.docx` with a deviation table and a plain-language summary memo. Three contract types are in scope: **NDA, DPA, Employment**. Every deviation cites the specific playbook clause AND the contract text it was compared against; flags without citations are marked **unverified**. A four-axis counterparty matrix encodes when a deviation is acceptable vs material — e.g. *"1y limitation of liability → acceptable for SaaS, material for healthcare vendor."* Every decision is logged to an immutable Postgres audit table and traced through Langfuse.
 
-> Spellbook costs $30k/year. This costs an LLM API key. The playbook is
-> public. The redlines are reproducible. Read the eval set before you call
-> it a toy.
+![Deviation review — 2 sample flags (c1 cited material, c2 no-baseline) on the standalone /review page](docs/screenshots/deviation-table.png)
 
-**This is a research / portfolio project, not a product.** It is not legal
-advice. See [`DISCLAIMER.md`](./DISCLAIMER.md).
+> *Spellbook costs $30k/year. This costs an LLM API key. The playbook is public. The redlines are reproducible. Read the eval set before you call it a toy.*
+
+**This is a research / portfolio project, not a product. It is not legal advice.** See [`docs/LEGAL.md`](./docs/LEGAL.md) for the full disclaimer.
 
 ---
 
 ## Quickstart
 
 ```bash
-# 1. Copy env stubs (no real secrets in .env.example)
-cp .env.example .env
-
-# 2. Bring the stack up
-docker compose up --build
-
-# 3. Wait for the first boot (Postgres + Langfuse init take a minute)
-#    Then verify every port is reachable:
-
-curl -s -w 'status=%{http_code}\n' http://localhost:18000/healthz
-curl -s http://localhost:15173/ | head -20
-curl -s -o /dev/null -w 'status=%{http_code}\n' http://localhost:13000/
-psql -h localhost -p 15432 -U clausecraft -d clausecraft \
-  -c "SELECT extversion FROM pg_extension WHERE extname='vector';"
+git clone https://github.com/anuragparida/clausecraft.git
+cd clausecraft
+cp .env.example .env                       # no real secrets in the stub
+docker compose up --build                  # postgres + backend + frontend + langfuse
+# wait ~30s for first-boot, then verify:
+curl -s -w 'frontend=%{http_code}\n' -o /dev/null http://localhost:15173/
+curl -s -w 'backend=%{http_code}\n'  -o /dev/null http://localhost:18000/healthz
+# open http://localhost:15173/ → click "Triage contracts" → upload a PDF
 ```
 
-| Service | Port | What it is |
-|---|---|---|
-| FastAPI backend | http://localhost:18000 | main API (Phase 0: `/healthz`, `POST /contracts` → 501, `POST /graph/echo`) |
-| Vite frontend | http://localhost:15173 | single-page UI (Phase 0: "Coming soon" + disclaimer) |
-| Langfuse web | http://localhost:13000 | LLM observability (login screen) |
-| Langfuse API | http://localhost:13001 | Langfuse ingestion API |
-| Postgres | `localhost:15432` | pgvector-enabled DB (user: `clausecraft`, db: `clausecraft`) |
+| Service     | URL                          | What it is                                  |
+|-------------|------------------------------|---------------------------------------------|
+| Frontend    | http://localhost:15173       | Vite + React UI (triage, review, audit)     |
+| Backend     | http://localhost:18000       | FastAPI (`/healthz`, `/contracts/*`)         |
+| Langfuse    | http://localhost:13000       | LLM observability (every call traced)       |
+| Postgres    | `localhost:15432`            | pgvector-enabled DB (audit log + vectors)   |
 
-Ports are high-numbered (12000+) on purpose: Honcho and the custom dashboard
-already bind the conventional 3000/5432/8000/9874/9875 ranges on this host.
-See `docs/08-tech-stack.md` for the full rationale.
+Ports are high-numbered (12000+) on purpose: this host already binds 3000/5432/8000/9874/9875 for other projects. See [`docs/08-tech-stack.md`](./docs/08-tech-stack.md) for the full rationale.
 
----
+### Try the demo contract
 
-## Status
-
-**Phase 5 — DPA + Employment + counterparty matrix — is the current build
-target.** NDA runs end-to-end in EN and DE (Phase 3 review, audit log,
-redline export). The DE pipeline (Phase 4) ships the eval set, per-clause
-language detection, DE-localized prompts, and the per-language F1 + 10% /
-5% gap assertions. Phase 5 adds the second and third v1 contract types
-(DPA, Employment) and the 4-axis counterparty matrix. See
-[§ Supported contract types](#supported-contract-types) for the 3×2
-coverage table. Subsequent phases:
-
-1. **Phase 1** — ingest + parse + classify (NDA, EN).
-2. **Phase 2** — playbook + deviation spotter (NDA, EN) + eval harness.
-3. **Phase 3** — redline drafter + HITL state machine + audit log.
-4. **Phase 4** — bilingual pass (DE).
-5. **Phase 5** — DPA + Employment + counterparty matrix. (See [§ Supported contract types](#supported-contract-types) for the current 3×2 coverage.)
-6. **Phase 6** — polish + deploy + demo.
-
-See [`docs/11-phases.md`](./docs/11-phases.md) for the full plan and
-[`docs/00-overview.md`](./docs/00-overview.md) for the locked scope.
+A known-bad NDA with 5 hand-crafted deviations lives in [`demo/known-bad-nda.pdf`](./demo/known-bad-nda.pdf), with the expected redline in [`demo/expected-redline.docx`](./demo/expected-redline.docx). Upload `known-bad-nda.pdf` to the running stack and compare the system's output to the expected redline — the deviations match by design.
 
 ---
 
-## Supported contract types
+## What this isn't
 
-Phase 5 ships the second and third v1 contract types (DPA, Employment) on
-top of the Phase 1 NDA. Each cell of the table below lists the current
-eval-set coverage; the section after it names the counterparty matrix that
-decides whether a deviation is acceptable, material, or unacceptable.
+clausecraft is a triage tool and a tracked-changes redline generator. It is **not**:
 
-| Contract type | EN | DE |
-|---|---|---|
-| NDA | full | full |
-| DPA | matrix-aware (v1 eval) | matrix-aware (v1 eval) |
-| Employment | matrix-aware (v1 eval) | matrix-aware (v1 eval) |
+- **Not legal advice.** A deviation table is a checklist of things to look at, not a verdict. A real lawyer reviews the contract that matters. The full disclaimer — what the system is appropriate for, what it isn't, and the F1 numbers that bound the claims — is in [`docs/LEGAL.md`](./docs/LEGAL.md).
+- **Not a regulated SaaS.** No SOC 2, no multi-tenant auth, no billing. Single operator, single host.
+- **Not jurisdiction-specific.** The playbook is anchored to public sources (EU SCCs, IAPP, ABA, BGB, DSGVO) but the counterparty matrix is *our judgment* about what's acceptable for an SMB vs an enterprise — different lawyers will disagree. The matrix is configurable per `playbook/counterparty_matrix.yaml`.
+- **Not a substitute for human review.** The HITL step is the product's thesis. Every redline comes from a decision a human made on a flagged clause.
+- **Not real-time.** The deviation spotter is a multi-agent LLM pass per clause; expect tens of seconds for a typical NDA, more for a 30-page DPA.
 
-**Status legend**
-
-- **full** — the pipeline runs end-to-end, the deviation F1 on the eval set
-  is 1.0, and the counterparty matrix is in the lookup chain. NDA is the
-  only type with a public run report ([`evals/runs/…`](./evals/runs/)).
-- **matrix-aware (v1 eval)** — the classifier, the deviation spotter, and
-  the matrix-aware verdict path are all wired for this type and language,
-  and the v1 eval set (3 contracts per type per language — see
-  `examples/expected/`) runs green. **The full Phase 5 eval set (~30
-  contracts) is still in build** — see [§ What this isn't](#what-this-isnt-1)
-  below. The formal "matrix actually changes verdicts on 3+ contracts"
-  Helena review (card `t_42acdddc`) is still `todo` and will run before
-  any of these cells flip to "full."
-- The 6-cell grid is the v1 scope. Future contract types (sale of goods,
-  M&A, services) are out of scope for Phase 5.
-
-### Counterparty matrix
-
-A deviation is not just a deviation. A "no liability cap" flag on an NDA
-with a Fortune 500 counterparty is acceptable — the enterprise has the
-margin to absorb the risk. The same flag on an NDA with a 10-person SMB is
-material — the SMB does not. Clausecraft encodes this judgment in a
-counterparty matrix
-([`playbook/counterparty_matrix.yaml`](./playbook/counterparty_matrix.yaml))
-that the deviation spotter consults on every flag.
-
-The matrix has four axes:
-
-- **enterprise** — large companies with in-house counsel. Most permissive
-  defaults; the matrix only narrows verdicts for non-negotiable statutory
-  regimes (HIPAA BAA, BGB Karenzentschädigung).
-- **smb** — small / medium businesses, often standard-form contracts.
-  Asymmetric risk bearing is the dominant signal.
-- **public_sector** — government agencies, municipal, federal. Hard
-  statutory floors (Datenlokation, civil-service protections, procurement
-  law) dominate; the matrix narrows aggressively.
-- **healthcare** — HIPAA-bound entities (US), Krankenhäuser and
-  Pflegeeinrichtungen (DE). Sector-specific data-protection regimes
-  (HIPAA BAA, GDPR Art 9 special-category data) dominate.
-
-**The matrix is our judgment.** It is anchored against common public-source
-contract templates (EU SCCs, IAPP, BGB, KSchG, HIPAA, EDPB) but it is *not*
-a legal standard. Different lawyers will disagree on what is acceptable for
-an SMB vs an enterprise. The README says this explicitly because the
-alternative — no matrix — is a silent opinion anyway.
-
-**The matrix is configurable.** Override a single cell, a whole axis, or a
-whole contract type by editing
-[`playbook/counterparty_matrix.yaml`](./playbook/counterparty_matrix.yaml);
-the spotter picks the change up on the next ingest. Per-cell `# source:`
-comments name the legal regime and public source the verdict is anchored
-against so the override decision is informed. A reloadable YAML means
-there is no recompile, no redeploy, no "raise a card to change a verdict"
-— just edit and re-ingest.
-
-### What this isn't
-
-The supported-types table is honest about what the eval set currently
-exercises, not what the system *could* exercise. The matrix is opinionated
-and configurable. The eval set is small (NDA 15 contracts, DPA 3 v1,
-Employment 3 v1). The deviation F1 on the NDA run is 1.0 in mock mode;
-real-LLM numbers will land when the eval harness is wired to a non-mock
-model. None of this is legal advice — see [`DISCLAIMER.md`](./DISCLAIMER.md).
+See the *Eval* section below for the F1 numbers, and [`docs/09-threat-model.md`](./docs/09-threat-model.md) for the model failure modes we don't claim to handle.
 
 ---
 
-## Audit trail
+## Threat model (1 paragraph)
 
-Every decision the system makes and every action the user takes leaves a row.
-The audit log is an append-only Postgres table — a trigger rejects UPDATE and
-DELETE at the database level, so rows can be inserted but not edited or
-removed. The trigger is a defense against accidental modification, not against
-a determined adversary with shell on the box. If someone with root wants to
-rewrite history, the log will not stop them. For everything short of that, the
-log answers the question honestly.
-
-What gets recorded: every approval, rejection, severity override, context
-note, redline generation, and redline download — with `decided_by` (the
-operator id) and `decided_at` (server-set, not caller-supplied) for each. The
-schema is `(contract_id, clause_id, decision_type, payload_json, decided_by,
-decided_at)`.
-
-Who decides: the user. The system proposes; the human disposes. The HITL step
-is the product's thesis, not a checkbox — see
-[`docs/09-threat-model.md`](./docs/09-threat-model.md) for why this matters.
-
-What the export looks like: JSON for re-import and machine reading, PDF for
-humans. Both per-contract, both generated from the same row set, both
-downloadable from the AuditReplay page. The JSON includes every decision in
-chronological order with `schema_version` (a major-version string,
-currently `"1"`, bumped on breaking format changes) and `exported_at`
-fields at the top; the PDF is the same chain rendered for a human
-reader, suitable for handing to a prospect's legal team. Files are
-named `audit-{contract_id}.json` and `audit-{contract_id}.pdf`.
-
-What the audit log is *not*: it is not a multi-tenant system, not a SOC 2
-artifact, and not a substitute for the disclaimer in
-[`DISCLAIMER.md`](./DISCLAIMER.md). It is a row you can point at when someone
-asks why clause 7 was flagged severity 3 and what the operator did about it.
-The answer is a timestamp, not a guess.
-
-The append-only guarantee is enforced by a Postgres trigger installed in
-[`backend/alembic/versions/0002_audit_log_phase3.py`](./backend/alembic/versions/0002_audit_log_phase3.py).
-The spec for this phase lives in
-[`docs/11-phases.md` § Phase 3](./docs/11-phases.md#phase-3-redline-drafter-hitl-state-machine-audit-log).
-
-The string on the AuditReplay page, next to the download buttons:
-
-> Every approval, rejection, severity override, redline generation, and
-> download for this contract, with timestamps and the operator id. Not a
-> substitute for the disclaimer; a record of what happened.
-
----
-
-## Languages
-
-Supports **English and German** NDAs out of the box. DE is a first-class
-target, not a port: the eval set has 5 DE contracts (3 public-source
-baselines + 2 hand-crafted stress contracts with known deviations), the
-playbook baselines include 5 DE sources (BMJ juristic portal, DIHK,
-IHK-München, IHK-Hessen, WKO FEEI Mustervertrag), and the per-clause
-language detector runs on every parsed clause. The DE term for an NDA is
-`Geheimhaltungsvereinbarung` (GHV) — sometimes still called
-`Vertraulichkeitsvereinbarung`.
-
-**What this isn't, for DE specifically:** Kein Ersatz für Rechtsberatung
-durch einen deutschen Rechtsanwalt. A deviation table is a checklist of
-things to look at, not a verdict. BGB § 305 ff. AGB-Kontrolle, BGH
-Vertragsstrafen-Rechtsprechung (5 % der Auftragssumme in AGB), and § 38 ZPO
-kaufmännischer Gerichtsstand are all things a real German lawyer will
-read in the actual contract that this system does not. See
-[`DISCLAIMER.md`](./DISCLAIMER.md) for the full "not legal advice" text
-and `docs/09-threat-model.md` for why the disclaimer isn't a checkbox.
-
-### Per-language quality bar
-
-The eval harness reports per-language F1 + a 10 % deviation F1 / 5 %
-citation completeness **gap assertion** (EN vs DE). The thresholds are
-code assertions, not docs — a regression fails CI. From the most recent
-run on the 15-contract eval set (`evals/runs/20260609T074418Z.json`):
-
-| Language | Classification F1 | Deviation F1 | Citation completeness | Severity mismatches |
-|---|---|---|---|---|
-| EN | 0.70 | 1.00 | 1.00 | 0 |
-| DE | 0.05 | 1.00 | 1.00 | 0 |
-| **Gap (EN vs DE)** | **0.65** | 0.00 | 0.00 | 0 |
-
-The deviation F1 / citation completeness gap is the spec's 10 % / 5 %
-budget — both well within. The classification F1 gap is **honest and
-unflattering** and is reported as-is. The DE classifier is rule-based and
-fails on the German label set (e.g. `definition_confidential_info` ↔
-`definition` confusion on § 2 GeschGehG clauses); the LLM-driven classifier
-is gated on a follow-up card. The deviation F1 number — the one that
-matters for the product — is 1.0 on DE in mock mode and matches EN
-exactly.
-
-### A real DE deviation table
-
-From `synthetic-de/nda-001.pdf`, a 7-clause DE NDA with 3 hand-injected
-deviations. The harness flagged all 3. The c4 (Ausnahmen) deviation
-shows the spotter's full output: clause excerpt, the playbook baseline it
-was compared against, and the German-language rationale the spotter
-emits.
-
-| Field | Value |
-|---|---|
-| **Clause** | c4 — `4. Ausnahmen` (residual_knowledge) |
-| **Severity** | 1 (minor) |
-| **Contract text** | "Von der Vertraulichkeitsverpflichtung ausgenommen sind Informationen, an denen die empfangende Partei (i) bereits vor der Offenlegung nachweislich im rechtmäßigen Besitz war, oder (ii) die ohne Verstoß gegen diese Vereinbarung unabhängig entwickelt hat, oder (iii) die von einem zur Offenlegung berechtigten Dritten erhalten hat, oder (iv) die ohne Verstoß gegen diese Vereinbarung allgemein bekannt sind. Im Gedächtnis der Mitarbeiter der empfangenden Partei verbleibende allgemeine Erfahrung darf frei verwendet werden." |
-| **Citation** | `ausnahmen-von-der-vertraulichkeit` — [WKO FEEI Mustervertrag, Art. 2](https://www.wko.at/oe/agb/feei-muster-geheimhaltungsvereinbarung.pdf) |
-| **Rationale (DE)** | Die vier Ausnahme-Tatbestände (i–iv) sind vollständig erhalten, aber die WKO-FEEI-Baseline (Art. 2) verlangt zusätzlich eine ausdrückliche Beweislast-Allokation: „Die Beweislast für das Vorliegen der vorgenannten Ausnahmen trägt die empfangende Partei." Diese Beweislast-Zuweisung fehlt im Vertragstext. Geringfügig, weil die substanziellen Ausnahmen vorhanden sind — nur die Beweislast-Allokation wurde weggelassen. Eine Beweislast-Verlagerung auf die offenlegende Partei ist in der Praxis kaum erfüllbar, da die empfangende Partei einen „vorherigen Besitz" geltend machen kann, ohne Belege vorzulegen. |
-
-The full expected-deviation set for this contract is in
-[`examples/expected/synthetic-de-001.yaml`](./examples/expected/synthetic-de-001.yaml);
-the run report is
-[`evals/runs/20260609T074418Z.json`](./evals/runs/20260609T074418Z.json).
+The system is exposed to five non-obvious failure modes: **model poisoning** in the contract text (prompt injection hidden in clause language), **eval-set overfitting** (a tighter eval set ⇒ a more brittle claim), **jurisdiction drift** (a US-style contract analyzed against EU baselines produces noise), **counterparty matrix opinion-as-config** (the matrix is a claim about acceptability, not a legal standard), and **confident LLM hallucinations** mitigated only by the cite-or-mark-unverified rule. The append-only audit log answers "what happened" but does not stop a determined operator with shell on the box. The full threat model — including the IP-safety rules, the "no HDI-internal data" rule, and the eval-set discipline — is in [`docs/09-threat-model.md`](./docs/09-threat-model.md).
 
 ---
 
 ## How the eval works
 
-The eval harness is the spec's core claim, not a footnote. Four things to know
-about it: what F1 means here, the contract set, the citation rule, and the
-exit gate.
+The eval harness is the spec's core claim, not a footnote. **F1 here is a deviation-set match**: precision is `flagged-but-not-expected / all-flagged`, recall is `expected-but-not-flagged / all-expected`. The harness also reports classification F1, retrieval F1, severity-mismatch count, and citation completeness — see [`docs/07-eval-strategy.md`](./docs/07-eval-strategy.md) for the rubric philosophy and [`docs/EVAL_RESULTS.md`](./docs/EVAL_RESULTS.md) for the 5-minute read.
 
-### What F1 means here
+**Per-type × per-language F1 (latest leaderboard row, 25 contracts):**
 
-F1 is a deviation set match. Precision is `flagged-but-not-expected / all-flagged`.
-Recall is `expected-but-not-flagged / all-expected`. The harness also reports
-classification F1, retrieval F1, severity-mismatch count, and citation
-completeness — see [`docs/07-eval-strategy.md`](./docs/07-eval-strategy.md) for
-the full rubric philosophy.
+| Type       | Lang | n  | Deviation F1 | Classification F1 | Citation completeness | Status      |
+|------------|------|----|--------------|-------------------|-----------------------|-------------|
+| NDA        | EN   | 10 | 1.00         | 0.70              | 1.00                  | full        |
+| NDA        | DE   | 5  | 1.00         | 0.05              | 1.00                  | full*       |
+| DPA        | EN   | 5  | 1.00         | 0.83              | 1.00                  | full        |
+| DPA        | DE   | 5  | 1.00         | 1.00              | 1.00                  | full        |
+| Employment | EN   | 0  | —            | —                 | —                     | matrix-only |
+| Employment | DE   | 0  | —            | —                 | —                     | matrix-only |
 
-### The contract set
+*\* **NDA-DE classification F1 = 0.05 is reported as-is.** The rule-based DE classifier in Phase 4 confuses German label sets on § 2 GeschGehG clauses; the LLM-driven classifier is a follow-up card. The product metric (deviation F1 = 1.00) is unaffected. The current matrix-aware spotter runs in deterministic mode against the eval set (the harness mocks the LLM; no real key in the demo). The full per-type story is in [`docs/EVAL_RESULTS.md`](./docs/EVAL_RESULTS.md).*
 
-15 NDA contracts (10 EN + 5 DE). The EN set: 5 from public templates
-(`examples/contracts/public/`), 5 with hand-injected deviations (2 in
-`synthetic/`, 3 in `hand-curated/`). The DE set: 3 public-source clean
-baselines (`public-de/`, anchored to BMJ juristic portal, DIHK, IHK-Hessen)
-+ 2 synthetic stress contracts (`synthetic-de/`) with 3 hand-injected
-deviations each across 6 distinct deviation categories
-(`term_too_long`, `missing_beweislast_allocation`,
-`missing_geschaeftsgeheimnis_anchor`, `missing_exclusions_list`,
-`vertragsstrafe_over_bgh_5pct_cap`, `foreign_jurisdiction`). Hand-written
-expected deviations in `examples/expected/*.yaml`.
-
-### The citation rule
-
-The deviation spotter returns
-`{score: 0|1|2|3, rationale, citation: {playbook_clause_id, contract_text_excerpt}, unverified: bool}`.
-The "show your work" rule is enforced here — no citation means `unverified=True`,
-and the UI renders unverified flags differently.
-
-### The exit gate
-
-Per the spec, Phase 2 is done when:
-
-- Eval set runs in CI. F1 numbers are reported and saved.
-- Citation completeness ≥ 95% (every flag has a citation or is marked unverified).
-- Deviation spotter handles "no baseline" cases gracefully.
-- The "show your work" rule is documented in the README. (This section.)
-
-### How to run it
+The eval is reproducible:
 
 ```bash
-pytest evals/                  # run the harness
-cat evals/runs/<timestamp>.json # the per-contract F1, classification, severity, citation report
+cd backend && uv sync --frozen              # one-time (Python 3.12, FastAPI deps)
+cd .. && pytest evals/                      # ~1s on the 25-contract set (cache-warm)
+cat evals/runs/$(ls -t evals/runs/ | head -1)   # the per-contract report
 ```
 
-The harness is content-addressed cached (PDF text, embeddings, golden YAMLs,
-mocked LLM responses), so re-runs are sub-second once the cache is warm.
+The harness is content-addressed cached (PDF text, embeddings, golden YAMLs, mock LLM responses), so re-runs are sub-second once the cache is warm. Leaderboard rows append to [`evals/leaderboard.csv`](./evals/leaderboard.csv) on every run. The Phase 2 exit gate (per `docs/11-phases.md` § Phase 2) is `citation_completeness ≥ 95%`; the Phase 4 DE-vs-EN gap assertions are `gap_deviation_f1 ≤ 10%` and `gap_citation_completeness ≤ 5%` — both are code assertions, not docs.
+
+---
+
+## Audit trail
+
+Every approval, rejection, severity override, context note, redline generation, and redline download is logged to an append-only Postgres table. A trigger rejects `UPDATE` and `DELETE` at the database level — rows can be inserted but not edited or removed. The schema is `(contract_id, clause_id, decision_type, payload_json, decided_by, decided_at)`; `decided_at` is server-set, not caller-supplied. The full decision chain for a contract renders on the **AuditReplay** page (read-only timeline), and exports as JSON for re-import or PDF for handing to a prospect's legal team — filenames `audit-{contract_id}.json` and `audit-{contract_id}.pdf`. Every LLM call is traced in Langfuse (dev: port 13000) so the "why was this flagged" question is answerable from either side of the human/agent boundary. The HITL step is the product's thesis: the system proposes, the human disposes. See [`docs/09-threat-model.md`](./docs/09-threat-model.md) for why this isn't a checkbox.
+
+---
+
+## Supported contract types
+
+Phase 6 ships the v1 3×2 grid: NDA × DPA × Employment, in EN and DE. Each cell below is honest about the current eval-set coverage and the public-source baseline count.
+
+| Type       | EN                                                                                          | DE                                                                                          |
+|------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| NDA        | ✅ **full** — 10 eval contracts, 5 baselines, dev F1 = 1.00 (EU SCCs, IAPP, ABA, IAPP NDA template); *SOURCES.md gap: NDA-EN baselines predate the SOURCES.md convention — see commit `07a3d75` and per-baseline YAML `source:` fields* | ✅ **full** — 5 eval contracts, 5 baselines, dev F1 = 1.00 (BMJ, DIHK, IHK-München, IHK-Hessen, WKO FEEI); sources in [`playbook/baselines/nda-de/SOURCES.md`](./playbook/baselines/nda-de/SOURCES.md) |
+| DPA        | ✅ **matrix-aware** — 5 eval contracts, 5 baselines, dev F1 = 1.00 ([GDPR Art. 28](https://gdpr-info.eu/art-28-gdpr/), [EDPB Guidelines 07/2020](https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-072020-concepts-controller-and-processor-gdpr_en), [EU SCCs 2021/914](https://eur-lex.europa.eu/eli/dec_impl/2021/914/oj), [Art. 33 GDPR](https://gdpr-info.eu/art-33-gdpr/), [DSK Kurzpapier Nr. 13](https://www.datenschutzkonferenz-online.de)); sources in [`playbook/baselines/dpa-en/SOURCES.md`](./playbook/baselines/dpa-en/SOURCES.md) | ✅ **matrix-aware** — 5 eval contracts, 6 baselines, dev F1 = 1.00 (Art. 28 DSGVO, EDPB-DE 07/2020, EU SCCs-DE 2021/914, Art. 33 DSGVO, DSK Kurzpapier Nr. 13, [§ 62 Abs. 4 BDSG 2018](https://www.gesetze-im-internet.de/bdsg_2018/__62.html)); sources in [`playbook/baselines/dpa-de/SOURCES.md`](./playbook/baselines/dpa-de/SOURCES.md) |
+| Employment | 🚧 **matrix-only** — 0 eval contracts in the harness, 5 baselines (notice period, non-solicitation, leave entitlements, remuneration, termination for cause); sources in [`playbook/baselines/employment-en/SOURCES.md`](./playbook/baselines/employment-en/SOURCES.md) | 🚧 **matrix-only** — 0 eval contracts in the harness, 5 baselines (same set, BGB/KSchG-anchored); sources in [`playbook/baselines/employment-de/SOURCES.md`](./playbook/baselines/employment-de/SOURCES.md) |
+
+**Status legend.** **full** — pipeline runs end-to-end, deviation F1 = 1.00 on the eval set. **matrix-aware** — the matrix-aware spotter is wired and the v1 eval set runs green; the matrix only **narrows** verdicts, so on the enterprise-default eval set it changes 0 contracts (the matrix's effect shows up on `smb` / `public_sector` / `healthcare`). **matrix-only** — the matrix lookup is wired but the eval harness has not been run for this cell yet; the spotter falls through to the flat baseline. Future types (sale of goods, M&A, services) are out of scope for v1.
+
+The counterparty matrix ([`playbook/counterparty_matrix.yaml`](./playbook/counterparty_matrix.yaml)) has four axes — `enterprise`, `smb`, `public_sector`, `healthcare` — and only **narrows** verdicts (never relaxes): a `material` flag in the flat baseline stays `material` for SMBs, becomes `unacceptable` for healthcare under HIPAA BAA. The matrix is configurable per-cell by editing the YAML; the spotter picks the change up on the next ingest. Per-cell `# source:` comments name the legal regime the verdict is anchored against.
+
+![Redline output — 5 tracked changes (definition, term, residual knowledge, governing law, remedies) on the demo's expected-redline.docx](docs/screenshots/redline-output.png)
+
+---
+
+## Deploy
+
+The dev stack runs locally on a single host with `docker compose up`. Production deploy runbook (Hetzner / Fly.io — single-host Docker Compose + Caddy for TLS termination, env-template split, Langfuse stays self-hosted) lands in [`docs/DEPLOY.md`](./docs/DEPLOY.md) (Card 2 of Phase 6 — not yet shipped). **Public deploy is gated** on a lawyer-reviewed [`docs/LEGAL.md`](./docs/LEGAL.md) and on Anurag's confirmation that no HDI-internal data is in the repo.
 
 ---
 
@@ -334,16 +123,29 @@ mocked LLM responses), so re-runs are sub-second once the cache is warm.
 
 ```
 clausecraft/
-├── backend/            # FastAPI + SQLAlchemy + LangGraph (uv, Python 3.12)
-├── frontend/           # Vite + TS + React + Tailwind + shadcn-style dark mode (pnpm)
-├── docs/               # 11 spec docs (overview, features, architecture, ...)
-├── docker-compose.yml  # single-host stack
-├── .env.example        # all env vars stubbed, no real secrets
-└── DISCLAIMER.md       # the "not legal advice" text
+├── backend/                  # FastAPI + SQLAlchemy + LangGraph (uv, Python 3.12)
+├── frontend/                 # Vite + TS + React + Tailwind + shadcn dark mode (pnpm)
+├── playbook/                 # public-source baselines + counterparty matrix
+├── examples/                 # eval contracts (10 NDA EN + 5 NDA DE + 10 DPA + 10 Employment) + golden YAMLs
+├── evals/                    # pytest harness + leaderboard.csv + per-run reports
+├── docs/                     # 12 spec docs (overview, features, eval strategy, threat model, EVAL_RESULTS, LEGAL, PLAYBOOK, ...)
+├── demo/                     # counterfactual known-bad NDA + expected redline
+├── docker-compose.yml        # single-host dev stack
+├── LICENSE                   # Apache 2.0
+└── docs/LEGAL.md             # the canonical "not legal advice" language
 ```
 
 ---
 
 ## License
 
-TBD — see `docs/10-decisions.md` (open question).
+Apache 2.0 — see [`LICENSE`](./LICENSE). Contributions welcome.
+
+| If you want to… | Read |
+|---|---|
+| Understand the legal disclaimer | [`docs/LEGAL.md`](./docs/LEGAL.md) |
+| Read the F1 numbers and the eval report | [`docs/EVAL_RESULTS.md`](./docs/EVAL_RESULTS.md) |
+| Know what the system could be attacked with | [`docs/09-threat-model.md`](./docs/09-threat-model.md) |
+| Add a new contract type or baseline source | [`docs/PLAYBOOK.md`](./docs/PLAYBOOK.md) |
+| See the audit-log UX in the UI | the **AuditReplay** page in the running frontend |
+| Watch the 2-minute walk-through | `demo/asciinema.cast` (Card 8 of Phase 6 — not yet shipped) |
