@@ -1,0 +1,201 @@
+# Golden set — demo/known-bad-nda.pdf.
+#
+# This is the Phase 6 counterfactual demo contract — the
+# single most-watched artifact pair in the repo. The
+# asciinema screencast (t_a8ee98b8) runs the system against
+# this contract and expects the deviation table to populate
+# with 5 rows; the expected-redline.docx is the static
+# reference for what the .docx should look like when all 5
+# are approved.
+#
+# Why this contract lives in demo/ not examples/
+# ------------------------------------------------
+# The eval fixtures (examples/contracts/) drive the Phase 2
+# eval harness. They have a single purpose each: clean
+# baseline, stress test, realism test, per-language variant.
+# The demo contract has a different purpose: make a 2-minute
+# screencast land the "wow" moment. 5 deviations are stacked
+# into a single contract so the demo's deviation table
+# renders all 5 rows at once.
+#
+# The YAML shape is identical to the eval fixtures
+# (contract, type, language, expected_clauses,
+# expected_deviations) so the eval harness can verify the
+# demo's deviation count is 5/5, not just "looks like 5".
+#
+# The 5 deviations
+# ----------------
+# 1. **c1 (definition_confidential_info) — material (2).**
+#    "All information disclosed" with no exclusions list
+#    (vs the baseline's 4 standard carve-outs: public
+#    domain, prior knowledge, independently developed,
+#    lawfully required disclosure). Category:
+#    `missing_exclusions`.
+# 2. **c2 (term) — material (2).** 5 year obligation + 5
+#    year survival = 10 years total, plus perpetual trade-
+#    secret protection (vs the baseline's 2 year + 3 year
+#    survival + trade-secret-while-it-remains-a-trade-
+#    secret). Category: `term_too_long`.
+# 3. **c3 (residual_knowledge) — material (2).** No
+#    residual knowledge carve-out at all (vs the baseline's
+#    "unaided memory" qualifier). Category:
+#    `missing_residual_knowledge_carveout`.
+# 4. **c4 (governing_law) — material (2).** Cayman Islands
+#    law + courts (vs the baseline's Delaware / New Castle
+#    County). Category: `offshore_jurisdiction`.
+# 5. **c5 (injunctive_relief) — unacceptable (3).** USD
+#    50,000 aggregate cap + explicit waiver of injunctive
+#    relief (vs the baseline's equitable relief carve-out).
+#    This is the only "unacceptable" deviation (score 3) of
+#    the five — it removes the only remedy that actually
+#    deters a breach. Category:
+#    `damages_cap_in_lieu_of_injunction`.
+#
+# c6 and c7 are clean baselines (no expected deviations).
+# The eval records any false positives in the run report.
+#
+# Stability
+# ---------
+# The text_excerpt fields below are pinned against the
+# deterministic PDF output of
+# `scripts/build_demo_known_bad_nda.py`. Re-running the
+# build script produces a byte-identical PDF (the content
+# is hard-coded; no timestamps, no random IDs), so the
+# excerpts stay valid.
+
+contract: demo/known-bad-nda.pdf
+type: nda
+language: en
+
+expected_clauses:
+  # The text_excerpt fields below are pinned against the deterministic
+  # PDF output of `scripts/build_demo_known_bad_nda.py`. Each excerpt
+  # is a short substring that survives the PDF line-wrapping in the
+  # chunker's output (chunker keeps the \n between soft-wrapped lines,
+  # so excerpts are picked to fit on a single line in the chunked
+  # text). The eval harness does substring matching
+  # (`excerpt in clause_text`).
+  - id: c1
+    type: definition_confidential_info
+    text_excerpt: "means any and all information"
+  - id: c2
+    type: term
+    text_excerpt: "for a period of five"
+  - id: c3
+    type: residual_knowledge
+    text_excerpt: "in perpetuity, without time limit"
+  - id: c4
+    type: governing_law
+    text_excerpt: "the laws of"
+  - id: c5
+    type: injunctive_relief
+    text_excerpt: "monetary damages, capped at a maximum aggregate liability"
+  - id: c6
+    type: return_of_materials
+    text_excerpt: "destroy all Confidential Information"
+  - id: c7
+    type: entire_agreement
+    text_excerpt: "constitutes the entire agreement of the Parties"
+
+# Five expected deviations. The eval harness compares each to
+# the spotter's actual flags. A real LLM-driven spotter is
+# expected to flag all five; the placeholder-key (rule-based
+# abstention) spotter flags none. The deviation F1 reports
+# the gap.
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: missing_exclusions
+    rationale: >-
+      The definition provides no carve-outs at all. The
+      Phase 2 playbook baseline for
+      definition-of-confidential-information includes 4
+      standard exclusions: (a) public domain, (b) prior
+      knowledge, (c) independently received from a
+      non-bound third party, AND (d) lawfully required
+      disclosure (compelled by subpoena, court order,
+      or government request). This contract has none of
+      these. Without the carve-outs, "Confidential
+      Information" is unbounded — anything disclosed is
+      automatically confidential, which the playbook
+      flags as material.
+    citation:
+      playbook_clause_id: definition-of-confidential-information
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c2
+    severity: 2
+    category: term_too_long
+    rationale: >-
+      A 5-year obligation period plus 5-year survival (10
+      years total) materially exceeds the playbook's
+      2-year obligation period (plus 3-year survival, 5
+      years total). Additionally, the contract's "in
+      perpetuity" trade-secret expansion removes the
+      baseline's "for so long as such information
+      remains a trade secret" qualification. The
+      spotter flags this as material because the longer
+      term and perpetual trade-secret expansion
+      exceed the playbook's reference.
+    citation:
+      playbook_clause_id: term-of-confidentiality
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c3
+    severity: 2
+    category: missing_residual_knowledge_carveout
+    rationale: >-
+      No residual knowledge carve-out. The Phase 2
+      playbook baseline for residual-knowledge contains
+      the standard "general knowledge, skills, and
+      experience retained in the unaided memory" carve-
+      out. This contract binds the Receiving Party's
+      personnel in perpetuity, regardless of whether
+      the information remains in their unaided memory.
+      Without the carve-out, the Receiving Party's
+      employees could be contractually barred from
+      doing their own jobs. Material because the
+      baseline always has the carve-out.
+    citation:
+      playbook_clause_id: residual-knowledge
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c4
+    severity: 2
+    category: offshore_jurisdiction
+    rationale: >-
+      Cayman Islands law and exclusive Cayman Islands
+      court jurisdiction. The Phase 2 playbook
+      baseline for governing-law is Delaware with
+      exclusive jurisdiction in New Castle County,
+      Delaware. Cayman Islands is a meaningful
+      surprise for a US/EU counterparty — the
+      deviation is the off-shore choice, not the
+      geographic location. Material because it changes
+      the dispute-resolution venue from the
+      playbook's reference and adds the burden of
+      off-shore litigation for either Party.
+    citation:
+      playbook_clause_id: governing-law
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"
+  - clause_id: c5
+    severity: 3
+    category: damages_cap_in_lieu_of_injunction
+    rationale: >-
+      USD 50,000 aggregate liability cap and explicit
+      waiver of injunctive relief, specific
+      performance, and other equitable remedies. The
+      Phase 2 playbook baseline for injunctive-relief
+      acknowledges that monetary damages are
+      inadequate, entitles the Discloser to seek
+      injunctive and equitable relief, and waives the
+      bond requirement. This contract does the
+      opposite — it caps damages at a level that's
+      trivial relative to the value of typical
+      confidential information, and disclaims the only
+      remedy that actually deters a breach. Without an
+      injunction, the Recipient can leak Confidential
+      Information, pay the USD 50,000 cap, and walk
+      away. The spotter flags this as unacceptable
+      (score 3) — the only "unacceptable" deviation of
+      the five.
+    citation:
+      playbook_clause_id: injunctive-relief
+      source_url: "https://nondisclosureagreement.com/wp-content/uploads/2018/03/Mutual-Non-Disclosure-Agreement.pdf"

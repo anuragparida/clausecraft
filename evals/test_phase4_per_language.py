@@ -141,12 +141,29 @@ def _make_aggregate(
     filled with neutral defaults.
     """
     def _agg(dev_f1: float, citation: float) -> dict[str, float]:
+        # Phase 5 v3: the aggregate shape gains ``matrix_aggregate``
+        # (5-bucket histogram of every flag's matrix verdict) and
+        # ``matrix_verdict_changed_count`` (count of flags whose
+        # matrix verdict was changed from the flat baseline). The
+        # test helper builds per-language aggregate dicts for
+        # comparison against the harness's real output, so the
+        # new fields must be present. For the gap-assertion
+        # tests we don't pin a specific matrix rollup — the
+        # neutral zero values are enough to keep the shape valid.
         return {
             "retrieval_f1": 1.0,
             "classification_f1": dev_f1,
             "deviation_f1": dev_f1,
             "severity_mismatch_count": 0,
             "citation_completeness": citation,
+            "matrix_aggregate": {
+                "acceptable": 0,
+                "material": 0,
+                "unacceptable": 0,
+                "unverified": 0,
+                "no_stamp": 0,
+            },
+            "matrix_verdict_changed_count": 0,
         }
 
     return {
@@ -198,18 +215,35 @@ def test_aggregate_subset_empty_subset_is_well_defined() -> None:
     well-formed.
     """
     agg = _aggregate_subset([])
+    # Phase 5 v3: the shape gains ``matrix_aggregate`` (5-bucket
+    # histogram of every flag's matrix verdict) and
+    # ``matrix_verdict_changed_count`` (count of flags whose
+    # matrix verdict was changed from the flat baseline). For an
+    # empty subset both default to neutral values (all buckets
+    # at 0, count at 0).
     assert set(agg.keys()) == {
         "retrieval_f1",
         "classification_f1",
         "deviation_f1",
         "severity_mismatch_count",
         "citation_completeness",
+        "matrix_aggregate",
+        "matrix_verdict_changed_count",
     }
     assert agg["retrieval_f1"] == 0.0
     assert agg["classification_f1"] == 0.0
     assert agg["deviation_f1"] == 1.0  # trivially aligned
     assert agg["severity_mismatch_count"] == 0
     assert agg["citation_completeness"] == 1.0  # vacuously complete
+    # Phase 5 v3: matrix verdict defaults on an empty subset.
+    assert agg["matrix_verdict_changed_count"] == 0
+    assert agg["matrix_aggregate"] == {
+        "acceptable": 0,
+        "material": 0,
+        "unacceptable": 0,
+        "unverified": 0,
+        "no_stamp": 0,
+    }
 
 
 # --- _build_aggregate (legacy entry) -----------------------------------
@@ -525,9 +559,11 @@ def test_write_run_report_includes_phase4_fields(
         data = json.load(f)
     # Legacy aggregate is preserved.
     assert "aggregate" in data
+    # Phase 5 v3: aggregate gains the 2 matrix verdict fields.
     assert set(data["aggregate"].keys()) == {
         "retrieval_f1", "classification_f1", "deviation_f1",
         "severity_mismatch_count", "citation_completeness",
+        "matrix_aggregate", "matrix_verdict_changed_count",
     }
     # Phase 4 additions.
     assert "aggregate_by_language" in data

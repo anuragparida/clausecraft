@@ -60,6 +60,128 @@ class DeviationScore:
     UNACCEPTABLE = 3
 
 
+# --- Phase 5: matrix verdict column -----------------------------------
+
+
+# The spec's 4-state column for the deviation table's "matrix verdict"
+# column. This is the *column* form — distinct from the matrix's
+# internal 4-state labels (``aligned`` / ``minor`` / ``material`` /
+# ``unacceptable``) used inside the YAML config. The bridging is in
+# :func:`matrix_verdict_from_score` below.
+#
+# Why a separate column form
+# --------------------------
+# The matrix file (Phase 2 + Phase 5) records per-cell verdicts in
+# the matrix's internal labels (``aligned`` for "default", ``minor``
+# for "slightly narrow", ``material``, ``unacceptable``). The UI's
+# deviation table, per the spec, renders a separate "matrix verdict"
+# column with 4 states that the spec calls ``acceptable`` (the union
+# of ``aligned`` and ``minor`` — both mean "the spotter can
+# comfortably let this through"), ``material``, ``unacceptable``,
+# and ``unverified`` (the pipeline couldn't reach a verdict).
+#
+# The LLM only ever sees the column form; the matrix file is
+# internal-only. ``matrix_verdict_from_score`` is the only place the
+# two label systems meet.
+MATRIX_VERDICT_VALUES: tuple[str, ...] = (
+    "acceptable",
+    "material",
+    "unacceptable",
+    "unverified",
+)
+
+
+def matrix_verdict_from_score(
+    score: Optional[int | str],
+) -> Optional[str]:
+    """Bridge the matrix's internal 4-state label to the spec's column form.
+
+    The matrix emits one of four internal labels for each
+    ``(clause_type, counterparty_type[, language])`` cell:
+
+    - ``aligned`` (default — "the cell is fine as-is")
+    - ``minor`` (slightly narrow — "the cell is more conservative
+      than the flat default but not yet a deal-breaker")
+    - ``material`` (the matrix thinks the spotter should escalate
+      this cell)
+    - ``unacceptable`` (the matrix's deal-breaker)
+
+    The spec's column form is the union of ``aligned`` and
+    ``minor`` collapsed into ``acceptable``, plus the
+    ``material`` / ``unacceptable`` / ``unverified`` columns.
+
+    Parameters
+    ----------
+    score
+        A matrix label (``"aligned"`` / ``"minor"`` / ``"material"``
+        / ``"unacceptable"`` / ``"unverified"``), or a numeric
+        ``DeviationScore`` value (0..3 — :class:`DeviationScore`
+        ordering is the same as the matrix's). ``None`` returns
+        ``None`` (the caller picks the default — typically
+        ``"unverified"``).
+
+    Returns
+    -------
+    Optional[str]
+        The spec's 4-state column form, or ``None`` when the
+        caller passed ``None``. **Garbage inputs collapse to
+        ``"unverified"``** — we never propagate a label the UI
+        can't render.
+
+    Examples
+    --------
+    >>> matrix_verdict_from_score("aligned")
+    'acceptable'
+    >>> matrix_verdict_from_score("minor")
+    'acceptable'
+    >>> matrix_verdict_from_score("material")
+    'material'
+    >>> matrix_verdict_from_score("unacceptable")
+    'unacceptable'
+    >>> matrix_verdict_from_score(0)
+    'acceptable'
+    >>> matrix_verdict_from_score(2)
+    'material'
+    >>> matrix_verdict_from_score(None) is None
+    True
+    >>> matrix_verdict_from_score("junk")
+    'unverified'
+    """
+    if score is None:
+        return None
+    # Numeric path (DeviationScore constants 0..3): the matrix
+    # uses the same scale, so the bridge is direct. Score 0/1 →
+    # "acceptable" (aligned/minor), 2 → "material", 3 →
+    # "unacceptable". The Pydantic field already validates 0..3
+    # upstream; defensive clamp is belt-and-braces for callers
+    # that pass arbitrary ints.
+    if isinstance(score, int) and not isinstance(score, bool):
+        if score <= 1:
+            return "acceptable"
+        if score == 2:
+            return "material"
+        return "unacceptable"
+    # String path (matrix label, or spec column passthrough).
+    # Case-insensitive, whitespace-trimmed.
+    if isinstance(score, str):
+        normalised = score.strip().lower()
+        if not normalised:
+            return "unverified"
+        # Spec column form is a passthrough.
+        if normalised in MATRIX_VERDICT_VALUES:
+            return normalised
+        # Matrix internal labels collapse to the spec column.
+        if normalised == "aligned":
+            return "acceptable"
+        if normalised == "minor":
+            return "acceptable"
+        if normalised in ("material", "unacceptable", "unverified"):
+            return normalised
+    # Garbage input (unknown label, non-int non-str, etc.) →
+    # "unverified", not ``None`` (the UI never sees a hole).
+    return "unverified"
+
+
 # --- Models -------------------------------------------------------------
 
 
@@ -128,6 +250,29 @@ class DeviationFlag(BaseModel):
         decided was the right reference. Echoed for the UI (the
         deviation table groups flags by baseline type). ``""``
         when the spotter abstained.
+    matrix_verdict
+        The counterparty matrix's verdict for the clause's
+        ``(clause_type, counterparty_type[, language])`` cell,
+        in the spec's 4-state column form
+        (see :data:`MATRIX_VERDICT_VALUES`). ``None`` when the
+        flag was constructed outside the orchestrator (a Phase 2
+        caller that didn't know about the matrix axis) — the
+        re-stamp in :func:`app.agents.deviation_spotter.spotter._stamp_matrix_audit_fields`
+        fills it in.
+    matrix_sources
+        The lookup chain that produced the matrix verdict, in
+        strictness order (the first element is the winning
+        source). Common entries: ``"counterparty"`` (an explicit
+        counterparty-axis override), ``"language"`` (a language
+        axis override), ``"flat"`` (the Phase 2 default).
+        Capped at 8 entries; empty strings are dropped. ``None``
+        when the flag was constructed outside the orchestrator.
+    matrix_counterparty_type
+        The counterparty type the matrix was consulted with.
+        Defaults to ``"any"`` (the Phase 2 sentinel that consults
+        only the flat table). Echoed for the audit trail — the
+        UI's deviation table can show "material (healthcare
+        override)" in a tooltip.
     """
 
     clause_id: str = Field(..., min_length=1, max_length=64)
@@ -136,6 +281,32 @@ class DeviationFlag(BaseModel):
     citation: Optional[Citation] = None
     unverified: bool = False
     baseline_type: str = Field(default="", max_length=64)
+    matrix_verdict: Optional[str] = Field(
+        default=None,
+        max_length=16,
+        description=(
+            "Counterparty matrix verdict in the spec's 4-state "
+            "column form (acceptable/material/unacceptable/unverified). "
+            "Filled by the orchestrator's re-stamp; ``None`` when "
+            "constructed outside the matrix-aware path."
+        ),
+    )
+    matrix_sources: Optional[list[str]] = Field(
+        default=None,
+        description=(
+            "Lookup chain that produced the matrix verdict, in "
+            "strictness order. Empty strings are dropped; capped at 8."
+        ),
+    )
+    matrix_counterparty_type: str = Field(
+        default="any",
+        max_length=64,
+        description=(
+            "Counterparty type the matrix was consulted with. "
+            "Defaults to ``'any'`` (Phase 2 sentinel; consults only the "
+            "flat table)."
+        ),
+    )
 
     @field_validator("score")
     @classmethod
@@ -152,6 +323,58 @@ class DeviationFlag(BaseModel):
         except (TypeError, ValueError) as exc:
             raise ValueError(f"score must be an integer, got {v!r}") from exc
         return max(0, min(3, iv))
+
+    @field_validator("matrix_verdict")
+    @classmethod
+    def _validate_matrix_verdict(cls, v: Optional[str]) -> Optional[str]:
+        """Validate ``matrix_verdict`` against the spec's 4-state column.
+
+        ``None`` is preserved as the "no orchestrator stamp"
+        sentinel. The re-stamp in
+        :func:`app.agents.deviation_spotter.spotter._stamp_matrix_audit_fields`
+        fills it in. Empty strings are coerced to ``None`` so
+        an LLM that emitted ``""`` doesn't make it into the
+        audit trail. Strings are lowercased for case-insensitive
+        comparison; the matrix emits lowercase labels.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError(
+                f"matrix_verdict must be a string, got {type(v).__name__}"
+            )
+        normalised = v.strip().lower()
+        if not normalised:
+            return None
+        if normalised not in MATRIX_VERDICT_VALUES:
+            raise ValueError(
+                f"matrix_verdict must be one of {MATRIX_VERDICT_VALUES}, "
+                f"got {v!r}"
+            )
+        return normalised
+
+    @field_validator("matrix_sources")
+    @classmethod
+    def _validate_matrix_sources(
+        cls, v: Optional[list[str]]
+    ) -> Optional[list[str]]:
+        """Drop empty strings from ``matrix_sources`` and cap at 8.
+
+        ``None`` is preserved as the "no orchestrator stamp"
+        sentinel. Empty / whitespace-only strings are dropped
+        (defensive — the LLM might emit ``["counterparty", ""]``
+        with a trailing empty). The 8-entry cap matches the
+        LLM echo's cap in
+        :func:`app.agents.deviation_spotter.spotter._coerce_matrix_sources`.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            raise ValueError(
+                f"matrix_sources must be a list, got {type(v).__name__}"
+            )
+        cleaned = [s.strip() for s in v if isinstance(s, str) and s.strip()]
+        return cleaned[:8]
 
 
 class SpotInput(BaseModel):
@@ -194,6 +417,29 @@ class SpotInput(BaseModel):
     counterparty_type
         The counterparty type that produced the matrix verdict
         (Phase 2 always ``"any"``). Echoed for the audit trail.
+    matrix_verdict_column
+        **Phase 5.** The matrix verdict in the spec's 4-state
+        column form
+        (see :data:`MATRIX_VERDICT_VALUES` — ``acceptable`` /
+        ``material`` / ``unacceptable`` / ``unverified``). Set
+        by the orchestrator from
+        :func:`app.playbook.counterparty.lookup_verdict_with_counterparty`
+        via :func:`matrix_verdict_from_score`. Defaults to
+        ``"unverified"`` (the safe choice — the matrix never
+        blocks a spotter call by raising, but the orchestrator
+        might not have run for a Phase 2 caller that
+        constructed a ``SpotInput`` directly).
+    matrix_sources
+        **Phase 5.** The lookup chain that produced the matrix
+        verdict, in strictness order (the first element is the
+        winning source). Common entries: ``"counterparty"``
+        (an explicit counterparty-axis override), ``"language"``
+        (a language axis override), ``"flat"`` (the Phase 2
+        default). Defaults to an empty list.
+    matrix_counterparty_type
+        **Phase 5.** The counterparty type the matrix was
+        consulted with. Defaults to ``"any"`` (the Phase 2
+        sentinel that consults only the flat table).
     """
 
     clause_id: str = Field(..., min_length=1, max_length=64)
@@ -211,6 +457,31 @@ class SpotInput(BaseModel):
     baselines: list["BaselineForSpotter"] = Field(..., min_length=0)
     counterparty_verdict: str = Field(default="aligned", max_length=32)
     counterparty_type: str = Field(default="any", max_length=64)
+    matrix_verdict_column: str = Field(
+        default="unverified",
+        max_length=16,
+        description=(
+            "Phase 5: counterparty matrix verdict in the spec's "
+            "4-state column form. Set by the orchestrator from "
+            "the matrix lookup. Defaults to ``'unverified'`` (safe "
+            "default for callers that haven't wired the matrix axis)."
+        ),
+    )
+    matrix_sources: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Phase 5: lookup chain that produced the matrix verdict, "
+            "in strictness order. Defaults to empty."
+        ),
+    )
+    matrix_counterparty_type: str = Field(
+        default="any",
+        max_length=64,
+        description=(
+            "Phase 5: counterparty type the matrix was consulted with. "
+            "Defaults to ``'any'`` (the Phase 2 sentinel)."
+        ),
+    )
 
     @field_validator("counterparty_verdict")
     @classmethod
@@ -220,6 +491,32 @@ class SpotInput(BaseModel):
         free-form to keep the schema decoupled from
         :class:`app.playbook.counterparty.Verdict`."""
         return (v or "aligned").strip().lower() or "aligned"
+
+    @field_validator("matrix_verdict_column")
+    @classmethod
+    def _validate_matrix_verdict_column(cls, v: str) -> str:
+        """Validate ``matrix_verdict_column`` against the spec's 4-state column.
+
+        The orchestrator is the only writer; this is a guard against
+        typos (e.g. the matrix's internal ``"aligned"`` label leaking
+        in instead of the spec column's ``"acceptable"``). The LLM
+        echo parser is lenient on the LLM's output — but the
+        orchestrator's stamp must match the spec column.
+        """
+        if not isinstance(v, str):
+            raise ValueError(
+                f"matrix_verdict_column must be a string, got {type(v).__name__}"
+            )
+        normalised = v.strip().lower()
+        if not normalised:
+            return "unverified"
+        if normalised not in MATRIX_VERDICT_VALUES:
+            raise ValueError(
+                f"matrix_verdict_column must be one of {MATRIX_VERDICT_VALUES}, "
+                f"got {v!r} (matrix-internal labels like 'aligned' / 'minor' "
+                f"should be bridged via matrix_verdict_from_score)"
+            )
+        return normalised
 
 
 class BaselineForSpotter(BaseModel):
@@ -273,4 +570,7 @@ __all__ = [
     "DeviationFlag",
     "SpotInput",
     "BaselineForSpotter",
+    # Phase 5: matrix verdict column.
+    "MATRIX_VERDICT_VALUES",
+    "matrix_verdict_from_score",
 ]

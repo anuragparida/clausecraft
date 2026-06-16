@@ -1,0 +1,92 @@
+# Playbook-Baseline — Employment (DE) — employment_notice_period
+#
+# Quelle: § 622 Bürgerliches Gesetzbuch (BGB) — Kündigungsfristen
+# bei Arbeitsverhältnissen, amtliche Fassung veröffentlicht auf
+# gesetze-im-internet.de (Bundesministerium der Justiz /
+# Bundesamt für Justiz, https://www.gesetze-im-internet.de/bgb/__622.html).
+# § 622 BGB setzt die gesetzlichen Mindestkündigungsfristen für
+# Arbeitsverhältnisse: die Grundfrist von vier Wochen zum
+# Fünfzehnten oder zum Ende eines Kalendermonats (Abs. 1), die mit
+# der Betriebszugehörigkeit des Arbeitnehmers gestaffelten
+# verlängerten Fristen für arbeitgeberseitige Kündigungen (Abs. 2:
+# ein Monat nach zwei Jahren, sieben Monate nach zwanzig Jahren),
+# die verkürzte Probezeit-Kündigungsfrist von zwei Wochen
+# während einer vereinbarten Probezeit von maximal sechs Monaten
+# (Abs. 3), und das einzelvertragliche Unterschreitungsverbot
+# außer für Aushilfen und Kleinbetriebe (Abs. 5). Bundesgesetzestexte
+# sind gemäß § 5 Abs. 1 UrhG vom deutschen Urheberrecht
+# ausgenommen; die Veröffentlichung auf gesetze-im-internet.de
+# erfolgt durch das BMJ ohne Nutzungsbeschränkung.
+#
+# Diese Baseline paraphrasiert die operative Sprache des § 622
+# Abs. 1–3 BGB in kanonische Vertragsklausel-Form. Sie ist die
+# *Mindest*-Baseline: jede kürzere Frist ist nach § 622 Abs. 5
+# BGB grundsätzlich unwirksam (Ausnahmen: Aushilfe < 3 Monate,
+# Kleinbetrieb < 20 Arbeitnehmer mit Mindestfrist 4 Wochen).
+# Die im englischsprachigen EN-Set übliche Staffelung
+# "1 month probation, 3 months thereafter" ist im DE-Set NICHT
+# statutarisch verankert; § 622 Abs. 1 + Abs. 3 BGB sind die
+# statutarischen Anker, und jede vertragliche Verlängerung ist
+# zulässig (vgl. § 622 Abs. 5 Satz 3 BGB: "Die einzelvertragliche
+# Vereinbarung längerer als der in den Absätzen 1 bis 3 genannten
+# Kündigungsfristen bleibt hiervon unberührt.").
+clause_id: de-kuendigungsfrist-bgb-622
+type: employment_notice_period
+language: de
+title: Gesetzliche Kündigungsfrist nach § 622 BGB
+text: >-
+  Das Arbeitsverhältnis kann von beiden Parteien mit einer Frist
+  von vier Wochen zum Fünfzehnten oder zum Ende eines
+  Kalendermonats gekündigt werden. Im Fall einer Kündigung durch
+  den Arbeitgeber verlängert sich diese Frist, wenn das
+  Arbeitsverhältnis in dem Betrieb oder Unternehmen zwei Jahre
+  bestanden hat, auf einen Monat zum Ende eines Kalendermonats,
+  bei einer Betriebszugehörigkeit von fünf Jahren auf zwei Monate
+  zum Ende eines Kalendermonats, bei acht Jahren auf drei Monate
+  zum Ende eines Kalendermonats, bei zehn Jahren auf vier Monate
+  zum Ende eines Kalendermonats, bei zwölf Jahren auf fünf Monate
+  zum Ende eines Kalendermonats, bei fünfzehn Jahren auf sechs
+  Monate zum Ende eines Kalendermonats, und bei zwanzig Jahren
+  auf sieben Monate zum Ende eines Kalendermonats. Während einer
+  vereinbarten Probezeit, die längstens sechs Monate dauert, kann
+  das Arbeitsverhältnis mit einer Frist von zwei Wochen gekündigt
+  werden. Eine kürzere als die in § 622 Abs. 1 BGB genannte
+  Kündigungsfrist kann einzelvertraglich nur vereinbart werden,
+  wenn der Arbeitnehmer zur vorübergehenden Aushilfe eingestellt
+  ist und das Arbeitsverhältnis nicht über die Dauer von drei
+  Monaten hinaus fortgesetzt wird, oder wenn der Arbeitgeber in
+  der Regel nicht mehr als 20 Arbeitnehmer ausschließlich der zu
+  ihrer Berufsbildung Beschäftigten beschäftigt und die
+  Kündigungsfrist vier Wochen nicht unterschreitet. Die
+  einzelvertragliche Vereinbarung längerer Kündigungsfristen als
+  die in § 622 Abs. 1 bis 3 BGB genannten bleibt hiervon
+  unberührt. Für die Kündigung des Arbeitsverhältnisses durch den
+  Arbeitnehmer darf keine längere Frist vereinbart werden als für
+  die Kündigung durch den Arbeitgeber.
+source_url: https://www.gesetze-im-internet.de/bgb/__622.html
+retrieval_date: 2026-06-10
+license: >-
+  § 622 BGB, amtliche Fassung des Bundesministeriums der Justiz
+  (BMJ), veröffentlicht auf gesetze-im-internet.de. Gemäß § 5
+  Abs. 1 UrhG sind Bundesgesetzestexte vom deutschen Urheberrecht
+  ausgenommen; die Veröffentlichung erfolgt ohne
+  Nutzungsbeschränkung. Die Baseline-Sprache ist eine paraphrasierte
+  Verdichtung des § 622 Abs. 1–3 BGB, keine wortgetreue Übernahme
+  des Verordnungstextes.
+notes: >-
+  Drei Abweichungsmuster, die in der Matrix zu kennzeichnen sind:
+  (a) eine Kündigungsfrist kürzer als die gesetzliche
+  Grundfrist von vier Wochen (Abs. 1) ist nach § 622 Abs. 5 BGB
+  grundsätzlich unwirksam — Matrix-Verdikt „nicht akzeptabel"
+  für jeden Vertragspartnertyp; (b) eine
+  Probezeit-Kündigungsfrist länger als zwei Wochen (Abs. 3) ist
+  ungewöhnlich, aber nicht statutarisch ausgeschlossen — die
+  Matrix behandelt 2 Wochen als Baseline und längere
+  Probezeit-Fristen als „aligned" für Großunternehmen / „material"
+  für KMU; (c) eine längere Kündigungsfrist für arbeitnehmerseitige
+  Kündigungen als für arbeitgeberseitige Kündigungen ist nach
+  § 622 Abs. 6 BGB unwirksam — struktureller Mangel,
+  „nicht akzeptabel" für jeden Vertragspartnertyp. Helenas
+  Review-Karte sollte eine fehlende § 622-Referenz unabhängig vom
+  Vertragspartnertyp als „material" markieren, da die
+  Statutarik nicht verhandelbar ist.

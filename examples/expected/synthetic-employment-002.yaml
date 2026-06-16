@@ -1,0 +1,95 @@
+# Golden set — synthetic/employment-002.pdf (Phase 5 v1, card t_5400fec1).
+#
+# EN #2 STRESS contract (GOV.UK-anchored, UK statutory floor).
+# 3 hand-injected deviations calibrated to a UK employment
+# counsel reviewer's expected verdict.
+#
+# Deviations:
+# 1. c3 (employment_leave_entitlements) — material: 15 days
+#    vs. UK WTR 1998 + ERA s.13-16 statutory minimum 5.6
+#    weeks (= 28 days at 5-day week). Below statutory floor
+#    per Regulation 13 of the Working Time Regulations 1998.
+# 2. c5 (employment_non_solicitation) — material: 24-month
+#    post-termination vs. ABA/GOV.UK 12-month baseline. UK
+#    post-termination restraints ≥ 12 months face serious
+#    reasonableness scrutiny per TFS Derivatives v Morgan
+#    [2004] EWHC 3181 (QB) and Tillman v Egon Zehnder
+#    [2019] UKSC 32.
+# 3. c7 (employment_confidentiality_survival, GAP) — minor:
+#    10-year vs. baseline 2-3 years + perpetual for trade
+#    secrets per UTSA 1979 / EU Trade Secrets Directive
+#    2016/943.
+
+contract: examples/contracts/synthetic/employment-002.pdf
+type: employment
+language: en
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Notice Period. Either Party may terminate this Contract by giving the other Party not less than one (1) week's written notice during the probationary period, and not less than one (1) month's written notice thereafter"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Remuneration. The Company shall pay the Employee an annual gross salary of the amount set out in Schedule A, payable in equal monthly installments in arrears on or before the last working day of each month"
+  - id: c3
+    type: employment_leave_entitlements
+    # DEVIATION: "fifteen (15) days'" unter WTR 1998 statutory minimum
+    text_excerpt: "3. Annual Leave. The Employee shall be entitled to fifteen (15) days' paid annual leave per leave year, in addition to the eight (8) public holidays in England and Wales"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Termination for Cause. The Company may terminate this Contract summarily for gross misconduct, including but not limited to: (a) theft or fraud, (b) assault, (c) serious breach of health and safety rules"
+  - id: c5
+    type: employment_non_solicitation
+    # DEVIATION: "twenty-four (24) months" über 12-Monats-Standard
+    text_excerpt: "5. Non-Solicitation. For a period of twenty-four (24) months following the termination of the Employee's employment, the Employee shall not, directly or indirectly, solicit or attempt to solicit any employee, contractor, customer, or client of the Company"
+  - id: c6
+    type: employment_working_hours
+    text_excerpt: "6. Working Hours. The Employee's normal working hours shall be 9:00 a.m. to 5:30 p.m. Monday through Friday, with one (1) hour for lunch. The Employee's normal weekly working time shall not exceed an average of forty-eight (48) hours"
+  - id: c7
+    type: employment_confidentiality_survival
+    # DEVIATION: "ten (10) years" über 2-3-Jahres-Standard
+    text_excerpt: "7. Confidentiality; Survival. The Employee shall maintain the confidentiality of all Confidential Information of the Company both during and after the term of employment, for a period of ten (10) years following termination"
+  - id: c8
+    type: employment_probation
+    text_excerpt: "8. Probationary Period. The first six (6) months of the Employee's employment shall constitute a probationary period, during which the Company may terminate this Contract by giving the Employee not less than one (1) week's written notice"
+
+# Drei erwartete Abweichungen.
+expected_deviations:
+  - clause_id: c3
+    severity: 2
+    category: unter_wtr1998_mindesturlaub
+    rationale: >-
+      "fifteen (15) days' paid annual leave" liegt unter
+      dem in der Working Time Regulations 1998 (WTR 1998)
+      + ERA s.13-16 vorgeschriebenen gesetzlichen Minimum
+      von 5,6 Wochen. Ein britisches Arbeitsgericht würde
+      gemäß Regulation 13 WTR 1998 automatisch den
+      gesetzlichen Mindesturlaub zusprechen. Material.
+    citation:
+      playbook_clause_id: employment-leave-entitlements
+      source_url: "https://www.gov.uk/holiday-entitlement"
+  - clause_id: c5
+    severity: 2
+    category: post_termination_restraint_24_monate
+    rationale: >-
+      "twenty-four (24) months following the termination"
+      überschreitet das im ABA + GOV.UK-Standard
+      vorgesehene 12-Monats-Limit. UK-Post-Employment-
+      Restraints ≥ 12 Monate unterliegen einer ernsthaften
+      reasonableness-Prüfung gemäß TFS Derivatives v
+      Morgan [2004] und Tillman v Egon Zehnder [2019].
+      Material.
+    citation:
+      playbook_clause_id: employment-non-solicitation
+      source_url: "https://www.americanbar.org/groups/business_law/resources/model-employment-agreement/"
+  - clause_id: c7
+    severity: 1
+    category: confidentiality_survival_10_jahre
+    rationale: >-
+      "ten (10) years following termination" übersteigt
+      das im Branchen-Standard vorgesehene 2-3-Jahres-Limit
+      für nicht-handelsgeheim-geschützte Informationen.
+      Minor, nicht material.
+    citation:
+      playbook_clause_id: employment-confidentiality-survival
+      source_url: "https://www.americanbar.org/groups/business_law/resources/model-employment-agreement/"

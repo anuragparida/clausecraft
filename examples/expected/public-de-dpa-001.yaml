@@ -1,0 +1,53 @@
+# Golden set — public-de/dpa-001.pdf (Art. 28 DSGVO anchored AVV).
+#
+# CLEAN BASELINE contract. No deviations from the Phase 5 DPA
+# playbook. The eval harness should report:
+#   - retrieval F1 = 1.0 (top-k baselines are all 6 DPA-DE baselines
+#     and every clause gets a relevant hit)
+#   - classification F1 = 1.0 (the classifier's dpa_* types all
+#     match the playbook)
+#   - deviation F1 = 1.0 trivially
+#   - severity-mismatch = 0
+#   - citation completeness — depends on LLM availability
+#
+# Source-spread contribution
+# --------------------------
+# 1st public-DE DPA contract (synthetic-de/dpa-001 in v1 was a
+# stress contract, not a public clean baseline). Anchored to
+# Article 28 of the GDPR in its German Sonderausgabe (EUR-Lex
+# CELEX:32016R0679, Amtsblatt L 119 DE, 04.05.2016) — a different
+# public host (eur-lex.europa.eu) than the dpa-de playbook
+# baselines' DSK Kurzpapier Nr. 13 (datenschutzkonferenz-online.de)
+# and BDSG § 62 (gesetze-im-internet.de). Combined with
+# public-de/dpa-002 and public-de/dpa-003, the v2 set's 3 public-DE
+# contracts span 3 distinct hosts.
+
+contract: examples/contracts/public-de/dpa-001.pdf
+type: dpa
+language: de
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "Diese Auftragsverarbeitungsvereinbarung (nachfolgend „Vereinbarung“)"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Bezeichnung der Parteien und Verarbeitungsgrundlage"
+  - id: c3
+    type: dpa_subprocessor_consent
+    text_excerpt: "2. Vorherige Genehmigung von Unterauftragsverarbeitern"
+  - id: c4
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "3. Unterauftragsverarbeiter-Pflichten"
+  - id: c5
+    type: dpa_transfer_mechanism
+    text_excerpt: "4. Internationale Übermittlungen"
+  - id: c6
+    type: dpa_breach_notification
+    text_excerpt: "5. Meldung von Datenschutzverletzungen"
+  - id: c7
+    type: dpa_audit_rights
+    text_excerpt: "6. Audit-Rechte und Rückgabe"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

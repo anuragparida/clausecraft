@@ -1,0 +1,86 @@
+# Playbook-Baseline — Employment (EN) — employment_notice_period
+#
+# Source: UK Government, GOV.UK, "Notice periods for employees"
+# (employer guidance page, last reviewed 1 April 2024), hosted
+# at https://www.gov.uk/notice-periods-for-employees. The GOV.UK
+# guidance consolidates the statutory rule from section 86 of
+# the Employment Rights Act 1996 (ERA 1996) — "the employee is
+# entitled to be given by the employer a minimum of one week's
+# notice" — and the lengthened periods that scale with continuous
+# employment up to 12 weeks. The GOV.UK page is a public-domain
+# UK government publication (Open Government Licence v3.0,
+# attribution "Contains public sector information licensed
+# under the Open Government Licence v3.0"). The statutory
+# minimum of one week is the lowest any UK employment contract
+# can set; commercial practice routinely lengthens it to
+# 1–3 months for office-based employees and 3–6 months for
+# senior executives.
+#
+# The baseline text below is a paraphrased combination of (a)
+# the ERA 1996 s.86 statutory minimum and (b) the typical
+# commercial "1 month during probation, 3 months thereafter"
+# structure. The s.86 statute is the floor; commercial practice
+# is captured in the body to give the deviation spotter a
+# realistic target. Cross-references: ERA 1996 ss.86 (minimum
+# notice), 95 (the "5 fair reasons" structure, for context on
+# ordinary vs. summary termination) and the ACAS Code of Practice
+# on Disciplinary and Grievance Procedures (which informs
+# notice-period good practice for SMB counterparties).
+clause_id: uk-employment-notice-period-era-1996-s86
+type: employment_notice_period
+language: en
+title: Notice period for ordinary termination under ERA 1996 s.86
+text: >-
+  The employment relationship may be terminated by either party
+  giving to the other the period of written notice specified in
+  this Agreement, provided that the minimum period of notice
+  given by the Employer to the Employee shall not be less than
+  the statutory minimum set out in section 86 of the Employment
+  Rights Act 1996, namely one (1) week if the Employee has been
+  continuously employed for at least one (1) month, increasing
+  by one additional week for each year of continuous employment
+  between two (2) and twelve (12) years (two weeks after two
+  years, three weeks after three years, and so on, up to a
+  maximum of twelve (12) weeks after twelve or more years of
+  continuous employment). During the probation period (which
+  shall not exceed six (6) months), the notice period may be
+  shortened to two (2) weeks by either party. After the
+  probation period, the notice period shall be three (3)
+  months, unless the Employer and the Employee agree in
+  writing to a different period. Notice shall be given in
+  writing and shall run from the date of receipt. The Employer
+  may, at its discretion and in lieu of requiring the Employee
+  to work out the notice period, make a payment in lieu of
+  notice equal to the Employee's base salary for the notice
+  period (or the unexpired portion thereof), in which case
+  the employment relationship shall terminate on the date the
+  payment in lieu of notice is made. The Employee's statutory
+  rights under ERA 1996, including the right not to be unfairly
+  dismissed (ERA 1996 s.94), are preserved and cannot be
+  contracted out of.
+source_url: https://www.gov.uk/notice-periods-for-employees
+retrieval_date: 2026-06-09
+license: >-
+  UK Government GOV.UK guidance page "Notice periods for
+  employees" (last reviewed 1 April 2024). Published under the
+  Open Government Licence v3.0; contains public sector
+  information licensed under the Open Government Licence v3.0.
+  Baseline text is a paraphrased combination of the ERA 1996
+  s.86 statutory minimum and the typical commercial
+  1-month-probation / 3-months-thereafter structure, not a
+  verbatim quote of either.
+notes: >-
+  Three deviation patterns to flag in the matrix: (a) a
+  notice period shorter than the s.86 statutory minimum is
+  unenforceable (s.86(3) ERA 1996) and is a structural
+  failure — `unacceptable` for every counterparty type;
+  (b) a probation-period notice of more than 2 weeks is
+  unusual but not statutorily barred, so the matrix treats
+  2 weeks as the baseline and longer probation-notice as
+  `aligned` for enterprise / `material` for SMB; (c) a
+  payment-in-lieu-of-notice (PILON) clause is standard in
+  commercial practice but missing the "in lieu" framing is
+  a minor drafting issue (`minor` verdict for SMB,
+  `material` for enterprise). The matrix verdict for
+  missing the s.86 statutory minimum is `unacceptable`
+  regardless of counterparty type.

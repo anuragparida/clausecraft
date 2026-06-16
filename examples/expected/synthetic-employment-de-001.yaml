@@ -1,0 +1,90 @@
+# Golden set — synthetic-de/employment-001.pdf (Phase 5 v1, card t_5400fec1).
+#
+# DE #1 STRESS contract (IHK + BGB-anchored). 3 hand-injected
+# deviations calibrated to a German Arbeitsrechtsanwalt
+# reviewer's expected verdict.
+#
+# Deviations:
+# 1. c1 (employment_notice_period) — material: 6-month notice
+#    for new hire vs. BGB § 622 statutory Kündigungsfrist of
+#    4 weeks scaling to 7 months only for 20+ years tenure.
+# 2. c3 (employment_leave_entitlements) — material: 20 days
+#    vs. BUrlG § 3 minimum 24 Werktage at 6-Tage-Woche
+#    (= 20 Werktage at 5-Tage-Woche). Ambiguous; typically
+#    below baseline.
+# 3. c4 (employment_termination_for_cause) — minor: 6-week
+#    Prüfungsfrist vs. BGB § 626 immediate.
+
+contract: examples/contracts/synthetic-de/employment-001.pdf
+type: employment
+language: de
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    # ABWEICHUNG: "sechs (6) Monaten" über BGB § 622 statutory Kündigungsfrist
+    text_excerpt: "1. Kündigungsfristen. Das Arbeitsverhältnis kann von beiden Parteien unter Einhaltung einer Kündigungsfrist von sechs (6) Monaten zum Monatsende ordentlich gekündigt werden"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Vergütung. Der Arbeitnehmer erhält eine monatliche Bruttovergütung in der in Anlage A vereinbarten Höhe, die am Monatsende auf das vom Arbeitnehmer benannte Bankkonto überwiesen wird"
+  - id: c3
+    type: employment_leave_entitlements
+    # ABWEICHUNG: "zwanzig (20) Arbeitstagen" unter BUrlG § 3 minimum
+    text_excerpt: "3. Urlaub. Der Arbeitnehmer hat Anspruch auf einen Jahresurlaub von zwanzig (20) Arbeitstagen bei einer Fünf-Tage-Woche, zuzüglich der gesetzlichen Feiertage am Betriebsort"
+  - id: c4
+    type: employment_termination_for_cause
+    # ABWEICHUNG: "sechs (6) Wochen zur Prüfung des Sachverhalts"
+    text_excerpt: "4. Außerordentliche Kündigung. Das Recht zur außerordentlichen Kündigung gemäß § 626 BGB bleibt unberührt. Ein wichtiger Grund liegt insbesondere vor bei schweren Pflichtverletzungen, Arbeitsverweigerung, strafbaren Handlungen oder nachhaltiger Verletzung der arbeitsvertraglichen Pflichten. Vor Ausspruch einer außerordentlichen Kündigung hat der Arbeitgeber eine Frist von sechs (6) Wochen zur Prüfung des Sachverhalts einzuhalten"
+  - id: c5
+    type: employment_non_solicitation
+    text_excerpt: "5. Wettbewerbsverbot und Nebentätigkeit. Dem Arbeitnehmer ist es für die Dauer von zwölf (12) Monaten nach Beendigung des Arbeitsverhältnisses untersagt, in Konkurrenz zum Arbeitgeber tätig zu werden, Kunden abzuwerben oder Mitarbeiter abzuwerben"
+  - id: c6
+    type: employment_working_hours
+    text_excerpt: "6. Arbeitszeit. Die regelmäßige wöchentliche Arbeitszeit beträgt vierzig (40) Stunden, verteilt auf fünf (5) Werktage von Montag bis Freitag. Die tägliche Arbeitszeit darf acht (8) Stunden nicht überschreiten"
+  - id: c7
+    type: employment_probation
+    text_excerpt: "7. Probezeit. Die ersten sechs (6) Monate des Arbeitsverhältnisses gelten als Probezeit. Während der Probezeit kann das Arbeitsverhältnis von beiden Parteien mit einer Frist von zwei (2) Wochen gekündigt werden, gemäß § 622 Abs. 3 BGB"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Verschwiegenheit; Fortbestand. Der Arbeitnehmer verpflichtet sich, alle Betriebs- und Geschäftsgeheimnisse des Arbeitgebers während und nach Beendigung des Arbeitsverhältnisses geheim zu halten. Die Verpflichtung besteht für einen Zeitraum von drei (3) Jahren nach Beendigung des Arbeitsverhältnisses fort"
+
+# Drei erwartete Abweichungen.
+expected_deviations:
+  - clause_id: c1
+    severity: 2
+    category: kuendigungsfrist_6_monate_neue_einstellung
+    rationale: >-
+      „sechs (6) Monaten zum Monatsende" überschreitet die
+      gesetzliche Kündigungsfrist des § 622 BGB für eine
+      neue Einstellung erheblich. § 622 BGB sieht für die
+      Grundkündigungsfrist vier Wochen zum 15. oder Ende
+      eines Kalendermonats vor. Sechs Monate für eine neue
+      Einstellung ist eine unilateral extension exceeding
+      statutory. Material.
+    citation:
+      playbook_clause_id: employment-notice-period
+      source_url: "https://www.gesetze-im-internet.de/bgb/__622.html"
+  - clause_id: c3
+    severity: 2
+    category: unter_burlg_mindesturlaub
+    rationale: >-
+      „zwanzig (20) Arbeitstagen bei einer Fünf-Tage-Woche"
+      ist mehrdeutig und liegt typischerweise unter dem
+      gesetzlichen Mindesturlaub des § 3 BUrlG. § 3 BUrlG
+      schreibt mindestens 24 Werktage pro Kalenderjahr
+      bei einer Sechs-Tage-Woche vor. Material.
+    citation:
+      playbook_clause_id: employment-leave-entitlements
+      source_url: "https://www.gesetze-im-internet.de/burlg/__3.html"
+  - clause_id: c4
+    severity: 1
+    category: kuendigung_6_wochen_pruefungsfrist
+    rationale: >-
+      „Frist von sechs (6) Wochen zur Prüfung des
+      Sachverhalts" fügt dem nach § 626 BGB vorgesehenen
+      sofortigen Kündigungsrecht eine 6-Wochen-
+      Prüfungsfrist hinzu. Die wichtigen Gründe bleiben
+      erhalten. Minor, nicht material.
+    citation:
+      playbook_clause_id: employment-termination-for-cause
+      source_url: "https://www.gesetze-im-internet.de/bgb/__626.html"

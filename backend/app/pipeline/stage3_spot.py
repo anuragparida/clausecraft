@@ -56,15 +56,17 @@ from app.agents.deviation_spotter.schema import (
     BaselineForSpotter,
     DeviationFlag,
     SpotInput,
+    matrix_verdict_from_score,
 )
 from app.agents.deviation_spotter.spotter import spot_clause
 from app.classify.schema import Clause
 from app.config import settings
 from app.db import get_session_factory
 from app.playbook.counterparty import (
+    COUNTERPARTY_TYPES,
     CounterpartyMatrix,
     load_matrix,
-    lookup_verdict,
+    lookup_verdict_with_counterparty,
 )
 from app.playbook.embeddings import embed_text, is_real_provider_available
 from app.playbook.store import get_store
@@ -159,24 +161,52 @@ def _load_matrix_or_default() -> CounterpartyMatrix:
 
 
 def _matrix_verdict_for_clause(
-    matrix: CounterpartyMatrix, clause_type: str
-) -> tuple[str, str]:
-    """Return ``(verdict_label, counterparty_type)`` for a clause.
+    matrix: CounterpartyMatrix,
+    clause_type: str,
+    counterparty_type: str = "any",
+) -> tuple[str, list[str], str]:
+    """Return ``(verdict_label, sources, counterparty_type)`` for a clause.
 
     The spotter wants the *label* (``"aligned"`` / ``"minor"`` /
     ...) not the :class:`Verdict` enum — the prompt renders the
-    label as plain text. The counterparty type is always
-    ``"any"`` in Phase 2 (flat lookup); Phase 5 will pass the
-    real counterparty type.
+    label as plain text. ``sources`` is the lookup chain that
+    produced the verdict (the spec column form's audit trail
+    — first element is the winning source, e.g.
+    ``"counterparty"`` or ``"flat"``; later elements are the
+    losers). ``counterparty_type`` is the axis the matrix
+    actually consulted with (may be ``"any"`` when no override
+    matched, or the real axis the matrix hit an override for).
+
+    Phase 5: the counterparty matrix has a 4-axis lookup
+    (enterprise / smb / public_sector / healthcare). The flat
+    ``lookup_verdict`` call site (Phase 2) is preserved via the
+    ``counterparty_type="any"`` sentinel — when ``"any"``, the
+    matrix consults only the flat ``clause_verdicts`` table and
+    behaves identically to ``lookup_verdict``.
+
+    Unknown counterparty axes (anything not in
+    :data:`COUNTERPARTY_TYPES` and not ``"any"``) are normalised
+    to ``"any"`` before the lookup — the API is permissive, the
+    matrix lookup is strict.
     """
-    matrix_verdict = lookup_verdict(matrix, clause_type)
-    return matrix_verdict.verdict.label(), matrix_verdict.counterparty_type
+    ct = (counterparty_type or "any").strip() or "any"
+    if ct not in COUNTERPARTY_TYPES and ct != "any":
+        ct = "any"
+    matrix_verdict = lookup_verdict_with_counterparty(
+        matrix, clause_type, counterparty_type=ct
+    )
+    return (
+        matrix_verdict.verdict.label(),
+        list(matrix_verdict.sources),
+        matrix_verdict.counterparty_type,
+    )
 
 
 def _baselines_to_spot_inputs(
     clause: Clause,
     hits: list[Any],
     matrix: CounterpartyMatrix,
+    counterparty_type: str = "any",
 ) -> SpotInput:
     """Build a :class:`SpotInput` for a single clause.
 
@@ -184,11 +214,27 @@ def _baselines_to_spot_inputs(
     agent's :class:`BaselineForSpotter` shape and looks up the
     counterparty matrix verdict for the clause's type.
 
+    The ``counterparty_type`` is Phase 5's UI hook — when the
+    TriagePage's counterparty picker forwards a real axis
+    (``enterprise`` / ``smb`` / ``public_sector`` /
+    ``healthcare``), the matrix lookup consults that axis
+    first. The default ``"any"`` is the Phase 2 / Phase 3 /
+    Phase 4 sentinel: consult only the flat table.
+
     The clause's ``language`` field is propagated to
     :class:`SpotInput.clause_language` so the spotter's prompt
     builder (Phase 4) can dispatch per-clause. The matrix verdict
     is the language-agnostic default; the spotter's prompt is the
     language-specific reasoning layer on top.
+
+    Phase 5: the matrix verdict is bridged into the spec's
+    4-state column form (``acceptable`` / ``material`` /
+    ``unacceptable`` / ``unverified``) and stamped onto
+    :class:`SpotInput.matrix_verdict_column`. The spotter's
+    :func:`app.agents.deviation_spotter.spotter._stamp_matrix_audit_fields`
+    re-stamps the LLM's echo with this value, so the wire
+    response's ``DeviationFlag.matrix_verdict`` always matches
+    the pipeline's view (not the LLM's).
     """
     baselines = [
         BaselineForSpotter(
@@ -201,9 +247,16 @@ def _baselines_to_spot_inputs(
         )
         for h in hits
     ]
-    verdict_label, cp_type = _matrix_verdict_for_clause(
-        matrix, clause.type.value
+    verdict_label, sources, cp_type = _matrix_verdict_for_clause(
+        matrix, clause.type.value, counterparty_type=counterparty_type
     )
+    # Bridge the matrix's internal 4-state labels
+    # (``aligned`` / ``minor`` / ``material`` / ``unacceptable``)
+    # to the spec's 4-state column form (``acceptable`` /
+    # ``material`` / ``unacceptable`` / ``unverified``). The
+    # function is the canonical bridge — see
+    # :mod:`app.agents.deviation_spotter.schema` for the mapping.
+    matrix_verdict_column = matrix_verdict_from_score(verdict_label)
     return SpotInput(
         clause_id=clause.id,
         clause_text=clause.text,
@@ -212,6 +265,9 @@ def _baselines_to_spot_inputs(
         baselines=baselines,
         counterparty_verdict=verdict_label,
         counterparty_type=cp_type,
+        matrix_verdict_column=matrix_verdict_column,
+        matrix_sources=sources,
+        matrix_counterparty_type=cp_type,
     )
 
 
@@ -249,6 +305,7 @@ async def run_stage3(
     *,
     clauses: list[Clause],
     contract_filename: str = "",
+    counterparty_type: str = "any",
 ) -> Stage3Result:
     """Execute the spot stage for a list of classified clauses.
 
@@ -269,6 +326,15 @@ async def run_stage3(
        baselines + the counterparty matrix verdict.
     4. Call :func:`app.agents.deviation_spotter.spotter.spot_clause`
        with bounded parallelism.
+
+    The ``counterparty_type`` argument is Phase 5's UI hook:
+    the TriagePage's counterparty picker forwards the chosen
+    axis (one of ``enterprise`` / ``smb`` / ``public_sector`` /
+    ``healthcare`` / ``any``) here, and the matrix lookup
+    consults the matching counterparty override first before
+    falling back to the language / flat defaults. ``"any"`` is
+    the legacy Phase 2 / Phase 3 / Phase 4 sentinel that
+    consults only the flat table.
 
     Returns a :class:`Stage3Result` with one flag per input
     clause (same order as the input list).
@@ -323,7 +389,12 @@ async def run_stage3(
             if not hits:
                 no_baseline_ids.add(clause.id)
             spot_inputs.append(
-                _baselines_to_spot_inputs(clause, hits, matrix)
+                _baselines_to_spot_inputs(
+                    clause,
+                    hits,
+                    matrix,
+                    counterparty_type=counterparty_type,
+                )
             )
 
     # Fire all spot calls in parallel, bounded by the semaphore.

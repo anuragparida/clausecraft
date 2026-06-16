@@ -1,0 +1,93 @@
+# Playbook-Baseline — Employment (EN) — employment_leave_entitlements
+#
+# Source: UK Government, GOV.UK, "Holiday entitlement" guidance
+# page (last reviewed 12 November 2024), hosted at
+# https://www.gov.uk/holiday-entitlement. The page consolidates
+# the statutory rule from sections 13 to 16 of the Employment
+# Rights Act 1996 (ERA 1996) — a "leave year" accrual of
+# 5.6 weeks (28 days for a 5-day worker, 24 days + 8 public
+# holidays for a 5-day worker if the employer elects to
+# "roll up" public holidays) — and the carry-over and
+# payment-in-lieu rules from the Working Time Regulations 1998
+# (SI 1998/1833). The GOV.UK page is a public-domain UK
+# government publication (Open Government Licence v3.0,
+# attribution "Contains public sector information licensed
+# under the Open Government Licence v3.0").
+#
+# The baseline text below combines (a) the ERA 1996 s.13–16
+# statutory minimum of 5.6 weeks, and (b) the typical UK
+# commercial "28 days inclusive of public holidays" structure.
+# The statutory minimum is the floor; the body captures the
+# structure the deviation spotter sees in real UK employment
+# agreements. Cross-references: ERA 1996 ss.13 (leave year),
+# 13A (leave for irregular-hour workers), 14 (compulsory
+# maternity/paternity/adoption leave — not in scope for this
+# baseline), 15 (payment for leave), 16 (carry-over rules);
+# Working Time Regulations 1998 regs 13, 13A, 14 (the
+# statutory detail that backs the GOV.UK guidance); ACAS
+# guidance "Holiday pay" (practitioner-level interpretation
+# of the carry-over and rolled-up-holiday rules).
+clause_id: uk-employment-leave-entitlements-era-1996-s13-16-wtr-1998
+type: employment_leave_entitlements
+language: en
+title: Paid annual leave under ERA 1996 ss.13–16 + WTR 1998
+text: >-
+  The Employee shall be entitled to paid annual leave of
+  not less than 5.6 working weeks (twenty-eight (28) days for
+  a five-day worker, pro-rated for any part-year and for any
+  change in working pattern) in each leave year, in
+  accordance with sections 13 to 16 of the Employment Rights
+  Act 1996 and regulations 13 and 13A of the Working Time
+  Regulations 1998. The leave year shall run from 1 January
+  to 31 December, unless the Employer notifies the Employee
+  in writing of a different leave year not less than four (4)
+  weeks before the change takes effect. The twenty-eight (28)
+  days' statutory entitlement shall be inclusive of the eight
+  (8) public / bank holidays in England and Wales, unless the
+  Employer elects, by written notification to the Employee
+  given before the start of the leave year, to grant the
+  twenty-eight (28) days in addition to the eight (8) public
+  / bank holidays (in which case the Employee's total
+  entitlement is thirty-six (36) days). The Employee may, by
+  agreement with the Employer, carry forward up to four (4)
+  days of unused statutory leave into the following leave
+  year where the Employee has been unable to take it because
+  of one of the reasons set out in regulation 13(10) of the
+  Working Time Regulations 1998 (sickness absence, statutory
+  family leave, or other compelling reason); the remaining
+  unused leave shall be forfeited at the end of the leave
+  year unless the Employer agrees otherwise. On termination
+  of employment, the Employer shall pay the Employee a sum
+  in lieu of any untaken statutory leave accrued up to the
+  date of termination, calculated in accordance with
+  regulation 16 of the Working Time Regulations 1998. The
+  Employee's statutory rights to paid annual leave cannot
+  be contracted out of; any agreement that purports to do
+  so is unenforceable.
+source_url: https://www.gov.uk/holiday-entitlement
+retrieval_date: 2026-06-09
+license: >-
+  UK Government GOV.UK guidance page "Holiday entitlement"
+  (last reviewed 12 November 2024). Published under the Open
+  Government Licence v3.0; contains public sector information
+  licensed under the Open Government Licence v3.0. Baseline
+  text is a paraphrased combination of the ERA 1996 s.13–16
+  statutory minimum, the WTR 1998 reg 13/13A/16 detail, and
+  the typical UK commercial "28 days inclusive of public
+  holidays" structure, not a verbatim quote of any of them.
+notes: >-
+  Three deviation patterns to flag in the matrix: (a) a leave
+  entitlement of less than 5.6 weeks (or 28 days for a
+  five-day worker) is unenforceable under ERA 1996 s.13 and
+  WTR 1998 reg 13 — `unacceptable` for every counterparty
+  type; (b) a clause that "rolls up" holiday pay into the
+  hourly rate (pays the statutory minimum wage in lieu of
+  paid leave) was held to be unlawful by the Court of Appeal
+  in Lock v British Gas Trading Ltd [2014] EWCA Civ 822 and
+  is therefore `unacceptable` for every counterparty type;
+  (c) a missing payment-in-lieu-on-termination clause is a
+  sub-statutory drafting issue — `minor` for SMB,
+  `material` for enterprise / public-sector. Carrying
+  forward more than 4 days by mutual agreement is acceptable
+  and is treated as `aligned` regardless of counterparty
+  type.

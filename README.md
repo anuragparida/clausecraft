@@ -13,8 +13,10 @@ and a plain-language summary memo. The dev agent cites the specific
 playbook clause AND the contract text it compared; flags without citations
 are downgraded to "unverified." A counterparty matrix encodes when a
 deviation is acceptable vs material (e.g. "LoL 1y cap → acceptable for
-SaaS, material for healthcare vendor"). Every decision is logged to an
-immutable Postgres audit table and traced through Langfuse.
+SaaS, material for healthcare vendor") — see
+[§ Supported contract types](#supported-contract-types) for the matrix
+claim. Every decision is logged to an immutable Postgres audit table and
+traced through Langfuse.
 
 > Spellbook costs $30k/year. This costs an LLM API key. The playbook is
 > public. The redlines are reproducible. Read the eval set before you call
@@ -60,21 +62,103 @@ See `docs/08-tech-stack.md` for the full rationale.
 
 ## Status
 
-**Phase 4 — bilingual (EN + DE) is the current build target.** The EN
-pipeline runs end-to-end (Phase 3 review, audit log, redline export). The
-DE pipeline (Phase 4) ships the eval set, per-clause language detection,
-DE-localized prompts, and the per-language F1 + 10% / 5% gap assertions.
-Subsequent phases:
+**Phase 5 — DPA + Employment + counterparty matrix — is the current build
+target.** NDA runs end-to-end in EN and DE (Phase 3 review, audit log,
+redline export). The DE pipeline (Phase 4) ships the eval set, per-clause
+language detection, DE-localized prompts, and the per-language F1 + 10% /
+5% gap assertions. Phase 5 adds the second and third v1 contract types
+(DPA, Employment) and the 4-axis counterparty matrix. See
+[§ Supported contract types](#supported-contract-types) for the 3×2
+coverage table. Subsequent phases:
 
 1. **Phase 1** — ingest + parse + classify (NDA, EN).
 2. **Phase 2** — playbook + deviation spotter (NDA, EN) + eval harness.
 3. **Phase 3** — redline drafter + HITL state machine + audit log.
-4. **Phase 4** — bilingual pass (DE). ← in progress
-5. **Phase 5** — DPA + Employment + counterparty matrix.
+4. **Phase 4** — bilingual pass (DE).
+5. **Phase 5** — DPA + Employment + counterparty matrix. (See [§ Supported contract types](#supported-contract-types) for the current 3×2 coverage.)
 6. **Phase 6** — polish + deploy + demo.
 
 See [`docs/11-phases.md`](./docs/11-phases.md) for the full plan and
 [`docs/00-overview.md`](./docs/00-overview.md) for the locked scope.
+
+---
+
+## Supported contract types
+
+Phase 5 ships the second and third v1 contract types (DPA, Employment) on
+top of the Phase 1 NDA. Each cell of the table below lists the current
+eval-set coverage; the section after it names the counterparty matrix that
+decides whether a deviation is acceptable, material, or unacceptable.
+
+| Contract type | EN | DE |
+|---|---|---|
+| NDA | full | full |
+| DPA | matrix-aware (v1 eval) | matrix-aware (v1 eval) |
+| Employment | matrix-aware (v1 eval) | matrix-aware (v1 eval) |
+
+**Status legend**
+
+- **full** — the pipeline runs end-to-end, the deviation F1 on the eval set
+  is 1.0, and the counterparty matrix is in the lookup chain. NDA is the
+  only type with a public run report ([`evals/runs/…`](./evals/runs/)).
+- **matrix-aware (v1 eval)** — the classifier, the deviation spotter, and
+  the matrix-aware verdict path are all wired for this type and language,
+  and the v1 eval set (3 contracts per type per language — see
+  `examples/expected/`) runs green. **The full Phase 5 eval set (~30
+  contracts) is still in build** — see [§ What this isn't](#what-this-isnt-1)
+  below. The formal "matrix actually changes verdicts on 3+ contracts"
+  Helena review (card `t_42acdddc`) is still `todo` and will run before
+  any of these cells flip to "full."
+- The 6-cell grid is the v1 scope. Future contract types (sale of goods,
+  M&A, services) are out of scope for Phase 5.
+
+### Counterparty matrix
+
+A deviation is not just a deviation. A "no liability cap" flag on an NDA
+with a Fortune 500 counterparty is acceptable — the enterprise has the
+margin to absorb the risk. The same flag on an NDA with a 10-person SMB is
+material — the SMB does not. Clausecraft encodes this judgment in a
+counterparty matrix
+([`playbook/counterparty_matrix.yaml`](./playbook/counterparty_matrix.yaml))
+that the deviation spotter consults on every flag.
+
+The matrix has four axes:
+
+- **enterprise** — large companies with in-house counsel. Most permissive
+  defaults; the matrix only narrows verdicts for non-negotiable statutory
+  regimes (HIPAA BAA, BGB Karenzentschädigung).
+- **smb** — small / medium businesses, often standard-form contracts.
+  Asymmetric risk bearing is the dominant signal.
+- **public_sector** — government agencies, municipal, federal. Hard
+  statutory floors (Datenlokation, civil-service protections, procurement
+  law) dominate; the matrix narrows aggressively.
+- **healthcare** — HIPAA-bound entities (US), Krankenhäuser and
+  Pflegeeinrichtungen (DE). Sector-specific data-protection regimes
+  (HIPAA BAA, GDPR Art 9 special-category data) dominate.
+
+**The matrix is our judgment.** It is anchored against common public-source
+contract templates (EU SCCs, IAPP, BGB, KSchG, HIPAA, EDPB) but it is *not*
+a legal standard. Different lawyers will disagree on what is acceptable for
+an SMB vs an enterprise. The README says this explicitly because the
+alternative — no matrix — is a silent opinion anyway.
+
+**The matrix is configurable.** Override a single cell, a whole axis, or a
+whole contract type by editing
+[`playbook/counterparty_matrix.yaml`](./playbook/counterparty_matrix.yaml);
+the spotter picks the change up on the next ingest. Per-cell `# source:`
+comments name the legal regime and public source the verdict is anchored
+against so the override decision is informed. A reloadable YAML means
+there is no recompile, no redeploy, no "raise a card to change a verdict"
+— just edit and re-ingest.
+
+### What this isn't
+
+The supported-types table is honest about what the eval set currently
+exercises, not what the system *could* exercise. The matrix is opinionated
+and configurable. The eval set is small (NDA 15 contracts, DPA 3 v1,
+Employment 3 v1). The deviation F1 on the NDA run is 1.0 in mock mode;
+real-LLM numbers will land when the eval harness is wired to a non-mock
+model. None of this is legal advice — see [`DISCLAIMER.md`](./DISCLAIMER.md).
 
 ---
 

@@ -1,0 +1,95 @@
+# Playbook-Baseline — DPA (DE) — dpa_subprocessor_flowdown
+#
+# Quelle: § 62 Abs. 4 Bundesdatenschutzgesetz (BDSG) vom
+# 30. Juni 2017 (BGBl. I S. 2097), zuletzt geändert durch
+# Art. 10 Abs. 5 des Gesetzes vom 23. Juni 2021 (BGBl. I
+# S. 1858); konsolidierte Fassung auf gesetze-im-internet.de,
+# bereitgestellt durch das Bundesministerium der Justiz (BMJ)
+# und das Bundesamt für Justiz (BfJ). § 62 BDSG ist die
+# nationale Konkretisierung des Art. 28 DSGVO für
+# nicht-öffentliche Stellen und ergänzt das EU-Statut um
+# konkretisierende deutsche Kodifikationsregeln, die in der
+# Auftragsverarbeitungs-Praxis unmittelbar angewendet werden.
+#
+# Diese Baseline erfasst die *Weiterreichungs-Pflicht* (dass
+# der Unterauftragsverarbeiter dem Vertrag des ersten Auftrags-
+# verarbeiters unterworfen wird) — zu unterscheiden von
+# dpa_subprocessor_consent, das das *Einwilligungs-Tor* erfasst
+# (muss der Auftragsverarbeiter vor dem Einschalten eines
+# Unterauftragsverarbeiters anfragen?). Die englische Pendant-
+# Karte (t_45151f58) hat das *Einwilligungs-Tor* im EN-Set
+# abgedeckt (über EDPB Guidelines 7/2020 § 6) und diese
+# *Weiterreichungs-Pflicht* ausdrücklich in den DE-Satz
+# verschoben — das DSK-Kurzpapier Nr. 13 ist eine stärkere
+# Quelle für den Einwilligungs-Mechanismus, das BDSG § 62
+# Abs. 4 ist die saubere nationale Konkretisierung der
+# Weiterreichungs-Pflicht. Beide Sprachen zusammen ergeben
+# die vollständige Unterauftragsverarbeiter-Steuerung über
+# zwei komplementäre Quellen.
+clause_id: unterauftragsverarbeiter-weiterreichungspflicht-bdsg-62-abs-4
+type: dpa_subprocessor_flowdown
+language: de
+title: Weiterreichungspflicht an Unterauftragsverarbeiter nach § 62 Abs. 4 BDSG
+text: >-
+  Zieht ein Auftragsverarbeiter einen weiteren Auftragsverarbeiter
+  hinzu, so hat er diesem dieselben Verpflichtungen aus seinem
+  Vertrag mit dem Verantwortlichen aufzuerlegen, die auch für ihn
+  gelten, soweit diese Pflichten für den weiteren Auftragsverarbeiter
+  nicht schon aufgrund anderer Vorschriften verbindlich sind. Erfüllt
+  ein weiterer Auftragsverarbeiter diese Verpflichtungen nicht, so
+  haftet der ihn beauftragende Auftragsverarbeiter gegenüber dem
+  Verantwortlichen für die Einhaltung der Pflichten des weiteren
+  Auftragsverarbeiters. Die Pflichten des Auftragsverarbeiters
+  gegenüber dem Verantwortlichen umfassen insbesondere: nur auf
+  dokumentierte Weisung des Verantwortlichen zu handeln und den
+  Verantwortlichen unverzüglich zu informieren, wenn der
+  Auftragsverarbeiter der Auffassung ist, dass eine Weisung
+  rechtswidrig ist; sicherzustellen, dass die zur Verarbeitung
+  befugten Personen zur Vertraulichkeit verpflichtet werden, soweit
+  sie keiner angemessenen gesetzlichen Verschwiegenheitspflicht
+  unterliegen; den Verantwortlichen dabei zu unterstützen, die
+  Einhaltung der Bestimmungen über die Rechte der betroffenen
+  Person zu gewährleisten; alle personenbezogenen Daten nach
+  Abschluss der Erbringung der Verarbeitungsleistungen nach Wahl
+  des Verantwortlichen zurückzugeben oder zu löschen und bestehende
+  Kopien zu vernichten, sofern keine gesetzliche Pflicht zur
+  Speicherung besteht; dem Verantwortlichen alle erforderlichen
+  Informationen, insbesondere die gemäß § 76 BDSG erstellten
+  Protokolle, zum Nachweis der Einhaltung seiner Pflichten
+  zur Verfügung zu stellen; Überprüfungen, die von dem
+  Verantwortlichen oder einem von diesem beauftragten Prüfer
+  durchgeführt werden, zu ermöglichen und dazu beizutragen; die
+  Bedingungen für die Inanspruchnahme der Dienste eines weiteren
+  Auftragsverarbeiters einzuhalten; die gemäß § 64 BDSG
+  erforderlichen Maßnahmen zu ergreifen; und den Verantwortlichen
+  unter Berücksichtigung der Art der Verarbeitung und der ihm zur
+  Verfügung stehenden Informationen bei der Einhaltung der in den
+  §§ 64 bis 67 und § 69 BDSG genannten Pflichten zu unterstützen.
+source_url: https://www.gesetze-im-internet.de/bdsg_2018/__62.html
+retrieval_date: 2026-06-09
+license: >-
+  Bundesdatenschutzgesetz (BDSG), konsolidierte Fassung.
+  Amtliche Texte von Bundesgesetzen sind gemäß § 5 UrhG vom
+  deutschen Urheberrecht ausgenommen; die Veröffentlichung auf
+  gesetze-im-internet.de erfolgt ohne Nutzungsbeschränkung.
+  Die Baseline-Sprache ist eine paraphrasierte Verdichtung
+  des § 62 Abs. 4 i. V. m. Abs. 5 BDSG, keine wortgetreue
+  Übernahme des Gesetzes.
+notes: >-
+  Diese Baseline erfasst die *Weiterreichungs-Pflicht* des
+  Auftragsverarbeiters gegenüber seinem Verantwortlichen für
+  den Fall, dass er einen Unterauftragsverarbeiter einschaltet.
+  Sie ergänzt dpa_subprocessor_consent (das das Einwilligungs-
+  Tor erfasst, also das Ob des Einschaltens) und stellt
+  zusammen mit dieser eine vollständige Unterauftragsverarbeiter-
+  Steuerung sicher. Im EN-Baseline-Set ist diese Pflicht
+  ausdrücklich ausgespart, weil die EN-Karte (t_45151f58) das
+  Einwilligungs-Tor über die EDPB-Leitlinien 7/2020 abdeckt;
+  im DE-Set ergänzen sich Einwilligungs-Tor (EDPB DE-Übersetzung
+  der Leitlinien) und Weiterreichungs-Pflicht (BDSG § 62 Abs. 4)
+  zu einer vollständigen Steuerung mit zwei komplementären
+  Quellen, ohne dass eine Baseline in beiden Sprachen dupliziert
+  wird. Das Matrix-Verdikt für einen Vertrag, der die
+  Weiterreichungs-Pflicht auslässt, ist „nicht akzeptabel" für
+  jeden Vertragspartnertyp — die Pflicht aus § 62 Abs. 4 BDSG
+  ist nicht abdingbar.

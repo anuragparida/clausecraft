@@ -52,6 +52,14 @@ from app.classify.schema import ClauseType
 
 # Keep the system prompt short but specific. We name every valid
 # enum value (excluding ``unknown``) and explain the confidence rule.
+#
+# Phase 5 note: as of 2026-06-09 the active system prompt is still
+# NDA-only — the new ``dpa_*`` and ``employment_*`` values are
+# recognised by the parser (Pydantic-validated ``ClauseType`` enum)
+# but the classifier's per-call prompt is not yet updated to
+# surface them. This is intentional: the matrix-aware spotter
+# prompt work is owned by a separate card. The full taxonomy lives
+# in ``docs/15-clause-taxonomy-phase5.md`` (kanban ``t_8337687f``).
 SYSTEM_PROMPT = """You are a contract-clause classifier for English-language \
 Non-Disclosure Agreements (NDAs). You will be given the text of a single \
 clause extracted from a larger NDA. Your job is to assign it exactly one \

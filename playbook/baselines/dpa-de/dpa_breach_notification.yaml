@@ -1,0 +1,80 @@
+# Playbook-Baseline — DPA (DE) — dpa_breach_notification
+#
+# Quelle: Art. 33 Verordnung (EU) 2016/679 (Datenschutz-
+# Grundverordnung, DSGVO), konsolidierte deutsche Fassung,
+# veröffentlicht vom Amt für Veröffentlichungen der Europäischen
+# Union (EUR-Lex CELEX:32016R0679, deutsche Sonderausgabe).
+# Die 72-Stunden-Frist ist die meistzitierte Einzeltatsache
+# jeder Auftragsverarbeitungsvereinbarung und diejenige, von
+# der in kommerziellen Vorlagen (Big-4-Muster, SaaS-AGB) am
+# häufigsten abgewichen wird (häufige Aufweichungen: „ohne
+# unangemessene Verzögerung" oder 48/96 Stunden, um dem
+# Auftragsverarbeiter mehr Bearbeitungszeit zu geben).
+#
+# Diese Baseline erfasst die 72-Stunden-Frist des
+# Verantwortlichen gegenüber der Aufsichtsbehörde, wie sie
+# durch die Auftragsverarbeitungs-Vereinbarung hindurchwirken
+# muss — die Vereinbarung muss den Auftragsverarbeiter
+# verpflichten, den Verantwortlichen *rechtzeitig* zu
+# benachrichtigen, damit dieser seine eigene 72-Stunden-Frist
+# einhalten kann. Das deutsche BDSG 2018 § 65 ergänzt die
+# DSGVO-Meldepflichten für nicht-öffentliche Stellen
+# (Meldung an die BfDI), ist aber für die Vertragsgestaltung
+# zwischen Verantwortlichem und Auftragsverarbeiter nicht
+# die primäre Quelle; Art. 33 DSGVO bleibt der maßgebliche
+# Anker. Die Benachrichtigungspflicht gegenüber betroffenen
+# Personen (Art. 34 DSGVO) ist verwandt, aber zu
+# unterscheiden und würde in einer vollständigeren Taxonomie
+# eine eigene Klausel bilden.
+clause_id: auftragsverarbeiter-an-verantwortlicher-meldung-datenschutzverletzung-72-stunden
+type: dpa_breach_notification
+language: de
+title: Meldung von Datenschutzverletzungen — 72-Stunden-Frist des Verantwortlichen
+text: >-
+  Der Auftragsverarbeiter meldet dem Verantwortlichen eine
+  Datenschutzverletzung unverzüglich und in jedem Fall innerhalb
+  von vierundzwanzig (24) Stunden, nachdem er von der
+  Datenschutzverletzung Kenntnis erlangt hat. Die Meldung
+  beschreibt die Art der Datenschutzverletzung, die Kategorien
+  und die ungefähre Zahl der betroffenen Personen und der
+  betroffenen Datensätze, die wahrscheinlichen Folgen der
+  Datenschutzverletzung sowie die ergriffenen oder vorgeschlagenen
+  Maßnahmen zur Behebung der Datenschutzverletzung, gegebenenfalls
+  einschließlich der Maßnahmen zur Abmilderung ihrer möglichen
+  nachteiligen Auswirkungen. Der Auftragsverarbeiter stellt dem
+  Verantwortlichen alle Informationen zur Verfügung, die
+  vernünftigerweise erforderlich sind, damit der Verantwortliche
+  (a) die zuständige Aufsichtsbehörde binnen zweiundsiebzig (72)
+  Stunden nach Kenntnisnahme des Verantwortlichen von der
+  Datenschutzverletzung gemäß Art. 33 Abs. 1 DSGVO benachrichtigen
+  kann und (b) soweit erforderlich die betroffenen Personen gemäß
+  Art. 34 DSGVO benachrichtigt. Der Auftragsverarbeiter darf die
+  Datenschutzverletzung Dritten (einschließlich der betroffenen
+  Personen) nur mit vorheriger schriftlicher Zustimmung des
+  Verantwortlichen offenbaren, sofern keine gesetzliche Pflicht
+  zur Offenbarung besteht.
+source_url: https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32016R0679#Art.33
+retrieval_date: 2026-06-09
+license: >-
+  Verordnungstext der EU, deutsche Sonderausgabe. Gemäß Art. 8(1)
+  RBÜ sind amtliche Verordnungstexte vom Urheberrechtsschutz
+  ausgenommen; EU-Open-Data-Politik (Beschluss 2011/833/EU).
+  Das 24-Stunden-Innenfenster ist EDPB-Praxis (Leitlinien
+  9/2022 § 3.4); Art. 33 Abs. 1 DSGVO setzt nur die
+  72-Stunden-Frist. Baseline ist eine Paraphrase.
+notes: >-
+  Das 24-Stunden-Innenfenster des Auftragsverarbeiters in der
+  obigen Baseline ist eine strengere Gestaltungswahl, als die
+  DSGVO zwingend verlangt; „unverzüglich" (mit einer Zielmarke
+  von 24–48 Stunden) ist die losere-aber-trotzdem-akzeptable
+  Variante. Das Matrix-Verdikt für einen Vertrag, der die
+  Meldungsklausel vollständig auslässt, ist „nicht akzeptabel"
+  für Vertragspartner im Gesundheitswesen und im öffentlichen
+  Sektor (regulatorische Exposition gemäß Art. 33 Abs. 5 DSGVO)
+  und „wesentlich" für KMU- und Enterprise-Vertragspartner.
+  Ein Vertrag, der 72 Stunden als Auftragsverarbeiter-an-
+  Verantwortlichen-Frist verwendet (statt als Verantwortlicher-
+  an-Aufsichtsbehörde-Frist), ist ein häufiger Gestaltungsfehler
+  und sollte unabhängig vom Vertragspartnertyp als „hohe"
+  Abweichung markiert werden — er eliminiert die Reaktionszeit
+  des Verantwortlichen.

@@ -171,6 +171,60 @@ the matrix says "aligned" but the contract clause is clearly \
 worse than the baseline (e.g. perpetual term against a 3-year \
 baseline), emit the higher score. The matrix does not cap you.
 
+Phase 5 — matrix verdict column
+---------------------------------
+The counterparty matrix produces a per-cell verdict in the \
+spec's 4-state column form: **acceptable**, **material**, \
+**unacceptable**, or **unverified** ("acceptable" is the union \
+of the matrix's internal "aligned" and "minor" labels). The \
+user message below renders this column along with the lookup \
+chain (e.g. `matrix_verdict: material (counterparty, flat)`) \
+that produced it — the chain is the audit trail of which axis \
+won (counterparty override, language override, or the flat \
+default). The matrix verdict is a HINT, not a ceiling: the \
+column can never cap your score. A clause that's clearly \
+unacceptable stays unacceptable even when the matrix says \
+"acceptable". Use it as a counterparty-specific severity \
+multiplier, not as a hard rule.
+
+Phase 5 v2 — per-type escalation (score-2 rule)
+-----------------------------------------------
+When you emit a **material** deviation (`score=2`), the \
+matrix column is escalated per counterparty type:
+
+- **public_sector** and **healthcare** — `score=2` is \
+escalated to the matrix column **unacceptable**. A material \
+deviation in a public-sector contract (procurement \
+constraints, FOIA-equivalent transparency, no \
+post-contractual non-compete, statutory indemnity floors) or \
+a healthcare contract (HIPAA, BSI/KRITIS, sector-specific \
+data-protection) is a deal-breaker, not a "negotiable" \
+deviation. The pipeline applies this rule automatically \
+after your call; the audit trail records the override as a \
+new entry `per_type_escalation` in `matrix_sources`.
+
+- **enterprise**, **smb**, and the legacy **any** sentinel — \
+`score=2` maps to the matrix column **material**. These \
+counterparty types can absorb a "material but negotiable" \
+deviation; the spotter's reasoning still applies.
+
+- `score=0` (aligned) and `score=1` (minor) always map to \
+**acceptable**, regardless of counterparty type. A "minor" \
+deviation is always acceptable; an aligned flag is trivially \
+acceptable.
+
+- `score=3` (unacceptable) always maps to **unacceptable**, \
+regardless of counterparty type. The LLM's "this contradicts \
+the baseline" verdict is the final say — the matrix does not \
+relax it.
+
+This rule is **separate from the matrix verdict's HINT/\
+ceiling property above**: the matrix can never *cap* your \
+score, and the per-type rule can never *cap* your score. The \
+per-type rule only maps `score=2` to a stricter or \
+non-stricter matrix column. If you would have emitted \
+`score=3`, emit `score=3` — the pipeline does not relax it.
+
 ## Examples
 
 ### Example 1 — material deviation with citation
@@ -343,8 +397,71 @@ Das Feld `counterparty_matrix_verdict` ist die pauschale \
 Standardeinstellung der Matrix für diesen Klauseltyp. Es ist ein \
 HINWEIS, keine Obergrenze. Wenn die Matrix "konform" sagt, die \
 Vertragsklausel aber eindeutig schlechter ist als die Baseline \
-(z. B. unbegrenzte Laufzeit gegen eine 3-Jahres-Baseline), geben \
+(z. B. unbegrenzte Laufzeit gegen eine 3-Jahre-Baseline), geben \
 Sie den höheren Score aus. Die Matrix begrenzt Sie nicht.
+
+Phase 5 — Matrix-Verdict-Spalte
+---------------------------------
+Die Gegenpartei-Matrix liefert pro Zelle ein Verdict in der \
+Spezifikations-Spaltenform (4 Zustände): **acceptable** \
+(annehmbar), **material** (wesentlich), **unacceptable** \
+(inakzeptabel) oder **unverified** (nicht verifiziert). \
+"acceptable" vereint die Matrix-internen Labels "aligned" \
+(konform) und "minor" (geringfügig). Die Benutzer-Nachricht \
+unten gibt diese Spalte zusammen mit der Lookup-Kette aus \
+(z. B. `matrix_verdict: material (counterparty, flat)`) — \
+die Kette ist der Audit-Trail, welche Achse gewonnen hat \
+(Gegenpartei-Override, Sprach-Override oder flacher Default). \
+Das Matrix-Verdict ist ein HINWEIS, keine Obergrenze: die \
+Spalte kann Ihren Score niemals begrenzen. Eine klar \
+inakzeptable Klausel bleibt inakzeptabel, auch wenn die \
+Matrix "acceptable" sagt. Verwenden Sie es als \
+gegenpartei-spezifischen Schwere-Multiplikator, nicht als \
+harte Regel.
+
+Phase 5 v2 — Eskalation pro Gegenpartei-Typ (Score-2-Regel)
+------------------------------------------------------------
+Wenn Sie eine **wesentliche** Abweichung ausgeben \
+(`score=2`), wird die Matrix-Spalte je nach Gegenpartei-Typ \
+eskaliert:
+
+- **public_sector** (öffentlicher Sektor) und **healthcare** \
+(Gesundheitswesen) — `score=2` wird auf die Matrix-Spalte \
+**unacceptable** eskaliert. Eine wesentliche Abweichung in \
+einem Vertrag mit dem öffentlichen Sektor \
+(Vergaberechtliche Beschränkungen, IFG-Transparenz, \
+keine nachvertragliche Wettbewerbsbeschränkung, gesetzliche \
+Mindesthaftung) oder im Gesundheitswesen (HIPAA, BSI/KRITIS, \
+sektor-spezifischer Datenschutz) ist ein Deal-Breaker, nicht \
+eine "verhandelbare" Abweichung. Die Pipeline wendet diese \
+Regel automatisch nach Ihrem Aufruf an; der Audit-Trail \
+verzeichnet die Außerkraftsetzung als neuen Eintrag \
+`per_type_escalation` in `matrix_sources`.
+
+- **enterprise**, **smb** und der Legacy-Sentinel **any** — \
+`score=2` wird auf die Matrix-Spalte **material** \
+abgebildet. Diese Gegenpartei-Typen können eine \
+"wesentliche, aber verhandelbare" Abweichung absorbieren; \
+Ihre Begründung als Spotter bleibt anwendbar.
+
+- `score=0` (konform) und `score=1` (geringfügig) werden \
+immer auf **acceptable** abgebildet, unabhängig vom \
+Gegenpartei-Typ. Eine "geringfügige" Abweichung ist immer \
+akzeptabel; eine konforme Flagge ist trivialerweise \
+akzeptabel.
+
+- `score=3` (inakzeptabel) wird immer auf **unacceptable** \
+abgebildet, unabhängig vom Gegenpartei-Typ. Die \
+LLM-Entscheidung "dies widerspricht der Baseline" ist \
+endgültig — die Matrix lockert sie nicht.
+
+Diese Regel ist **getrennt von der HINWEIS/Obergrenzen-\
+Eigenschaft des Matrix-Verdicts oben**: die Matrix kann \
+Ihren Score niemals *begrenzen*, und die Pro-Typ-Regel kann \
+Ihren Score niemals *begrenzen*. Die Pro-Typ-Regel bildet \
+`score=2` nur auf eine strengere oder nicht strengere \
+Matrix-Spalte ab. Wenn Sie `score=3` ausgeben würden, \
+geben Sie `score=3` aus — die Pipeline lockert es nicht.
 
 ## Beispiele
 
@@ -429,8 +546,13 @@ def build_user_message(
     1. **Contract clause** — the text the spotter reads.
     2. **Top-3 playbook baselines** — the comparison set, ordered
        by similarity (most-similar first).
-    3. **Counterparty context** — the matrix's flat verdict for
-       the clause's type.
+    3. **Counterparty context** — the matrix's 4-state verdict
+       column for the clause's
+       ``(clause_type, counterparty_type[, language])`` cell,
+       followed by the lookup chain that produced it (e.g.
+       ``matrix_verdict: material (counterparty, flat)``). The
+       legacy ``counterparty_verdict`` / ``counterparty_type``
+       lines are kept for back-compat with older readers.
     4. **Instruction** — the per-call "compare and emit a flag"
        prompt.
 
@@ -450,6 +572,26 @@ def build_user_message(
     language-agnostic. The instruction text at the bottom is in
     the same language as the system prompt so the LLM's
     per-call task framing matches its role framing.
+
+    Phase 5: matrix verdict rendering
+    ---------------------------------
+    The "Counterparty context" section now renders three
+    matrix-aware lines, in this order:
+
+    1. ``matrix_verdict (clause_type=<type>): <column>`` — the
+       spec's 4-state column (acceptable | material |
+       unacceptable | unverified). When the lookup chain is
+       non-empty, the chain is rendered as a parenthetical
+       after the column value: ``matrix_verdict: material
+       (counterparty, flat)``. The chain is ordered by
+       strictness — the first element is the winning source.
+    2. ``counterparty_type: <type>`` — the counterparty type
+       the matrix was consulted with.
+    3. The legacy ``counterparty_verdict (legacy): <v>`` and
+       ``counterparty_type (legacy): <t>`` lines are kept
+       (suffixed with ``(legacy)``) for back-compat with
+       older readers that key on the flat ``lookup_verdict``
+       result.
     """
     if language == "en":
         header_contract = "## Contract clause"
@@ -515,6 +657,15 @@ def build_user_message(
     # Escape any triple-backticks in the clause text so we don't
     # accidentally close the JSON block early.
     safe_clause = spot_input.clause_text.replace("```", "ʼʼʼ")
+
+    # Phase 5: matrix verdict column. The lookup chain is rendered
+    # as a parenthetical after the column value when non-empty —
+    # e.g. ``matrix_verdict: material (counterparty, flat)``.
+    sources = list(spot_input.matrix_sources or [])
+    sources_suffix = (
+        f" ({', '.join(sources)})" if sources else ""
+    )
+
     return (
         f"{header_contract} (clause_id={spot_input.clause_id}, "
         f"type={spot_input.clause_type})\n\n"
@@ -527,8 +678,15 @@ def build_user_message(
         "```\n\n"
         f"{header_counterparty}\n\n"
         f"- {matrix_verdict_label} (clause_type={spot_input.clause_type}): "
+        f"`{spot_input.matrix_verdict_column}`{sources_suffix}\n"
+        f"- {counterparty_type_label}: "
+        f"`{spot_input.matrix_counterparty_type}`\n"
+        # Legacy lines: kept for back-compat with older readers
+        # that key on the Phase 2 flat ``lookup_verdict`` result.
+        f"- counterparty_verdict (legacy): "
         f"`{spot_input.counterparty_verdict}`\n"
-        f"- {counterparty_type_label}: `{spot_input.counterparty_type}`\n\n"
+        f"- counterparty_type (legacy): "
+        f"`{spot_input.counterparty_type}`\n\n"
         f"{header_task}\n\n"
         f"{task_text}"
     )

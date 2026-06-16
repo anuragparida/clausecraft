@@ -77,6 +77,7 @@ from typing import Any, Optional
 import pytest
 import yaml
 
+from app.agents.deviation_spotter.schema import MATRIX_VERDICT_VALUES
 from app.classify.schema import Clause
 from app.pipeline import run_stage1, run_stage3
 
@@ -101,6 +102,14 @@ CONTRACTS_DIR = REPO_ROOT_PATH / "examples" / "contracts"
 EXPECTED_DIR = REPO_ROOT_PATH / "examples" / "expected"
 RUNS_DIR = EVALS_DIR_PATH / "runs"
 EVAL_CONTRACTS: list[tuple[str, str]] = [
+    # NOTE: This is a thin shadow of evals/conftest.py:EVAL_CONTRACTS
+    # kept for the parametrised ``test_contract_ingests_and_classifies``
+    # smoke test only. The end-to-end harness test
+    # (``test_eval_set_runs_end_to_end``) reads the live list from
+    # conftest. Keep both in sync when the eval set changes. As of
+    # Phase 5 v2 (card t_0d594e5e) the live set has 25 contracts
+    # (15 NDA + 10 DPA); the per-contract smoke test is a
+    # diagnostic and runs against this shadow.
     ("examples/contracts/public/nda-001.pdf", "examples/expected/public-001.yaml"),
     ("examples/contracts/public/nda-002.pdf", "examples/expected/public-002.yaml"),
     ("examples/contracts/public/nda-003.pdf", "examples/expected/public-003.yaml"),
@@ -125,6 +134,69 @@ EVAL_CONTRACTS: list[tuple[str, str]] = [
     (
         "examples/contracts/hand-curated/nda-003.pdf",
         "examples/expected/hand-curated-003.yaml",
+    ),
+    # Phase 4 (t_b238eff4): DE contracts (mirrors conftest).
+    (
+        "examples/contracts/public-de/nda-001.pdf",
+        "examples/expected/public-de-001.yaml",
+    ),
+    (
+        "examples/contracts/public-de/nda-002.pdf",
+        "examples/expected/public-de-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/nda-003.pdf",
+        "examples/expected/public-de-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/nda-001.pdf",
+        "examples/expected/synthetic-de-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/nda-002.pdf",
+        "examples/expected/synthetic-de-002.yaml",
+    ),
+    # Phase 5 v1 (t_463d603d): DPA eval set, 3 contracts EN+DE.
+    (
+        "examples/contracts/public/dpa-001.pdf",
+        "examples/expected/dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/dpa-001.pdf",
+        "examples/expected/synthetic-dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/dpa-001.pdf",
+        "examples/expected/synthetic-dpa-de-001.yaml",
+    ),
+    # Phase 5 v2 (t_0d594e5e): DPA eval set expansion, 7 more.
+    (
+        "examples/contracts/public/dpa-002.pdf",
+        "examples/expected/dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public/dpa-003.pdf",
+        "examples/expected/dpa-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic/dpa-002.pdf",
+        "examples/expected/synthetic-dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-001.pdf",
+        "examples/expected/public-de-dpa-001.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-002.pdf",
+        "examples/expected/public-de-dpa-002.yaml",
+    ),
+    (
+        "examples/contracts/public-de/dpa-003.pdf",
+        "examples/expected/public-de-dpa-003.yaml",
+    ),
+    (
+        "examples/contracts/synthetic-de/dpa-002.pdf",
+        "examples/expected/synthetic-dpa-de-002.yaml",
     ),
 ]
 
@@ -194,6 +266,33 @@ class ContractMetrics:
     severity_mismatch_count: int = 0
     flags_with_citation: int = 0
     retrieval_f1: float = 0.0
+    # --- Phase 5 v3: matrix verdict rollup -------------------------
+    # ``matrix_aggregate`` is a 5-bucket histogram of every flag's
+    # ``matrix_verdict`` value, keyed by the spec's 4-state column
+    # form plus a ``no_stamp`` bucket for flags constructed
+    # outside the matrix-aware orchestrator path
+    # (``matrix_verdict is None``). The buckets are always present
+    # (even when zero) so downstream consumers don't have to
+    # special-case missing keys. The dict is built per-contract
+    # in :func:`_run_one_contract` and aggregated up the
+    # per-language subset rollup in :func:`_aggregate_subset`.
+    matrix_aggregate: dict[str, int] = field(
+        default_factory=lambda: {v: 0 for v in MATRIX_VERDICT_VALUES} | {"no_stamp": 0}
+    )
+    # ``matrix_verdict_changed_count`` is the count of flags on
+    # this contract whose matrix verdict was *changed* from the
+    # Phase 2 flat baseline — i.e. an explicit override fired
+    # (counterparty / language / per_type_escalation) or the
+    # first entry of ``matrix_sources`` is not ``"flat"``. The
+    # field is the per-contract building block of the
+    # Phase 5 exit-gate signal "matrix changes verdicts on >=
+    # 3 of 30 eval contracts".
+    matrix_verdict_changed_count: int = 0
+
+    @property
+    def matrix_changed(self) -> bool:
+        """``True`` when at least one flag on this contract has a changed matrix verdict."""
+        return self.matrix_verdict_changed_count > 0
 
     @property
     def classification_precision(self) -> float:
@@ -290,6 +389,20 @@ class RunReport:
     )
     gap_assertions: dict[str, Any] = field(default_factory=dict)
     language_filter: str = "both"
+    # --- Phase 5 v3: matrix verdict rollup -------------------------
+    # ``matrix_aggregate`` is the run-wide histogram of matrix
+    # verdicts across every contract's flags. Same 5-bucket shape
+    # as :attr:`ContractMetrics.matrix_aggregate`. Lives at the
+    # top of the report so the UI / CI dashboard can render a
+    # one-line "verdict distribution" without descending into
+    # per-contract detail.
+    matrix_aggregate: dict[str, int] = field(default_factory=dict)
+    # ``matrix_changed_contracts_count`` is the count of contracts
+    # in this run whose matrix verdict was changed from the flat
+    # baseline. This is the Phase 5 exit-gate signal
+    # (>= 3 of 30 eval contracts must have a changed verdict)
+    # rendered at the report's top level for easy dashboarding.
+    matrix_changed_contracts_count: int = 0
 
 
 # --- F1 + severity helpers ----------------------------------------------
@@ -451,6 +564,42 @@ async def _run_one_contract(
         1 for f in flags if f.score > 0 and f.citation is not None
     )
 
+    # --- Phase 5 v3: roll up matrix verdict per flag --------------
+    # Only flags with ``score > 0`` count as matrix signals — the
+    # spec's "no flag" baseline (score=0, aligned) is
+    # intentionally excluded from the histogram. The 5-bucket
+    # shape mirrors :data:`MATRIX_VERDICT_VALUES` plus a
+    # ``no_stamp`` bucket for flags constructed outside the
+    # matrix-aware path (``matrix_verdict is None``).
+    # The ``changed`` count is: a flag's first
+    # ``matrix_sources`` entry is anything other than
+    # ``"flat"`` — meaning an explicit override (counterparty,
+    # language, per_type_escalation) fired. A flag with empty
+    # ``matrix_sources`` defaults to ``"flat"`` (Phase 2 baseline).
+    for f in flags:
+        if f.score <= 0:
+            continue
+        verdict = f.matrix_verdict
+        if verdict is None:
+            bucket = "no_stamp"
+        elif verdict in MATRIX_VERDICT_VALUES:
+            bucket = verdict
+        else:
+            # Garbage verdict (e.g. legacy value or schema drift)
+            # — collapse to ``unverified`` per the same fail-safe
+            # rule the spotter uses in ``matrix_verdict_from_score``.
+            bucket = "unverified"
+        metrics.matrix_aggregate[bucket] = (
+            metrics.matrix_aggregate.get(bucket, 0) + 1
+        )
+        # ``changed`` signal: first matrix_sources entry is not
+        # ``"flat"``. ``None``/empty sources default to
+        # ``"flat"`` (no override fired).
+        sources = list(f.matrix_sources or [])
+        winning_source = sources[0] if sources else "flat"
+        if winning_source != "flat":
+            metrics.matrix_verdict_changed_count += 1
+
     # --- Compare to golden -----------------------------------------
     expected_clauses = golden.get("expected_clauses") or []
     expected_deviations = golden.get("expected_deviations") or []
@@ -575,12 +724,30 @@ def _aggregate_subset(per_contract: list[ContractMetrics]) -> dict[str, float]:
         total_with_citation / total_flags if total_flags else 1.0
     )
 
+    # --- Phase 5 v3: matrix verdict rollup ------------------------
+    # Sum each contract's 5-bucket matrix_aggregate into a
+    # subset-level histogram, and sum the per-contract
+    # matrix_verdict_changed_count. Same shape as the
+    # per-contract bucket set (4 spec values + ``no_stamp``).
+    matrix_aggregate: dict[str, int] = {
+        v: 0 for v in MATRIX_VERDICT_VALUES
+    } | {"no_stamp": 0}
+    for c in per_contract:
+        for bucket, count in c.matrix_aggregate.items():
+            matrix_aggregate[bucket] = matrix_aggregate.get(bucket, 0) + count
+    matrix_verdict_changed_count = sum(
+        c.matrix_verdict_changed_count for c in per_contract
+    )
+
     return {
         "retrieval_f1": round(retrieval_f1, 4),
         "classification_f1": round(classification_f1, 4),
         "deviation_f1": round(deviation_f1, 4),
         "severity_mismatch_count": severity_mismatch_count,
         "citation_completeness": round(citation_completeness, 4),
+        # --- Phase 5 v3: matrix verdict rollup
+        "matrix_aggregate": matrix_aggregate,
+        "matrix_verdict_changed_count": matrix_verdict_changed_count,
     }
 
 
@@ -795,12 +962,35 @@ LEADERBOARD_FIELDS: list[str] = [
     "gap_deviation_f1",
     "gap_citation_completeness",
     "gap_passed",
+    # --- Phase 5 v3: matrix verdict rollup -------------------------
+    # 5-bucket histogram per language (acceptable / material /
+    # unacceptable / unverified / no_stamp) — the histogram is
+    # the total flag count for the language bucketed by the
+    # matrix verdict value. ``matrix_verdict_changed_count_<lang>``
+    # is the count of *flags* (not contracts) on the language
+    # whose matrix verdict was changed from the flat baseline.
+    # ``matrix_changed_contracts_count`` is the run-wide
+    # contract-level signal (Phase 5 exit-gate: >= 3 of 30
+    # eval contracts must have a changed verdict).
+    "matrix_acceptable_en",
+    "matrix_material_en",
+    "matrix_unacceptable_en",
+    "matrix_unverified_en",
+    "matrix_no_stamp_en",
+    "matrix_verdict_changed_count_en",
+    "matrix_acceptable_de",
+    "matrix_material_de",
+    "matrix_unacceptable_de",
+    "matrix_unverified_de",
+    "matrix_no_stamp_de",
+    "matrix_verdict_changed_count_de",
+    "matrix_changed_contracts_count",
 ]
 """Schema for the leaderboard CSV. Bump ``LEADERBOARD_SCHEMA_VERSION`` when
 adding/removing columns so downstream consumers can detect a mismatch."""
 
 
-LEADERBOARD_SCHEMA_VERSION = "1.0.0"
+LEADERBOARD_SCHEMA_VERSION = "1.1.0-phase5-matrix"
 """Bump when LEADERBOARD_FIELDS changes; the CSV header carries this so
 readers can detect a column mismatch."""
 
@@ -834,6 +1024,36 @@ def _append_leaderboard_row(
     dev_gap = gap_assertions_.get("deviation_f1", {})
     cit_gap = gap_assertions_.get("citation_completeness", {})
 
+    # --- Phase 5 v3: matrix verdict per-language rollup ------------
+    # The per-language matrix histograms live on the
+    # aggregate_by_language dict (added by ``_aggregate_subset``)
+    # when ``matrix_aggregate`` is in the per-contract rollup.
+    # Languages absent from the run get an empty matrix_aggregate
+    # (all 5 buckets = 0); the row's cells for missing languages
+    # are "" so the CSV remains sparse.
+    def _matrix_for(lang: str) -> dict[str, Any]:
+        rollup = aggregate_by_language.get(lang, {})
+        if not rollup:
+            return {
+                f"matrix_acceptable_{lang}": "",
+                f"matrix_material_{lang}": "",
+                f"matrix_unacceptable_{lang}": "",
+                f"matrix_unverified_{lang}": "",
+                f"matrix_no_stamp_{lang}": "",
+                f"matrix_verdict_changed_count_{lang}": "",
+            }
+        return {
+            f"matrix_acceptable_{lang}": rollup.get("matrix_aggregate", {}).get("acceptable", 0),
+            f"matrix_material_{lang}": rollup.get("matrix_aggregate", {}).get("material", 0),
+            f"matrix_unacceptable_{lang}": rollup.get("matrix_aggregate", {}).get("unacceptable", 0),
+            f"matrix_unverified_{lang}": rollup.get("matrix_aggregate", {}).get("unverified", 0),
+            f"matrix_no_stamp_{lang}": rollup.get("matrix_aggregate", {}).get("no_stamp", 0),
+            f"matrix_verdict_changed_count_{lang}": rollup.get("matrix_verdict_changed_count", 0),
+        }
+
+    en_matrix = _matrix_for("en")
+    de_matrix = _matrix_for("de")
+
     row = {
         "run_id": run_id,
         "started_at": started_at,
@@ -860,6 +1080,15 @@ def _append_leaderboard_row(
             "" if gap_assertions_.get("skipped") else gap_assertions_.get("all_passed", False)
         ),
     }
+    # Phase 5 v3: matrix verdict cells (per-language + run-wide).
+    row.update(en_matrix)
+    row.update(de_matrix)
+    # ``matrix_changed_contracts_count`` is computed by the caller
+    # (``_write_run_report``) and threaded through ``gap_assertions_``
+    # as a side-channel key (so the function signature stays stable).
+    row["matrix_changed_contracts_count"] = gap_assertions_.get(
+        "matrix_changed_contracts_count", ""
+    )
     is_new = not leaderboard_path.is_file()
     leaderboard_path.parent.mkdir(parents=True, exist_ok=True)
     with leaderboard_path.open("a", newline="") as f:
@@ -891,6 +1120,23 @@ def _write_run_report(
     aggregate = _build_aggregate(per_contract)
     aggregate_by_language = _build_aggregate_by_language(per_contract)
     gap_assertions = _compute_gap_assertions(aggregate_by_language)
+    # --- Phase 5 v3: run-wide matrix rollup ------------------------
+    # Sum each contract's 5-bucket histogram into a top-level
+    # histogram, and count contracts whose matrix verdict was
+    # changed (the Phase 5 exit-gate signal). Both values live
+    # at the report's top level for easy dashboarding.
+    run_matrix_aggregate: dict[str, int] = {
+        v: 0 for v in MATRIX_VERDICT_VALUES
+    } | {"no_stamp": 0}
+    run_matrix_changed = 0
+    for c in per_contract:
+        for bucket, count in c.matrix_aggregate.items():
+            run_matrix_aggregate[bucket] = (
+                run_matrix_aggregate.get(bucket, 0) + count
+            )
+        if c.matrix_changed:
+            run_matrix_changed += 1
+
     contracts_dump: list[dict[str, Any]] = []
     for c in per_contract:
         contracts_dump.append(
@@ -922,6 +1168,10 @@ def _write_run_report(
                 "flags_with_citation": c.flags_with_citation,
                 "citation_completeness": round(c.citation_completeness, 4),
                 "retrieval_f1": round(c.retrieval_f1, 4),
+                # --- Phase 5 v3: per-contract matrix verdict rollup
+                "matrix_aggregate": dict(c.matrix_aggregate),
+                "matrix_verdict_changed_count": c.matrix_verdict_changed_count,
+                "matrix_changed": c.matrix_changed,
             }
         )
     report = RunReport(
@@ -935,6 +1185,9 @@ def _write_run_report(
         aggregate_by_language=aggregate_by_language,
         gap_assertions=gap_assertions,
         language_filter=language_filter,
+        # --- Phase 5 v3: run-wide matrix rollup
+        matrix_aggregate=run_matrix_aggregate,
+        matrix_changed_contracts_count=run_matrix_changed,
     )
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with report_path.open("w") as f:
@@ -950,6 +1203,9 @@ def _write_run_report(
                 "aggregate": report.aggregate,
                 "aggregate_by_language": report.aggregate_by_language,
                 "gap_assertions": report.gap_assertions,
+                # --- Phase 5 v3: matrix verdict rollup
+                "matrix_aggregate": report.matrix_aggregate,
+                "matrix_changed_contracts_count": report.matrix_changed_contracts_count,
             },
             f,
             indent=2,
@@ -958,6 +1214,14 @@ def _write_run_report(
     # Append the per-run row to the leaderboard CSV. The
     # CSV is the eval harness's durable handoff to the CI
     # dashboard; the JSON report is the per-run detail.
+    # Phase 5 v3: thread the run-wide matrix_changed_contracts_count
+    # through the existing ``gap_assertions_`` side-channel so the
+    # function signature stays stable. The dict is otherwise
+    # untouched; the extra key is a per-run metadata field.
+    gap_assertions_with_matrix = {
+        **gap_assertions,
+        "matrix_changed_contracts_count": run_matrix_changed,
+    }
     _append_leaderboard_row(
         LEADERBOARD_PATH,
         run_id=run_id,
@@ -968,7 +1232,7 @@ def _write_run_report(
         language_filter=language_filter,
         n_contracts=len(per_contract),
         aggregate_by_language=aggregate_by_language,
-        gap_assertions_=gap_assertions,
+        gap_assertions_=gap_assertions_with_matrix,
     )
     return report
 
@@ -976,7 +1240,7 @@ def _write_run_report(
 # --- Constants used by the harness --------------------------------------
 
 
-CONTRACT_SET_VERSION = "0.3.0-phase4-per-language"
+CONTRACT_SET_VERSION = "0.4.0-phase5-matrix"
 """Version of the eval set itself. Bump when contracts / goldens change.
 
 History:
@@ -989,6 +1253,15 @@ History:
     ``aggregate`` field is preserved unchanged. The
     ``evals/leaderboard.csv`` file is the new durable handoff
     to the CI dashboard.
+  0.4.0-phase5-matrix — matrix verdict column rollup (card
+    t_0186cabd). The JSON report gains ``matrix_aggregate``
+    (5-bucket histogram of every flag's matrix verdict) and
+    ``matrix_changed_contracts_count`` (Phase 5 exit-gate
+    signal: >= 3 of 30 eval contracts must have a changed
+    verdict). The leaderboard CSV schema bumps to v1.1.0
+    with per-language matrix histograms + a run-wide
+    ``matrix_changed_contracts_count`` column. The legacy
+    per-language F1 / gap fields are preserved unchanged.
 """
 
 CONTRACT_TYPE = "nda"
@@ -1087,13 +1360,16 @@ def test_eval_set_runs_end_to_end(
         per_contract.append(metrics)
         logger.info(
             "  → %s [%s]: classification_f1=%.3f, deviation_f1=%.3f, "
-            "severity_mismatch=%d, citation_completeness=%.3f",
+            "severity_mismatch=%d, citation_completeness=%.3f, "
+            "matrix=%s changed=%d",
             contract_path.name,
             metrics.language,
             metrics.classification_f1,
             metrics.deviation_f1,
             metrics.severity_mismatch_count,
             metrics.citation_completeness,
+            metrics.matrix_aggregate,
+            metrics.matrix_verdict_changed_count,
         )
 
     ended_at = datetime.now(timezone.utc).isoformat()
@@ -1134,6 +1410,8 @@ def test_eval_set_runs_end_to_end(
         f"  gap_assertions: skipped={gap.get('skipped', False)}  "
         f"all_passed={gap.get('all_passed', None)}  "
         f"languages_compared={gap.get('languages_compared', [])}\n"
+        f"  matrix: aggregate={report.matrix_aggregate}  "
+        f"changed_contracts={report.matrix_changed_contracts_count}\n"
         f"  report={eval_run_report_path}\n"
         f"  leaderboard={LEADERBOARD_PATH}\n"
     )
@@ -1211,7 +1489,10 @@ def test_contract_ingests_and_classifies(
     # expected top-level keys. The cached loader parses
     # once and reuses the dict across the session.
     golden = eval_cache.golden_yaml(expected_path)
-    assert golden.get("type") == "nda"
+    # Phase 5 v1: contract type is "nda" for Phase 2/4 NDA
+    # contracts and "dpa" for the Phase 5 DPA eval set.
+    # Future expansion (Employment in v2) will add "employment".
+    assert golden.get("type") in {"nda", "dpa"}
     assert isinstance(golden.get("expected_clauses"), list)
 
     # Phase 4: skip if the contract's language is filtered out.

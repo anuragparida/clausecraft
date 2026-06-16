@@ -1,0 +1,45 @@
+# Golden set — public-de/dpa-003.pdf (BDSG § 62 anchored AVV).
+#
+# CLEAN BASELINE contract. No deviations from the Phase 5 DPA
+# playbook. The eval harness should report:
+#   - retrieval F1 = 1.0
+#   - classification F1 = 1.0
+#   - deviation F1 = 1.0 trivially
+#   - severity-mismatch = 0
+#   - citation completeness — depends on LLM availability
+#
+# Source-spread contribution
+# --------------------------
+# 3rd public-DE DPA contract. Anchored to § 62 of the
+# Bundesdatenschutzgesetz (BDSG, 2017 Fassung) — adds
+# gesetze-im-internet.de as a 3rd DE public host.
+
+contract: examples/contracts/public-de/dpa-003.pdf
+type: dpa
+language: de
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "Diese Auftragsverarbeitungsvereinbarung (nachfolgend „Vereinbarung“)"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Bezeichnung der Parteien"
+  - id: c3
+    type: dpa_subprocessor_consent
+    text_excerpt: "2. Vorherige Genehmigung"
+  - id: c4
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "3. Pflichtenübertragung auf Unterauftragsverarbeiter"
+  - id: c5
+    type: dpa_transfer_mechanism
+    text_excerpt: "4. Internationale Übermittlungen"
+  - id: c6
+    type: dpa_breach_notification
+    text_excerpt: "5. Meldung von Datenschutzverletzungen"
+  - id: c7
+    type: dpa_audit_rights
+    text_excerpt: "6. Audit-Rechte und Rückgabe"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

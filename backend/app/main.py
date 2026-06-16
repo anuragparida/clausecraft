@@ -289,10 +289,20 @@ class SpotRequest(BaseModel):
         The classified clauses. Each clause has ``id``, ``text``,
         ``type`` (a :class:`~app.classify.ClauseType` value),
         ``language``, ``confidence``, and a ``position`` block.
+    counterparty_type
+        Phase 5: the counterparty axis the TriagePage's picker
+        forwarded. One of ``"enterprise"`` / ``"smb"`` /
+        ``"public_sector"`` / ``"healthcare"`` / ``"any"``
+        (default — the legacy Phase 2/3/4 sentinel that consults
+        only the flat table). Forwarded to the matrix lookup so
+        the spot reflects the override for the chosen
+        counterparty (e.g. ``"material"`` for ``healthcare`` even
+        when the flat table says ``"aligned"``).
     """
 
     filename: str = Field(..., min_length=1, max_length=512)
     clauses: list[dict[str, Any]] = Field(..., min_length=1)
+    counterparty_type: str = Field(default="any", max_length=64)
 
 
 class SpotFlag(BaseModel):
@@ -308,6 +318,25 @@ class SpotFlag(BaseModel):
     - ``unverified`` — true when the parser couldn't verify the
       citation or the LLM declined
     - ``baseline_type`` — the baseline's clause type
+    - ``matrix_verdict`` — Phase 5: the counterparty matrix's
+      verdict in the spec's 4-state column form
+      (``acceptable`` / ``material`` / ``unacceptable`` /
+      ``unverified``). The orchestrator's
+      :func:`app.agents.deviation_spotter.spotter._stamp_matrix_audit_fields`
+      fills this in for every flag the matrix-aware path produces;
+      the orchestrator's :class:`SpotInput.matrix_verdict_column`
+      is the source of truth (re-stamped onto the flag). The
+      UI's DeviationReview column renders ``"unverified"`` as
+      the default for ``None`` (legacy Phase 2/3/4 callers).
+    - ``matrix_sources`` — the lookup chain that produced the
+      verdict, in strictness order (the first element is the
+      winning source — e.g. ``"counterparty"`` / ``"language"``
+      / ``"flat"``). ``None`` for legacy callers.
+    - ``matrix_counterparty_type`` — the counterparty axis the
+      matrix was consulted with (``"enterprise"`` / ``"smb"`` /
+      ``"public_sector"`` / ``"healthcare"`` / ``"any"``).
+      Defaults to ``"any"`` for backward compatibility with
+      Phase 2 / Phase 3 / Phase 4 callers.
     """
 
     clause_id: str
@@ -316,6 +345,9 @@ class SpotFlag(BaseModel):
     citation: dict[str, Any] | None = None
     unverified: bool
     baseline_type: str = ""
+    matrix_verdict: str | None = None
+    matrix_sources: list[str] | None = None
+    matrix_counterparty_type: str = "any"
 
 
 class SpotResponse(BaseModel):
@@ -359,7 +391,27 @@ def _parse_clauses_from_spot_request(
 
 
 def _build_spot_response(result: Stage3Result) -> SpotResponse:
-    """Convert a :class:`Stage3Result` into the API response model."""
+    """Convert a :class:`Stage3Result` into the API response model.
+
+    Mirrors the matrix audit fields off the orchestrator's
+    :class:`DeviationFlag` onto the wire-format :class:`SpotFlag`.
+    The orchestrator's
+    :func:`app.agents.deviation_spotter.spotter._stamp_matrix_audit_fields`
+    fills ``matrix_verdict`` / ``matrix_sources`` /
+    ``matrix_counterparty_type`` in for every flag the
+    matrix-aware path produces. For legacy callers (Phase 2 /
+    Phase 3 / Phase 4 / the stub-only fallback), the fields are
+    at their Pydantic defaults (``None`` / ``None`` / ``"any"``)
+    — the UI renders ``"unverified"`` and shows the
+    "flat baseline" hint for ``None``, exactly as the
+    pre-Phase-5 behaviour surfaced.
+
+    The :func:`getattr` reads with default-fallback are defensive
+    against older test stubs that build ``DeviationFlag`` without
+    the Phase 5 fields (the dataclass is forward-compatible —
+    the fields are Optional on the agent schema, so a stub that
+    never set them would otherwise crash the response builder).
+    """
     flags: list[SpotFlag] = []
     for f in result.flags:
         citation: dict[str, Any] | None = None
@@ -368,6 +420,11 @@ def _build_spot_response(result: Stage3Result) -> SpotResponse:
                 "playbook_clause_id": f.citation.playbook_clause_id,
                 "contract_text_excerpt": f.citation.contract_text_excerpt,
             }
+        matrix_verdict = getattr(f, "matrix_verdict", None)
+        matrix_sources = getattr(f, "matrix_sources", None)
+        matrix_counterparty_type = getattr(
+            f, "matrix_counterparty_type", "any"
+        )
         flags.append(
             SpotFlag(
                 clause_id=f.clause_id,
@@ -376,6 +433,9 @@ def _build_spot_response(result: Stage3Result) -> SpotResponse:
                 citation=citation,
                 unverified=f.unverified,
                 baseline_type=f.baseline_type,
+                matrix_verdict=matrix_verdict,
+                matrix_sources=matrix_sources,
+                matrix_counterparty_type=matrix_counterparty_type,
             )
         )
     return SpotResponse(
@@ -432,6 +492,7 @@ async def post_contracts_spot(payload: SpotRequest) -> SpotResponse:
         result = await run_stage3(
             clauses=clauses,
             contract_filename=payload.filename,
+            counterparty_type=payload.counterparty_type,
         )
     except Exception as exc:  # noqa: BLE001
         # The orchestrator is supposed to swallow per-clause
