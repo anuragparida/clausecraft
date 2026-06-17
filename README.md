@@ -151,13 +151,14 @@ and `docs/09-threat-model.md` for why the disclaimer isn't a checkbox.
 The eval harness reports per-language F1 + a 10 % deviation F1 / 5 %
 citation completeness **gap assertion** (EN vs DE). The thresholds are
 code assertions, not docs — a regression fails CI. From the most recent
-run on the 15-contract eval set (`evals/runs/20260609T074418Z.json`):
+run on the 25-contract eval set (`evals/runs/20260615T105212Z.json`,
+`contract_set_version = 0.4.0-phase5-matrix`, `real_llm_mode = False`):
 
 | Language | Classification F1 | Deviation F1 | Citation completeness | Severity mismatches |
 |---|---|---|---|---|
-| EN | 0.70 | 1.00 | 1.00 | 0 |
-| DE | 0.05 | 1.00 | 1.00 | 0 |
-| **Gap (EN vs DE)** | **0.65** | 0.00 | 0.00 | 0 |
+| EN | 0.74 | 1.00 | 1.00 | 0 |
+| DE | 0.6667 | 1.00 | 1.00 | 0 |
+| **Gap (EN vs DE)** | **0.0733** | 0.00 | 0.00 | 0 |
 
 The deviation F1 / citation completeness gap is the spec's 10 % / 5 %
 budget — both well within. The classification F1 gap is **honest and
