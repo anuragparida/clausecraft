@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DisclaimerFooter } from "@/components/DisclaimerFooter";
@@ -75,6 +75,72 @@ function msToHms(ms: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
+/** A short dot color per decision type — mirrors
+ *  ``decisionTypeTone`` in ``AuditLogTimeline.tsx`` so
+ *  the markers above the scrubber share the same visual
+ *  language as the per-row dot. Kept here as a private
+ *  helper rather than a shared module export because
+ *  importing the timeline file for one function would
+ *  drag in jsdom-render-only code. The two must stay
+ *  in sync; the Phase 6.3 marker test pins both. */
+function markerToneClasses(type: string): string {
+  switch (type) {
+    case "flag_accepted":
+      return "bg-emerald-500";
+    case "flag_rejected":
+      return "bg-red-500";
+    case "severity_edited":
+    case "context_added":
+      return "bg-amber-500";
+    case "graph_started":
+    case "graph_resumed":
+    case "redline_generated":
+    case "redline_downloaded":
+      return "bg-slate-400";
+    default:
+      return "bg-blue-500";
+  }
+}
+
+/** A short human label for a decision type — used in the
+ *  dot tooltip. Mirrors ``decisionTypeLabel`` in
+ *  ``AuditLogTimeline.tsx``. */
+function markerTypeLabel(type: string): string {
+  switch (type) {
+    case "graph_started":
+      return "Pipeline started";
+    case "graph_resumed":
+      return "Pipeline resumed";
+    case "flag_accepted":
+      return "Flag accepted";
+    case "flag_rejected":
+      return "Flag rejected";
+    case "severity_edited":
+      return "Severity edited";
+    case "context_added":
+      return "Context added";
+    case "redline_generated":
+      return "Redline generated";
+    case "redline_downloaded":
+      return "Redline downloaded";
+    default:
+      return type.replace(/_/g, " ");
+  }
+}
+
+/** Relative time like "5s ago" / "12s ago" / "1m 3s ago".
+ *  Used in the dot tooltip so the user can see when the
+ *  event happened relative to the most-recent event in
+ *  the log (not relative to now — the audit log is a
+ *  replay, not a live feed). */
+function relativeTime(ms: number, anchorMs: number): string {
+  const deltaSec = Math.max(0, Math.round((anchorMs - ms) / 1000));
+  if (deltaSec < 60) return `${deltaSec}s ago`;
+  const m = Math.floor(deltaSec / 60);
+  const s = deltaSec % 60;
+  return `${m}m ${s}s ago`;
+}
+
 export function AuditReplayPage({
   contractId,
   onBackToHome,
@@ -127,6 +193,54 @@ export function AuditReplayPage({
       return t <= effectiveScrub;
     });
   }, [auditQuery.data, canScrub, scrubAt, effectiveScrub]);
+
+  // Phase 6: build the markers that render above the
+  // scrubber. Each marker corresponds to one visible
+  // row; its horizontal position is ``(t - minMs) /
+  // (maxMs - minMs) * 100%`` so the dots line up with
+  // the slider's range. We sort by timestamp so the
+  // ``idx`` matches the chronological left-to-right
+  // order (matches the slider's mental model). The
+  // memo recomputes when ``visibleRows`` changes (the
+  // slider filters rows; the markers should follow).
+  const markers = useMemo(() => {
+    if (!canScrub) return [] as Array<{
+      idx: number;
+      leftPct: number;
+      ms: number;
+      type: string;
+      label: string;
+      title: string;
+    }>;
+    const sorted = [...visibleRows]
+      .filter((r) => tsToMs(r.decided_at) > 0)
+      .sort((a, b) => tsToMs(a.decided_at) - tsToMs(b.decided_at));
+    const span = maxMs - minMs;
+    return sorted.map((r, idx) => {
+      const t = tsToMs(r.decided_at);
+      const leftPct = span > 0 ? ((t - minMs) / span) * 100 : 0;
+      const label = markerTypeLabel(r.decision_type);
+      const title = `${label} · ${relativeTime(t, maxMs)}`;
+      return {
+        idx,
+        leftPct,
+        ms: t,
+        type: r.decision_type,
+        label,
+        title,
+      };
+    });
+  }, [visibleRows, canScrub, minMs, maxMs]);
+
+  // Phase 6: clicking a marker jumps the scrubber to
+  // that event's timestamp — same as dragging the
+  // slider to that position. We use ``setScrubAt`` (not
+  // ``effectiveScrub``) so the Reset button correctly
+  // enables; without it, a click on a marker that's
+  // already at the right edge would be a no-op.
+  const handleMarkerClick = useCallback((ms: number) => {
+    setScrubAt(ms);
+  }, []);
 
   const toggleRow = (idx: number) => {
     setExpandedRows((prev) => {
@@ -253,6 +367,35 @@ export function AuditReplayPage({
                 data-testid="audit-scrub-slider"
                 aria-label="Filter audit log by timestamp"
               />
+              {/* Phase 6: thin horizontal axis above the
+                  slider with one dot per visible event.
+                  Dot positions mirror the slider's
+                  ``(t - minMs) / (maxMs - minMs)`` ratio
+                  so a click on a dot has the same effect
+                  as dragging the slider to that
+                  position. The native ``title`` attribute
+                  gives a tooltip without a popover dep. */}
+              <div
+                className="relative h-4 w-full"
+                data-testid="audit-event-axis"
+              >
+                {markers.map((m) => (
+                  <button
+                    key={`marker-${m.idx}-${m.ms}`}
+                    type="button"
+                    onClick={() => handleMarkerClick(m.ms)}
+                    title={m.title}
+                    aria-label={`Jump to ${m.label}`}
+                    className={
+                      "absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-background transition focus:outline-none focus:ring-2 focus:ring-ring " +
+                      markerToneClasses(m.type)
+                    }
+                    style={{ left: `${m.leftPct}%` }}
+                    data-testid={`audit-event-marker-${m.idx}`}
+                    data-decision-type={m.type}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
