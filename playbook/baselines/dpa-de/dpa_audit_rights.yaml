@@ -1,0 +1,100 @@
+# Playbook-Baseline — DPA (DE) — dpa_audit_rights
+#
+# Quelle: Datenschutzkonferenz (DSK), „Kurzpapier Nr. 13 —
+# Auftragsverarbeitung, Art. 28 DS-GVO", Stand 17.12.2018,
+# S. 3–4 (Abschnitte zu Subunternehmer-Einsatz, Vertrag mit
+# dem Auftragsverarbeiter und Kontrollrechte). Die DSK-
+# Kurzpapiere sind die gemeinsamen Veröffentlichungen der
+# deutschen Bundes- und Landesdatenschutzbehörden; sie sind
+# die maßgebliche Auslegung der DSGVO auf Praktiker-Ebene
+# für den deutschsprachigen Markt. Das Kurzpapier wird von
+# der DSK als frei zugängliches PDF (5 Seiten) vertrieben und
+# ist regelmäßig zitierte Referenz in deutschsprachigen
+# DPO-Stellen und Big-4-AVV-Mustern.
+#
+# Querverweise: Art. 28 Abs. 3 lit. h DSGVO (das
+# Kontrollrecht des Verantwortlichen ist der achte
+# Pflichtinhalt der Art. 28 Abs. 3-Checkliste) und EDPB-
+# Leitlinien 07/2020 § 6 (die bestätigen, dass sich die
+# Audit-Rechte entlang der Unterauftragsverarbeiter-Kette
+# fortsetzen). Der BDSG 2018 § 62 Abs. 5 Nr. 6 verankert
+# auf nationaler Ebene, dass der Vertrag vorzusehen hat,
+# dass der Auftragsverarbeiter „Überprüfungen, die von dem
+# Verantwortlichen oder einem von diesem beauftragten Prüfer
+# durchgeführt werden, ermöglicht und dazu beiträgt" — die
+# deutsche Kodifikation fasst das EU-Statut also in einer
+# nationalen Konkretisierungsnorm zusammen. Die Baseline
+# kombiniert den statutarischen Anker (Art. 28 Abs. 3 lit. h
+# DSGVO) und die nationale Konkretisierung (BDSG 2018 § 62
+# Abs. 5 Nr. 6) mit der DSK-Auslegung auf Praktiker-Ebene
+# (wie das Audit-Recht typischerweise ausgeübt wird:
+# Vor-Ort-Inspektionen, schriftliche Auskunftsersuchen,
+# Einsichtnahme in einschlägige Zertifizierungen wie ISO 27001
+# oder SOC 2 Type II).
+clause_id: verantwortlicher-audit-rechte-art-28-3-h
+type: dpa_audit_rights
+language: de
+title: Audit-Rechte des Verantwortlichen nach Art. 28 Abs. 3 lit. h DSGVO
+text: >-
+  Der Auftragsverarbeiter stellt dem Verantwortlichen alle
+  Informationen zur Verfügung, die notwendig sind, um die
+  Einhaltung der in dieser Vereinbarung und in Art. 28 DSGVO
+  festgelegten Pflichten nachzuweisen, und ermöglicht und
+  unterstützt Audits, einschließlich Inspektionen, die vom
+  Verantwortlichen oder einem vom Verantwortlichen beauftragten
+  Prüfer durchgeführt werden. Der Verantwortliche kündigt dem
+  Auftragsverarbeiter ein Audit mit angemessener Frist an, die
+  nicht weniger als dreißig (30) Kalendertage beträgt, es sei
+  denn, ein konkreter datenschutzrechtlicher Vorfall oder eine
+  aufsichtsbehördliche Untersuchung rechtfertigt eine kürzere
+  Frist. Das Audit wird während der üblichen Geschäftszeiten
+  und in einer Weise durchgeführt, die den Betrieb des
+  Auftragsverarbeiters nicht unangemessen beeinträchtigt. Das
+  Audit-Recht des Verantwortlichen umfasst das Recht, (a) die
+  einschlägigen Aufzeichnungen, Richtlinien und Verfahren des
+  Auftragsverarbeiters im Zusammenhang mit der Verarbeitung
+  personenbezogener Daten zu prüfen, (b) einschlägige
+  Zertifizierungen des Auftragsverarbeiters zu prüfen,
+  einschließlich ISO/IEC 27001, ISO/IEC 27701, SOC 2 Type II
+  und vergleichbarer Informationssicherheitszertifizierungen,
+  soweit verfügbar, und (c) relevante Mitarbeiter des
+  Auftragsverarbeiters im Hinblick auf die Verarbeitung
+  personenbezogener Daten zu befragen. Der Auftragsverarbeiter
+  kann die Audit-Pflicht nach Wahl des Verantwortlichen
+  dadurch erfüllen, dass er einen aktuellen SOC-2-Type-II-
+  Bericht (oder einen gleichwertigen Bericht einer
+  unabhängigen Prüfung) vorlegt, der das zur Verarbeitung der
+  personenbezogenen Daten des Verantwortlichen eingesetzte
+  System abdeckt, und relevante Mitarbeiter für Rückfragen zur
+  Verfügung stellt. Die in dieser Klausel festgelegten
+  Audit-Rechte gelten gleichermaßen für Unterauftragsverarbeiter
+  des Auftragsverarbeiters; der Auftragsverarbeiter stellt
+  sicher, dass jeder Unterauftragsverarbeitervertrag
+  entsprechende Audit-Rechte zugunsten des Verantwortlichen
+  enthält.
+source_url: https://www.datenschutzkonferenz-online.de/media/kp/dsk_kpnr_13.pdf
+retrieval_date: 2026-06-09
+license: >-
+  DSK-Kurzpapier Nr. 13 (Stand 17.12.2018). Veröffentlicht von
+  der Datenschutzkonferenz (dem gemeinsamen Gremium der
+  deutschen Bundes- und Landesdatenschutzbehörden) als
+  frei zugängliches Praktiker-Infopapier; wiederverwendbar mit
+  Quellenangabe der Datenschutzkonferenz. Die Baseline-Sprache
+  ist eine paraphrasierte Kombination aus Art. 28 Abs. 3 lit. h
+  DSGVO (statutarischer Anker) und der DSK-Auslegung der
+  typischen Audit-Mechanismen, keine wortgetreue Übernahme.
+notes: >-
+  Drei Audit-Mechanismen-Varianten sind in kommerziellen Mustern
+  verbreitet und alle akzeptabel: (a) Vor-Ort-Audit mit Vorankündigung
+  (das Strengste, oben abgebildet), (b) Audit nur auf Basis
+  Drittzertifizierung (ISO 27001 / SOC 2) und (c) Audit nur auf
+  Basis schriftlicher Auskunftsersuchen (Fragebogen, kein
+  Vor-Ort-Besuch). Die Matrix behandelt Variante (a) als
+  Gold-Standard und die Varianten (b) und (c) als akzeptabel
+  bedingt durch den Vertragspartnertyp: Vertragspartner im
+  Gesundheitswesen und im öffentlichen Sektor verlangen
+  typischerweise Vor-Ort-Rechte; KMU akzeptieren oft nur die
+  Zertifizierung. Ein Vertrag, der Audit-Rechte vollständig
+  auslässt, ist ein struktureller Mangel nach Art. 28 Abs. 3
+  lit. h DSGVO und für jeden Vertragspartnertyp „nicht
+  akzeptabel".

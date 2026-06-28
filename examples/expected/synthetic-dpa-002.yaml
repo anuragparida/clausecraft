@@ -1,0 +1,154 @@
+# Golden set — synthetic/dpa-002.pdf.
+#
+# v2 EN stress contract of the Phase 5 DPA eval set. 3 hand-
+# injected deviations from the dpa-en playbook baselines,
+# calibrated to a real LLM-driven spotter's expected verdicts.
+# The deviations are documented in
+# scripts/build_dpa_eval_contracts_v2.py — the PDF is generated,
+# not curated from public sources, so the eval can pin
+# text_excerpt matches against the deterministic output.
+#
+# Why this contract is synthetic (and what it adds over v1)
+# ----------------------------------------------------------
+# Phase 5's dpa-en playbook has 5 baselines (designation, sub-
+# processor consent, transfer mechanism, breach notification,
+# audit rights) — see playbook/baselines/dpa-en/ on
+# origin/phase5/dpa-en-baselines. The dpa-en baselines' GAP.md
+# flagged 4 missing dpa_* values: subprocessor_flowdown,
+# international_transfer, data_subject_rights, data_return_deletion.
+#
+# v1 synthetic-dpa-001 (card t_463d603d) covered 3 deviation
+# categories: missing_documented_instructions, post_hoc_notice_mechanism,
+# processor_inner_window_too_long. Those categories exercised the
+# dpa_controller_processor_designation, dpa_subprocessor_consent,
+# dpa_breach_notification ClauseType values.
+#
+# v2 synthetic-dpa-002 deliberately covers 3 NEW deviation
+# categories in 3 NEW ClauseType values the v1 contract did NOT
+# exercise:
+#
+#   c2 (dpa_subprocessor_flowdown)        — minor: drops the
+#                                            "sufficient guarantees"
+#                                            requirement on the
+#                                            downstream sub-processor
+#   c5 (dpa_data_subject_rights)          — material: removes the
+#                                            controller-assist
+#                                            obligation for data-
+#                                            subject rights (Art.
+#                                            28(3)(e) GDPR)
+#   c6 (dpa_data_return_deletion)         — minor: extends the
+#                                            30-day return window
+#                                            to 90 days
+#
+# The other 3 clauses (c1, c3, c4) are clean baselines — no
+# expected deviations. The eval records any false positives in
+# the run report.
+#
+# Combined v1 + v2 EN coverage
+# ----------------------------
+# Across v1's synthetic-dpa-001 + v2's synthetic-dpa-002:
+#   - 6 dpa_* ClauseType values exercised
+#   - 6 distinct deviation categories
+#   - covers the 3 dpa_* values v1 missed
+#     (subprocessor_flowdown, data_subject_rights, data_return_deletion)
+#   - international_transfer is exercised as a CLEAN baseline
+#     in c4 (the v1 synth-EN left it clean too, so the dpa-en
+#     playbook baselines' clean-baseline coverage of
+#     dpa_transfer_mechanism is preserved)
+
+contract: examples/contracts/synthetic/dpa-002.pdf
+type: dpa
+language: en
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "This Data Processing Agreement (this “Agreement”) is entered into"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Designation of the Parties"
+  - id: c3
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "2. Sub-processor Obligations"
+  - id: c4
+    type: dpa_subprocessor_consent
+    text_excerpt: "3. Sub-processor Authorisation"
+  - id: c5
+    type: dpa_transfer_mechanism
+    text_excerpt: "4. International Transfers"
+  - id: c6
+    type: dpa_data_subject_rights
+    text_excerpt: "5. Data Subject Rights"
+  - id: c7
+    type: dpa_data_return_deletion
+    text_excerpt: "6. Return or Deletion of Personal Data"
+
+# Three NEW expected deviations. The harness compares each to
+# the spotter's actual flags. A real LLM-driven spotter is
+# expected to flag all three; the placeholder-key (rule-based
+# abstention) spotter flags none. The deviation F1 reports the
+# gap.
+expected_deviations:
+  - clause_id: c2
+    severity: 1
+    category: missing_sufficient_guarantees
+    rationale: >-
+      The clause drops the "sufficient guarantees to implement
+      appropriate technical and organisational measures"
+      requirement on the downstream sub-processor. The
+      baseline (playbook/baselines/dpa-en/dpa_subprocessor_flowdown.yaml,
+      Art. 28(4) GDPR + EDPB Guidelines 07/2020 § 6) requires
+      the downstream processor to implement "appropriate
+      technical and organisational measures" with "sufficient
+      guarantees". The c2 clause retains the flow-down contract
+      obligation but removes the substantive
+      sufficient-guarantees requirement on the downstream
+      sub-processor. Minor because the flow-down contract
+      obligation itself is preserved — the deviation is the
+      removal of the substantive guarantees standard, which a
+      real LLM-driven spotter would flag as a one-notch-down
+      concern.
+    citation:
+      playbook_clause_id: sub-processor-flowdown-art-28-4
+      source_url: "https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-072020-concepts-controller-and-processor-gdpr_en"
+  - clause_id: c5
+    severity: 2
+    category: missing_assist_obligation_art_28_3_e
+    rationale: >-
+      The clause removes the controller-assist obligation for
+      data-subject rights required by Art. 28(3)(e) GDPR. The
+      c5 clause says the Processor "shall handle requests from
+      data subjects as appropriate in the ordinary course of
+      its business" — the "as appropriate" language and the
+      "in the ordinary course" qualifier substitute the
+      Processor's own policy for the controller-assist
+      obligation. Material because Art. 28(3)(e) GDPR is
+      non-negotiable: the Processor must assist the Controller
+      in fulfilling data-subject rights (access / rectification
+      / erasure / restriction / portability / objection /
+      automated decision-making) by appropriate technical and
+      organisational measures. Removing the assist obligation
+      is a structural gap, not a stylistic one, and a real
+      LLM-driven spotter would flag it as material.
+    citation:
+      playbook_clause_id: data-subject-rights-assist-art-28-3-e
+      source_url: "https://gdpr-info.eu/art-28-gdpr/"
+  - clause_id: c6
+    severity: 1
+    category: extended_return_window
+    rationale: >-
+      A 90-day return window is 3x the IAPP baseline's 30-day
+      return window. The c6 clause says the Processor shall
+      return or delete all Personal Data within ninety (90)
+      days of termination. The baseline
+      (playbook/baselines/dpa-en/dpa_data_return_deletion.yaml,
+      IAPP Model DPA § 6 + DSK Kurzpapier Nr. 13 + EDPB
+      Guidelines 07/2020) recommends a 30-day return window
+      so the Controller has a predictable timeline for
+      transitioning data. The 90-day window is 3x
+      industry-standard and the deviation the spotter's
+      baseline flags. Minor because the return right itself
+      is preserved — only the timeline is stretched.
+    citation:
+      playbook_clause_id: data-return-deletion-30-day-window
+      source_url: "https://iapp.org/resources/article/model-data-processing-agreement-template/"

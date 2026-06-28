@@ -1,0 +1,56 @@
+# Golden set — public/dpa-003.pdf (IAPP Model DPA anchored).
+#
+# CLEAN BASELINE contract. No deviations from the Phase 5 DPA
+# playbook. The eval harness should report:
+#   - retrieval F1 = 1.0
+#   - classification F1 = 1.0
+#   - deviation F1 = 1.0 trivially (no expected deviations, no
+#     actual deviations — empty set match)
+#   - severity-mismatch = 0
+#   - citation completeness — depends on LLM availability
+#
+# Source-spread contribution
+# --------------------------
+# 3rd public-EN DPA contract. Combined with public/dpa-001
+# (gdpr-info.eu Art. 28+33) and public/dpa-002 (EDPB Guidelines
+# 07/2020 § 6), public/dpa-003 is anchored to the IAPP Model DPA
+# — iapp.org as a 3rd public host. The v2 set's 3 public-EN
+# contracts span 3 distinct hosts.
+#
+# The contract text is hand-authored following the IAPP Model DPA
+# layout, the Art. 28(3) GDPR mandatory-contents checklist, and
+# EDPB Guidelines 9/2022 § 3.4 (24-hour processor inner window).
+# Clean baseline — no deviations.
+#
+# See examples/contracts/public/SOURCES.dpa.md for the full
+# provenance (statute URLs, retrieval dates, license notes).
+
+contract: examples/contracts/public/dpa-003.pdf
+type: dpa
+language: en
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "This Data Processing Agreement (this “Agreement”) is entered into"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Designation of the Parties"
+  - id: c3
+    type: dpa_subprocessor_consent
+    text_excerpt: "2. Sub-processor Authorisation"
+  - id: c4
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "3. Sub-processor Obligations"
+  - id: c5
+    type: dpa_transfer_mechanism
+    text_excerpt: "4. International Transfers"
+  - id: c6
+    type: dpa_breach_notification
+    text_excerpt: "5. Personal Data Breach Notification"
+  - id: c7
+    type: dpa_audit_rights
+    text_excerpt: "6. Audit and Return"
+
+# Clean baseline. No expected deviations.
+expected_deviations: []

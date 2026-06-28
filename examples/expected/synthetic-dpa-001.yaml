@@ -1,0 +1,148 @@
+# Golden set — synthetic/dpa-001.pdf.
+#
+# This is the EN stress contract of the Phase 5 v1 DPA eval starter.
+# It has 3 hand-injected deviations from the dpa-en playbook
+# baselines, calibrated to a real LLM-driven spotter's expected
+# verdicts. The deviations are documented in
+# scripts/build_dpa_eval_contracts.py — the PDF is generated, not
+# curated from public sources, so the eval can pin text_excerpt
+# matches against the deterministic output.
+#
+# Why this contract is synthetic
+# ------------------------------
+# Phase 5's dpa-en playbook has 5 baselines (designation, sub-
+# processor consent, transfer mechanism, breach notification,
+# audit rights) — see playbook/baselines/dpa-en/ on
+# origin/phase5/dpa-en-baselines. To measure the spotter's quality
+# we need a contract where:
+#   1. The clauses are text-extractable (pymupdf reads them
+#      without OCR).
+#   2. The classifier labels the clauses correctly (so
+#      classification F1 is meaningful, not noise).
+#   3. At least 2-3 deviations are clearly written into the
+#      text and a real LLM-driven spotter would catch them.
+#   4. The text is stable (idempotent PDF generation, no
+#      random IDs or timestamps) so the eval is reproducible.
+#
+# The 3 deviations
+# ----------------
+# 1. **c1 (dpa_controller_processor_designation) — minor deviation.**
+#    Drops the "documented instructions" anchor from Art. 28(3)(a).
+#    The contract designates the parties as controller/processor
+#    but removes the controller's right to give and withdraw
+#    instructions. Minor because the designation itself is
+#    preserved — the deviation is the loss of the instruction
+#    mechanism, which limits the controller's ongoing control.
+# 2. **c3 (dpa_subprocessor_consent) — material deviation.**
+#    Switches prior-specific-or-general written authorisation to
+#    a vague "with notice" mechanism. The c3 clause lets the
+#    processor engage sub-processors and inform the controller
+#    within 30 days of the engagement; the controller's only
+#    remedy is termination. Material because Art. 28(2) GDPR
+#    requires *prior* specific or general written authorisation;
+#    "with notice" is post-hoc notification that eliminates the
+#    controller's veto right.
+# 3. **c5 (dpa_breach_notification) — material deviation.** 72 hours
+#    processor-to-controller vs the 24h processor inner window
+#    baseline recommended in EDPB Guidelines 9/2022 § 3.4. The
+#    72 hours here is the controller-to-supervisory-authority
+#    window in Art. 33(1) GDPR — applying it to the processor's
+#    window leaves the controller with NO reaction time to meet
+#    its own 72-hour obligation. A real LLM-driven spotter (or
+#    a GDPR-trained in-house counsel) would flag this as a real
+#    risk.
+#
+# The other 3 clauses (c2, c4, c6) are clean baselines — no
+# expected deviations. The eval records any false positives in
+# the run report.
+
+contract: examples/contracts/synthetic/dpa-001.pdf
+type: dpa
+language: en
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "This Data Processing Agreement (this “Agreement”) is entered into"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Designation of the Parties"
+  - id: c3
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "2. Sub-processor Obligations"
+  - id: c4
+    type: dpa_subprocessor_consent
+    text_excerpt: "3. Sub-processor Engagement"
+  - id: c5
+    type: dpa_transfer_mechanism
+    text_excerpt: "4. International Transfers"
+  - id: c6
+    type: dpa_breach_notification
+    text_excerpt: "5. Personal Data Breach Notification"
+  - id: c7
+    type: dpa_data_return_deletion
+    text_excerpt: "6. Return or Deletion of Personal Data"
+
+# Three expected deviations. The harness compares each to the
+# spotter's actual flags. A real LLM-driven spotter is expected
+# to flag all three; the placeholder-key (rule-based abstention)
+# spotter flags none. The deviation F1 reports the gap.
+expected_deviations:
+  - clause_id: c1
+    severity: 1
+    category: missing_documented_instructions
+    rationale: >-
+      The clause drops the "documented instructions" anchor
+      required by Art. 28(3)(a) GDPR. The baseline
+      (playbook/baselines/dpa-en/dpa_controller_processor_designation.yaml)
+      requires the controller's documented-instructions
+      mechanism, including with regard to transfers of
+      Personal Data to a third country. The c1 clause retains
+      the controller/processor designation but removes the
+      instruction mechanism, which limits the controller's
+      ongoing control over the processor's processing
+      activities. Minor because the designation itself is
+      preserved; the deviation is the loss of the instruction
+      mechanism, which a real LLM-driven spotter would flag
+      as a one-notch-down material concern.
+    citation:
+      playbook_clause_id: controller-processor-designation-art-28-3
+      source_url: "https://gdpr-info.eu/art-28-gdpr/"
+  - clause_id: c3
+    severity: 2
+    category: post_hoc_notice_mechanism
+    rationale: >-
+      The clause replaces the prior specific or general
+      written authorisation mechanism required by Art. 28(2)
+      GDPR with a post-hoc "with notice" mechanism: the
+      processor may engage sub-processors and inform the
+      controller within 30 days. The EDPB Guidelines 07/2020
+      § 6 baseline requires *prior* specific or general
+      written authorisation. Post-hoc notice eliminates the
+      controller's veto right and is a structural deviation
+      from the Art. 28(2) consent mechanism — material
+      because the controller's ability to refuse a
+      sub-processor on data-protection grounds (a
+      load-bearing Art. 28(2) right) is the
+      "consent gate" the spotter's baseline flags.
+    citation:
+      playbook_clause_id: sub-processor-prior-written-authorisation-art-28-2
+      source_url: "https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-072020-concepts-controller-and-processor-gdpr_en"
+  - clause_id: c5
+    severity: 2
+    category: processor_inner_window_too_long
+    rationale: >-
+      A 72-hour processor-to-controller notification window
+      eliminates the controller's reaction time to meet its
+      own 72-hour Art. 33(1) GDPR obligation. The baseline
+      (playbook/baselines/dpa-en/dpa_breach_notification.yaml,
+      EDPB Guidelines 9/2022 § 3.4) recommends a 24-hour
+      processor inner window so the controller has at least
+      48 hours to assess, document, and notify the
+      supervisory authority. Applying the controller's
+      72-hour window to the processor's window is a common
+      drafting mistake and the playbook flags it as
+      material regardless of counterparty type.
+    citation:
+      playbook_clause_id: processor-to-controller-breach-notification-72-hours
+      source_url: "https://gdpr-info.eu/art-33-gdpr/"

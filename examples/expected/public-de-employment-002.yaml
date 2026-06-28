@@ -1,0 +1,55 @@
+# Golden set — public-de/employment-002.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# DE PUBLIC CLEAN BASELINE #2 — BGB § 74 HGB nachvertragliches
+# Wettbewerbsverbot (24-Monatsverbotsdauer, 50% Karenzentschädigung).
+#
+# Phase 5 v2 coverage: this contract provides the single-source DE
+# anchor for non_compete with Karenzentschädigung (a different
+# economic shape from the IHK § 12/§ 13 "no compensation" baseline).
+# Public clean baseline means ZERO expected deviations.
+#
+# The contract follows § 74 HGB: 24-month prohibition, 50%
+# Karenzentschädigung der letzten Bezüge, monatliche Fälligkeit,
+# 6-Monats-Ablehnungsfrist des Arbeitnehmers per § 75 HGB.
+# This is the load-bearing DE non-compete anchor; v1's DE set
+# used the IHK "no compensation" variant, v2 adds the § 74 HGB
+# "with Karenzentschädigung" variant for non-compete coverage.
+#
+# Source: BGB § 74 HGB (Handelsgesetzbuch)
+# https://www.gesetze-im-internet.de/hgb/__74.html
+# (the same federal statute the DE baselines card anchored for
+# non-solicitation; here the § 74 anchor is for non_compete
+# specifically, the missing GAP.md value in v1)
+
+contract: examples/contracts/public-de/employment-002.pdf
+type: employment
+language: de
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Kündigungsfristen. Das Arbeitsverhältnis kann von beiden Parteien unter Einhaltung der gesetzlichen Kündigungsfristen des § 622 BGB ordentlich gekündigt werden"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Vergütung. Der Arbeitnehmer erhält eine monatliche Bruttovergütung in der in Anlage A vereinbarten Höhe, die am Monatsende auf das vom Arbeitnehmer benannte Bankkonto überwiesen wird"
+  - id: c3
+    type: employment_leave_entitlements
+    text_excerpt: "3. Urlaub. Der Arbeitnehmer hat Anspruch auf einen Jahresurlaub von dreißig (30) Arbeitstagen bei einer Fünf-Tage-Woche, zuzüglich der gesetzlichen Feiertage am Betriebsort"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Außerordentliche Kündigung. Das Recht zur außerordentlichen Kündigung gemäß § 626 BGB bleibt unberührt"
+  - id: c5
+    type: employment_non_compete
+    text_excerpt: "5. Nachvertragliches Wettbewerbsverbot. Für die Dauer von vierundzwanzig (24) Monaten nach Beendigung des Arbeitsverhältnisses ist es dem Arbeitnehmer untersagt, in Wettbewerb mit dem Arbeitgeber zu treten"
+  - id: c6
+    type: employment_garden_leave
+    text_excerpt: "6. Freistellung (Garden Leave). Nach Zugang der Kündigung kann der Arbeitgeber den Arbeitnehmer jederzeit unter Fortzahlung der vertraglichen Vergütung von der Arbeitspflicht freistellen"
+  - id: c7
+    type: employment_working_hours
+    text_excerpt: "7. Arbeitszeit. Die regelmäßige wöchentliche Arbeitszeit beträgt vierzig (40) Stunden, verteilt auf fünf (5) Werktage von Montag bis Freitag, gemäß § 3 ArbZG"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Verschwiegenheit; Fortbestand. Der Arbeitnehmer verpflichtet sich, alle Betriebs- und Geschäftsgeheimnisse des Arbeitgebers während und nach Beendigung des Arbeitsverhältnisses geheim zu halten"
+
+# Clean baseline: no expected deviations.
+expected_deviations: []

@@ -1,0 +1,54 @@
+# Golden set — public/employment-002.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# EN PUBLIC CLEAN BASELINE #2 — US tech-startup IP-Assignment Agreement
+# (California, with California Labor Code section 2870 prior-inventions
+# carve-out per the ABA Model framework).
+#
+# Phase 5 v2 coverage: this contract exercises the third GAP.md value
+# (ip_assignment) that v1's 3-contract starter did not cover.
+# Public clean baseline means ZERO expected deviations.
+#
+# The contract is intentionally a clean California IP-assignment
+# template. The California Labor Code section 2870 carve-out is the
+# load-bearing clause: it ensures the spotter sees the full
+# ip_assignment taxonomy value with its proper California-specific
+# exemption language.
+#
+# Source: American Bar Association Model Employment Agreement
+# https://www.americanbar.org/groups/business_law/resources/model-employment-agreement/
+# (the same ABA template v1's EN synthetic #1 anchored, but here
+# the contract is the clean baseline variant with full § 2870
+# carve-out preserved)
+
+contract: examples/contracts/public/employment-002.pdf
+type: employment
+language: en
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Notice Period. Either Party may terminate this Agreement by giving the other Party not less than thirty (30) days' prior written notice"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Compensation. The Company shall pay the Employee an annual base salary of the amount set out in Schedule A, payable in equal semi-monthly installments in arrears"
+  - id: c3
+    type: employment_leave_entitlements
+    text_excerpt: "3. Vacation and Leave. The Employee shall be entitled to fifteen (15) paid vacation days per calendar year, accruing pro rata, in addition to public holidays"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Termination for Cause. The Company may terminate this Agreement for cause, including but not limited to: (a) material breach of this Agreement by the Employee"
+  - id: c5
+    type: employment_non_solicitation
+    text_excerpt: "5. Non-Solicitation. For a period of twelve (12) months following the termination of the Employee's employment, the Employee shall not, directly or indirectly, solicit any employee, contractor, customer, or client of the Company"
+  - id: c6
+    type: employment_working_hours
+    text_excerpt: "6. Working Hours. The Employee's normal working hours shall be 9:00 a.m. to 6:00 p.m. Monday through Friday, with one (1) hour for lunch"
+  - id: c7
+    type: employment_ip_assignment
+    text_excerpt: "7. Assignment of Inventions. The Employee hereby assigns to the Company all right, title, and interest in and to any and all inventions, original works of authorship, developments, concepts, improvements, designs, discoveries, ideas, trademarks, or trade secrets"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Confidentiality; Survival. The Employee shall maintain the confidentiality of all Confidential Information of the Company both during and after the term of employment, for a period of three (3) years following termination"
+
+# Clean baseline: no expected deviations.
+expected_deviations: []

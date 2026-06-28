@@ -1,0 +1,68 @@
+# Golden set — public/dpa-001.pdf (GDPR Art. 28(3) + Art. 33(1) anchored DPA).
+#
+# This is a CLEAN BASELINE contract. No deviations from the
+# Phase 5 DPA playbook. The eval harness should report:
+#   - retrieval F1 = 1.0 (top-k baselines are all 5 DPA-EN baselines
+#     and every clause gets a relevant hit)
+#   - classification F1 = 1.0 (the classifier's dpa_* types all
+#     match the playbook)
+#   - deviation F1 = 1.0 trivially (no expected deviations, no
+#     actual deviations — empty set match)
+#   - severity-mismatch = 0
+#   - citation completeness — depends on LLM availability
+#
+# The contract text is hand-authored against GDPR Art. 28(3) (the
+# mandatory-contents checklist for controller-processor contracts) and
+# Art. 33(1) (the 72-hour breach notification deadline). The 24-hour
+# processor-to-controller inner window in clause 4 is recommended
+# practice from EDPB Guidelines 9/2022 § 3.4. The contract is a clean
+# baseline — every clause is calibrated to the dpa-en playbook baselines
+# (card t_45151f58), which cite GDPR Art. 28, Art. 33, the EDPB
+# Guidelines 07/2020 § 6, EU SCCs 2021/914 Module Two, and DSK
+# Kurzpapier Nr. 13.
+#
+# See examples/contracts/public/SOURCES.dpa.md for the full
+# provenance (statute URLs, retrieval dates, license notes).
+#
+# The parser will produce 7 clauses (c1=preamble + c2..c7 numbered
+# sections 1-6). Their types and short excerpts are pinned below.
+# The eval harness compares against these expected types to compute
+# classification F1. The preamble clause c1 has no dpa_* type — it
+# is the introductory paragraph that the chunker emits as a
+# separate clause; the rule-based classifier labels it "unknown"
+# (the deviation F1 is unaffected because c1 carries no
+# expected_deviation).
+
+contract: examples/contracts/public/dpa-001.pdf
+type: dpa
+language: en
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "This Data Processing Agreement (this “Agreement”) is entered into"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Designation of the Parties"
+  - id: c3
+    type: dpa_subprocessor_consent
+    text_excerpt: "2. Sub-processing"
+  - id: c4
+    type: dpa_transfer_mechanism
+    text_excerpt: "3. International Transfers"
+  - id: c5
+    type: dpa_breach_notification
+    text_excerpt: "4. Personal Data Breach Notification"
+  - id: c6
+    type: dpa_audit_rights
+    text_excerpt: "5. Audit Rights"
+  - id: c7
+    type: dpa_data_return_deletion
+    text_excerpt: "6. Return or Deletion of Personal Data"
+
+# Clean baseline. No expected deviations. The harness will report
+# 1.0 deviation F1 if the spotter also reports 0 deviations on
+# this contract. If the spotter flags something, the harness
+# records it as a false positive in the run report — useful
+# signal for prompt iteration.
+expected_deviations: []

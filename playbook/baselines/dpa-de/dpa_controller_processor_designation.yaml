@@ -1,0 +1,75 @@
+# Playbook-Baseline — DPA (DE) — dpa_controller_processor_designation
+#
+# Quelle: Art. 28 Verordnung (EU) 2016/679 (Datenschutz-Grundverordnung,
+# DSGVO), konsolidierte deutsche Fassung, veröffentlicht vom
+# Amt für Veröffentlichungen der Europäischen Union (EUR-Lex
+# CELEX:32016R0679, deutsche Sonderausgabe, Amtsblatt L 119
+# vom 4.5.2016, S. 1–88). Art. 28 Abs. 3 DSGVO ist die
+# Pflichtinhalts-Checkliste für einen schriftlichen Vertrag
+# zwischen Verantwortlichem und Auftragsverarbeiter; die
+# Rollenzuweisung Verantwortlicher / Auftragsverarbeiter ist
+# der erste Punkt dieser Checkliste. Der Verordnungstext ist
+# als Unionsrecht gemäß Art. 8(1) RBÜ gemeinfrei und unter
+# der EU-Open-Data-Politik (Beschluss 2011/833/EU) frei
+# wiederverwendbar; die Baseline paraphrasiert die operative
+# Sprache des Art. 28 Abs. 3 Unterabsatz 1 in kanonische Form.
+#
+# Diese Baseline ist die *strukturelle*: sie ordnet die
+# Verantwortlichem- / Auftragsverarbeiter-Rolle für die
+# gesamte Auftragsverarbeitung zu. Jede andere dpa_*-Klausel
+# baut auf dieser Zuordnung auf (eine Unterauftragsverarbeiter-
+# klausel ergibt nur Sinn, wenn das Auftragsverarbeiter-
+# Verhältnis der ersten Ebene definiert ist; ein
+# Audit-Recht hängt nur an einem Auftragsverarbeiter; usw.).
+# Helenas Review-Karte sollte eine fehlende Verantwortlicher-/
+# Auftragsverarbeiter-Zuordnung unabhängig vom
+# Vertragspartnertyp als strukturellen Mangel kennzeichnen.
+clause_id: verantwortlicher-auftragsverarbeiter-zuordnung-art-28-3
+type: dpa_controller_processor_designation
+language: de
+title: Zuordnung Verantwortlicher und Auftragsverarbeiter nach Art. 28 Abs. 3 DSGVO
+text: >-
+  Die Parteien stellen fest, dass der Kunde im Sinne dieser
+  Vereinbarung Verantwortlicher und der Auftragsverarbeiter
+  Auftragsverarbeiter personenbezogener Daten ist, jeweils wie
+  in der Verordnung (EU) 2016/679 (die „Datenschutz-Grundverordnung"
+  oder „DSGVO") definiert. Der Auftragsverarbeiter verarbeitet
+  personenbezogene Daten ausschließlich auf dokumentierte Weisung
+  des Verantwortlichen, einschließlich in Bezug auf Übermittlungen
+  personenbezogener Daten in ein Drittland oder an eine
+  internationale Organisation, sofern er nicht durch das Recht
+  der Union oder der Mitgliedstaaten, dem der Auftragsverarbeiter
+  unterliegt, zur Verarbeitung verpflichtet ist. In einem solchen
+  Fall informiert der Auftragsverarbeiter den Verantwortlichen
+  vor der Verarbeitung über diese rechtliche Anforderung, sofern
+  das betreffende Recht eine solche Information nicht wegen eines
+  wichtigen öffentlichen Interesses verbietet. Der Auftragsverarbeiter
+  verarbeitet personenbezogene Daten zu keinem anderen Zweck als zu
+  den in den dokumentierten Weisungen des Verantwortlichen
+  festgelegten Zwecken oder wie nach anwendbarem Recht erforderlich.
+source_url: https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32016R0679#Art.28
+retrieval_date: 2026-06-09
+license: >-
+  Verordnungstext der Europäischen Union, deutsche Sonderausgabe.
+  Gemäß Art. 8(1) RBÜ sind amtliche Texte von Gesetzen und
+  Verordnungen vom Urheberrechtsschutz ausgenommen; die
+  EU-Open-Data-Politik (Beschluss 2011/833/EU) bekräftigt dies.
+  Die Baseline-Sprache ist eine paraphrasierte Verdichtung des
+  Art. 28 Abs. 3 Unterabsatz 1 DSGVO, keine wortgetreue Übernahme.
+notes: >-
+  Diese Baseline deckt die *Zuordnungs*-Teilklausel eines
+  Auftragsverarbeitungsvertrags ab. Sie erfasst NICHT die
+  verwandten, aber zu unterscheidenden Fragen (a) der
+  gemeinsam Verantwortlichen nach Art. 26 DSGVO
+  (unterschiedliche Zuordnung, eigene Klausel), (b) der
+  Unterauftragsverarbeiter-Steuerung (abgedeckt durch
+  dpa_subprocessor_consent und dpa_subprocessor_flowdown), oder
+  (c) des spezifischen Mechanismus der dokumentierten Weisungen
+  (abgedeckt durch dpa_data_subject_rights, das auf das Recht
+  des Verantwortlichen zur Erteilung und zum Widerruf von
+  Weisungen verweist). Die Matrix-Verdikt für einen Vertrag,
+  der die Parteien benennt, aber die falsche Rolle zuweist
+  (z. B. „Auftragsverarbeiter ist Verantwortlicher"), ist
+  „nicht akzeptabel" für jeden Vertragspartnertyp — dies ist
+  eine strukturelle Fehlzuordnung, keine verhandelbare
+  Abweichung.

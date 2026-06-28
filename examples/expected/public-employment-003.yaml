@@ -1,0 +1,53 @@
+# Golden set — public/employment-003.pdf (Phase 5 v2, card t_ccb0a7fd).
+#
+# EN PUBLIC CLEAN BASELINE #3 — GOV.UK-anchored UK statutory floor
+# with explicit garden-leave clause (UK GAP.md value). UK Employment
+# Rights Act 1996 sections 86 (notice) and 94 (gardening leave) are
+# the load-bearing statutory references.
+#
+# Phase 5 v2 coverage: this contract exercises the UK garden_leave
+# taxonomy value that v1's EN synthetic #2 (GOV.UK-anchored) did
+# not include. Public clean baseline means ZERO expected deviations.
+#
+# The contract follows UK statutory defaults: 1-month notice,
+# 25 days leave + 8 bank holidays, 6-month non-solicit, 3-year
+# confidentiality survival. The garden-leave clause is
+# employer-discretion and statutory-compliant.
+#
+# Source: GOV.UK employment contracts guidance
+# https://www.gov.uk/employment-contracts/ written-terms-of-employment
+# (same source as v1's EN synthetic #2 but the clean baseline variant
+# that includes the garden-leave clause UK practice requires)
+
+contract: examples/contracts/public/employment-003.pdf
+type: employment
+language: en
+
+expected_clauses:
+  - id: c1
+    type: employment_notice_period
+    text_excerpt: "1. Notice Period. Either Party may terminate this Contract by giving the other Party not less than one (1) week's written notice during the probationary period, and not less than one (1) month's written notice thereafter"
+  - id: c2
+    type: employment_remuneration
+    text_excerpt: "2. Remuneration. The Company shall pay the Employee an annual gross salary of the amount set out in Schedule A, payable in equal monthly installments in arrears"
+  - id: c3
+    type: employment_leave_entitlements
+    text_excerpt: "3. Annual Leave. The Employee shall be entitled to twenty-five (25) days' paid annual leave per leave year, in addition to the eight (8) public holidays in England and Wales"
+  - id: c4
+    type: employment_termination_for_cause
+    text_excerpt: "4. Termination for Cause. The Company may terminate this Contract summarily for gross misconduct. Any other dismissal shall be subject to the unfair dismissal provisions of section 95 of the Employment Rights Act 1996"
+  - id: c5
+    type: employment_garden_leave
+    text_excerpt: "5. Garden Leave. Following notice of termination (whether by the Company or the Employee), the Company may, at its sole discretion, place the Employee on garden leave for the remainder of the notice period"
+  - id: c6
+    type: employment_non_solicitation
+    text_excerpt: "6. Non-Solicitation. For a period of six (6) months following the termination of the Employee's employment, the Employee shall not, directly or indirectly, solicit any employee, contractor, customer, or client of the Company"
+  - id: c7
+    type: employment_working_hours
+    text_excerpt: "7. Working Hours. The Employee's normal working hours shall be 9:00 a.m. to 5:30 p.m. Monday through Friday, with one (1) hour for lunch"
+  - id: c8
+    type: employment_confidentiality_survival
+    text_excerpt: "8. Confidentiality; Survival. The Employee shall maintain the confidentiality of all Confidential Information of the Company both during and after the term of employment, for a period of three (3) years following termination"
+
+# Clean baseline: no expected deviations.
+expected_deviations: []

@@ -1,0 +1,111 @@
+# Playbook-Baseline — Employment (EN) — employment_termination_for_cause
+#
+# Source: UK Government, GOV.UK, "Unfair dismissal" guidance
+# page (last reviewed 18 March 2025), hosted at
+# https://www.gov.uk/unfair-dismissal. The page consolidates
+# the statutory framework in section 95 of the Employment
+# Rights Act 1996 (ERA 1996) — the "potentially fair
+# reasons" for dismissal (capability, conduct, redundancy,
+# statutory restriction, some other substantial reason) — and
+# the "automatically unfair" grounds listed in ERA 1996 ss.98–107.
+# The GOV.UK page is a public-domain UK government publication
+# (Open Government Licence v3.0, attribution "Contains public
+# sector information licensed under the Open Government Licence
+# v3.0").
+#
+# The baseline text below combines (a) the ERA 1996 s.95
+# five-fair-reasons framework, (b) the s.98 "reasonableness"
+# test (was the employer's decision to dismiss in the
+# circumstances reasonable?), and (c) the ACAS Code of Practice
+# on Disciplinary and Grievance Procedures (2015) which
+# prescribes the minimum procedural steps (investigation,
+# notification of allegations, opportunity to respond,
+# right of appeal). The statutory framework is the floor; the
+# ACAS Code is the practitioner-level procedural anchor. The
+# baseline describes *summary dismissal for cause* (the
+# narrow, no-notice termination for serious misconduct) —
+# distinct from ordinary termination (which is governed by
+# the notice-period baseline). Cross-references: ERA 1996
+# ss.95 (potentially fair reasons), 98 (the test of
+# reasonableness), 99, 100, 101, 102, 103, 104, 105, 106
+# (automatically unfair reasons — discrimination, trade
+# union membership, etc.); ACAS Code of Practice on
+# Disciplinary and Grievance Procedures 2015 (the
+# practitioner-level procedural anchor); BHS v Burchell UKEAT
+# 0279/14 (the three-stage Burchell test: reasonable belief,
+# reasonable investigation, reasonable conclusion).
+clause_id: uk-employment-termination-for-cause-era-1996-s95
+type: employment_termination_for_cause
+language: en
+title: Summary dismissal for cause under ERA 1996 s.95
+text: >-
+  The Employer may terminate the employment relationship
+  summarily, without notice or payment in lieu of notice, for
+  gross misconduct, which for the purposes of this Agreement
+  means conduct falling within one or more of the categories
+  set out in section 95 of the Employment Rights Act 1996
+  (capability, conduct, redundancy, statutory restriction, or
+  some other substantial reason of a kind which justifies the
+  dismissal of an employee holding the position which that
+  employee held), provided that the conduct is so serious that
+  it justifies the immediate termination of the employment
+  relationship without the notice period otherwise applicable
+  under this Agreement. Examples of conduct that may amount
+  to gross misconduct include (without limitation): theft,
+  fraud, or dishonesty involving the Employer, its customers,
+  or its suppliers; assault, harassment, or discrimination on
+  any of the protected grounds set out in the Equality Act
+  2010; being under the influence of alcohol or non-prescribed
+  drugs at the workplace; serious breach of the Employer's
+  health-and-safety, information-security, or anti-bribery
+  policies; gross insubordination; conviction of a criminal
+  offence (other than a minor road-traffic offence) that
+  renders the Employee unsuitable for the role; and any
+  serious breach of the duty of confidentiality. Before
+  reaching a decision to dismiss summarily, the Employer
+  shall, save in cases where the conduct is so exceptional
+  that an investigation is unnecessary or impracticable,
+  conduct a reasonable investigation, notify the Employee in
+  writing of the allegations, give the Employee a reasonable
+  opportunity to respond (including at a disciplinary hearing
+  if the Employee so requests), and notify the Employee in
+  writing of the right of appeal to a manager of the Employer
+  who was not involved in the original decision. The
+  procedural framework set out in the ACAS Code of Practice
+  on Disciplinary and Grievance Procedures (2015) shall apply
+  to the dismissal process and any failure by the Employer to
+  follow that framework may result in an uplift of up to 25%
+  on any award of compensation by an employment tribunal
+  pursuant to section 207A of the Trade Union and Labour
+  Relations (Consolidation) Act 1992.
+source_url: https://www.gov.uk/unfair-dismissal
+retrieval_date: 2026-06-09
+license: >-
+  UK Government GOV.UK guidance page "Unfair dismissal" (last
+  reviewed 18 March 2025). Published under the Open Government
+  Licence v3.0; contains public sector information licensed
+  under the Open Government Licence v3.0. Baseline text is a
+  paraphrased combination of the ERA 1996 s.95 statutory
+  framework, the s.98 reasonableness test, the ACAS Code of
+  Practice on Disciplinary and Grievance Procedures 2015, and
+  the typical UK commercial summary-dismissal clause
+  structure, not a verbatim quote of any of them.
+notes: >-
+  Three deviation patterns to flag in the matrix: (a) a
+  summary-dismissal clause that omits the "reasonable
+  investigation" / "right to respond" procedural steps
+  renders the dismissal automatically unfair under ERA 1996
+  s.98(4) — `unacceptable` for every counterparty type;
+  (b) a clause that broadens "gross misconduct" to include
+  "any breach of company policy" or "any conduct the
+  Employer reasonably considers damaging" is a
+  deviation because it expands the statutory s.95 fair
+  reasons beyond what the statute permits — `material`
+  for SMB, `unacceptable` for public-sector; (c) a missing
+  right-of-appeal provision is sub-statutory (the ACAS Code
+  is the practitioner-level anchor) — `minor` for SMB,
+  `material` for enterprise. Dismissal on an automatically
+  unfair ground (ERA 1996 ss.99–106, including pregnancy,
+  trade-union membership, whistle-blowing) is
+  `unacceptable` regardless of counterparty type and is
+  not addressable by contract drafting.

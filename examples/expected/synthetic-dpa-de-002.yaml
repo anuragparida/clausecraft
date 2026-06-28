@@ -1,0 +1,175 @@
+# Golden set — synthetic-de/dpa-002.pdf.
+#
+# v2 DE stress contract of the Phase 5 DPA eval set. 3 hand-
+# injected deviations from the dpa-de playbook baselines,
+# calibrated to a German-lawyer reviewer's expected verdict. The
+# deviations are documented in
+# scripts/build_dpa_eval_contracts_v2.py — the PDF is generated,
+# not curated from a public source, so the eval can pin
+# text_excerpt matches against the deterministic output.
+#
+# Why this contract is synthetic (and what it adds over v1)
+# ----------------------------------------------------------
+# Phase 5's dpa-de playbook has 6 baselines (designation, sub-
+# processor consent, sub-processor flowdown, transfer mechanism,
+# breach notification, audit rights) — see
+# playbook/baselines/dpa-de/ on phase5/dpa-de-baselines (card
+# t_70c2599d).
+#
+# v1 synthetic-dpa-de-001 (card t_463d603d) covered 3 deviation
+# categories: missing_art_28_3_anchor, missing_eu_sccs_reference,
+# audit_cost_burden_shift. Those categories exercised the
+# dpa_controller_processor_designation, dpa_transfer_mechanism,
+# dpa_audit_rights ClauseType values.
+#
+# v2 synthetic-dpa-de-002 deliberately covers 3 NEW deviation
+# categories in 3 NEW ClauseType values the v1 contract did NOT
+# exercise:
+#
+#   c2 (dpa_subprocessor_flowdown)        — material: drops the
+#                                            "gleiche
+#                                            Datenschutzpflichten"
+#                                            flow-down requirement
+#                                            (Art. 28(4) DSGVO)
+#   c4 (dpa_international_transfer)       — material: drops the
+#                                            explicit EU SCCs
+#                                            2021/914 reference
+#   c5 (dpa_data_return_deletion)         — minor: 90-day return
+#                                            window +
+#                                            Verantwortlicher bears
+#                                            the
+#                                            deletion-certification
+#                                            cost
+#
+# Note on the c4 deviation: v1's synthetic-dpa-de-001 also
+# removed the SCCs reference (in c4 of that contract), but the
+# v1 contract labelled that c4 as dpa_transfer_mechanism. In
+# Phase 5 the taxonomy has both dpa_transfer_mechanism (a
+# generic "is there a transfer clause at all" check) and
+# dpa_international_transfer (a "is the SCCs / adequacy-decision
+# reference specific" check). The v2 contract exercises the
+# dpa_international_transfer label on the same deviation
+# shape, so the v2 spotter run gets a separate
+# classification-F1 datapoint on the
+# dpa_international_transfer ClauseType. (Phase 5's
+# dpa-de playbook baseline set does not yet have a
+# dpa_international_transfer entry — the v2 deviation flags
+# the missing-baseline gap.)
+#
+# The other 3 clauses (c1, c3, c6) are clean baselines — no
+# expected deviations.
+#
+# Combined v1 + v2 DE coverage
+# ----------------------------
+# Across v1's synthetic-dpa-de-001 + v2's synthetic-dpa-de-002:
+#   - 6 dpa_* ClauseType values exercised (5 of the 6 dpa-de
+#     playbook baselines' ClauseType values, plus the
+#     dpa_international_transfer value the dpa-de playbook
+#     doesn't have a baseline for yet)
+#   - 6 distinct deviation categories
+#   - covers the dpa_international_transfer value as a deviation
+#     (flagging a missing baseline) and the
+#     dpa_data_return_deletion value as a deviation
+
+contract: examples/contracts/synthetic-de/dpa-002.pdf
+type: dpa
+language: de
+
+expected_clauses:
+  - id: c1
+    type: unknown
+    text_excerpt: "Diese Auftragsverarbeitungsvereinbarung (nachfolgend „Vereinbarung“)"
+  - id: c2
+    type: dpa_controller_processor_designation
+    text_excerpt: "1. Bezeichnung der Parteien"
+  - id: c3
+    type: dpa_subprocessor_flowdown
+    text_excerpt: "2. Unterauftragsverarbeiter"
+  - id: c4
+    type: dpa_subprocessor_consent
+    text_excerpt: "3. Vorherige Genehmigung"
+  - id: c5
+    type: dpa_international_transfer
+    text_excerpt: "4. Internationale Übermittlungen"
+  - id: c6
+    type: dpa_data_return_deletion
+    text_excerpt: "5. Rückgabe oder Löschung"
+  - id: c7
+    type: dpa_audit_rights
+    text_excerpt: "6. Audit-Rechte"
+
+# Three NEW expected deviations. The harness compares each to
+# the spotter's actual flags. A real LLM-driven spotter (or a
+# German-lawyer reviewer) is expected to flag all three.
+expected_deviations:
+  - clause_id: c2
+    severity: 2
+    category: missing_gleiche_datenschutzpflichten
+    rationale: >-
+      The clause drops the "gleiche Datenschutzpflichten" anchor
+      from Art. 28(4) DSGVO. The c2 clause engages another
+      Auftragsverarbeiter but does not impose the same
+      Datenschutzpflichten by way of a contract. Material
+      because Art. 28(4) DSGVO is non-negotiable: the
+      Auftragsverarbeiter must impose the same
+      Datenschutzpflichten on the other Auftragsverarbeiter by
+      way of a contract. The dpa-de playbook baselines'
+      sub-processor-flowdown baseline (and the DSK Kurzpapier
+      Nr. 13 § 3 baseline) require the "gleiche
+      Datenschutzpflichten" anchor. A German reviewer would
+      treat the missing flow-down as a structural gap — the
+      downstream Auftragsverarbeiter is engaged without the
+      load-bearing legal basis, leaving the
+      Auftragsverarbeitungs-Verhältnis incomplete.
+    citation:
+      playbook_clause_id: unterauftragsverarbeiter-pflichten-art-28-4
+      source_url: "https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32016R0679#Art.28"
+  - clause_id: c4
+    severity: 2
+    category: missing_eu_sccs_reference
+    rationale: >-
+      The clause replaces the explicit EU SCCs 2021/914
+      reference with a vague "angemessene Garantien" reference.
+      The c4 clause requires "angemessene Garantien" without
+      naming the SCCs or an adequacy decision. Material because
+      the dpa-de playbook baselines' transfer-mechanism baseline
+      (and the DSK Kurzpapier Nr. 13 + IAPP / EDPB baselines)
+      requires the explicit SCCs 2021/914 Module Two or Module
+      Three reference. Art. 46 DSGVO requires the safeguards
+      to be specific — a vague reference gives the
+      Auftragsverarbeiter discretion to pick the transfer
+      mechanism, which is what Art. 46 DSGVO says *cannot*
+      happen. A German reviewer would treat the missing SCCs
+      reference as a structural gap (and the v2 contract
+      labels the c4 type as dpa_international_transfer, not
+      dpa_transfer_mechanism, so the spotter gets a
+      distinct classification-F1 datapoint on the
+      dpa_international_transfer ClauseType that v1 did not
+      exercise).
+    citation:
+      playbook_clause_id: internationale-uebermittlungen-eu-sccs
+      source_url: "https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32021D0914"
+  - clause_id: c5
+    severity: 1
+    category: extended_return_window_and_cost_shift
+    rationale: >-
+      The clause extends the 30-day return window to 90 days
+      and shifts the deletion-certification cost to the
+      Verantwortlicher. The c5 clause says the Processor
+      returns or deletes within 90 days of termination and that
+      the Controller bears the cost of any written deletion
+      certification. The IAPP / EDPB / DSK Kurzpapier Nr. 13
+      baseline (and the dpa-de playbook baselines'
+      data-return-deletion baseline) places the
+      deletion-certification cost on the Auftragsverarbeiter
+      (the processor is the one with operational access to
+      the data and is best positioned to issue the
+      certification) and recommends a 30-day return window.
+      Minor because the return right itself is preserved —
+      only the timeline and the cost allocation are tweaked.
+      A German reviewer would flag the cost shift as the
+      load-bearing deviation; the 90-day window is the
+      secondary signal.
+    citation:
+      playbook_clause_id: rueckgabe-oder-loeschung-30-tage
+      source_url: "https://www.datenschutzkonferenz-online.de/media/kp/dsk_kpnr_13.pdf"

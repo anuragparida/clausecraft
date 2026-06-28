@@ -1,0 +1,71 @@
+# Playbook-Baseline — DPA (DE) — dpa_subprocessor_consent
+#
+# Quelle: Europäischer Datenschutzausschuss, „Leitlinien 07/2020
+# zu den Begriffen ‚Verantwortlicher' und ‚Auftragsverarbeiter'
+# in der DSGVO", Fassung 2.0, angenommen am 7. Juli 2021,
+# § 6 („Unterauftragsverarbeitung") und die Erörterung des
+# Mechanismus der allgemeinen schriftlichen Genehmigung gemäß
+# Art. 28 Abs. 2 DSGVO. Die Leitlinien sind die maßgebliche
+# nicht-verbindliche Auslegung der DSGVO durch die nationalen
+# Aufsichtsbehörden und liegen in der deutschen Fassung vor
+# (PDF, 859 KB, veröffentlicht auf dem EDPB-System).
+#
+# Diese Baseline erfasst das *Einwilligungs-Tor* (muss der
+# Auftragsverarbeiter vor dem Einschalten eines Unterauftrags-
+# verarbeiters anfragen?) — zu unterscheiden von
+# dpa_subprocessor_flowdown, das die *vertraglichen Pflichten*
+# erfasst (welche Pflichten muss der Unterauftragsverarbeiter
+# übernehmen?). Beide zusammen ergeben eine vollständige
+# Unterauftragsverarbeiter-Steuerung; jede für sich ist
+# unvollständig und die Matrix sollte dies markieren.
+clause_id: unterauftragsverarbeiter-vorherige-schriftliche-genehmigung-art-28-2
+type: dpa_subprocessor_consent
+language: de
+title: Vorherige spezifische oder allgemeine schriftliche Genehmigung des Unterauftragsverarbeiters
+text: >-
+  Der Auftragsverarbeiter darf ohne vorherige spezifische
+  schriftliche Genehmigung des Verantwortlichen keinen weiteren
+  Auftragsverarbeiter mit der Durchführung bestimmter
+  Verarbeitungstätigkeiten im Auftrag des Verantwortlichen
+  beauftragen. Erteilt der Verantwortliche eine allgemeine
+  schriftliche Genehmigung, so informiert der Auftragsverarbeiter
+  den Verantwortlichen über jede beabsichtigte Änderung in Bezug
+  auf die Hinzuziehung oder Ersetzung anderer Auftragsverarbeiter,
+  wodurch der Verantwortliche die Möglichkeit erhält, gegen
+  solche Änderungen Einspruch zu erheben. Der Auftragsverarbeiter
+  darf keinen Unterauftragsverarbeiter einschalten, wenn der
+  Verantwortliche aus datenschutzbezogenen Gründen, die
+  sachlich gerechtfertigt sind, Einspruch erhebt. Beauftragt der
+  Auftragsverarbeiter einen weiteren Auftragsverarbeiter mit der
+  Durchführung bestimmter Verarbeitungstätigkeiten im Auftrag
+  des Verantwortlichen, so werden diesem weiteren Auftragsverarbeiter
+  durch einen Vertrag dieselben Datenschutzpflichten auferlegt,
+  die in dieser Vereinbarung festgelegt sind, insbesondere
+  hinreichende Garantien dafür, dass angemessene technische und
+  organisatorische Maßnahmen umgesetzt werden. Der
+  Auftragsverarbeiter bleibt gegenüber dem Verantwortlichen für
+  die Erfüllung der Pflichten dieses weiteren Auftragsverarbeiters
+  vollumfänglich haftbar.
+source_url: https://www.edpb.europa.eu/system/files/2023-10/edpb_guidelines_202007_controllerprocessor_final_de.pdf
+retrieval_date: 2026-06-09
+license: >-
+  EDPB-Leitlinien 07/2020, Fassung 2.0 (2021-07-07), deutsche
+  Fassung. Veröffentlicht durch den Europäischen Datenschutz-
+  ausschuss unter der EU-Open-Access-Politik (Beschluss
+  2011/833/EU); wiederverwendbar mit Quellenangabe „EDPB-
+  Leitlinien 07/2020, v2.0". Die Baseline-Sprache ist eine
+  paraphrasierte Zusammenfassung des § 6, keine wortgetreue
+  Übernahme.
+notes: >-
+  Art. 28 Abs. 2 DSGVO sieht zwei Einwilligungsmechanismen vor:
+  (a) vorherige *spezifische* schriftliche Genehmigung (einmalig,
+  namentlich benannter Unterauftragsverarbeiter) und (b)
+  vorherige *allgemeine* schriftliche Genehmigung (mit einem
+  Informations- und Widerspruchsrecht). Die Baseline oben bildet
+  den Pfad der allgemeinen Genehmigung ab, der in kommerziellen
+  Vorlagen (Big-4-Muster, IAPP-Modellverträgen) die häufigere
+  Gestaltungswahl ist und den die EDPB-Leitlinien in § 6
+  ausführlich erörtern. Die Matrix sollte einen Vertrag, der
+  *nur* die spezifische Genehmigung verlangt (kein allgemeiner
+  Pfad), als strengere-aber-trotzdem-akzeptable Variante
+  behandeln, nicht als Abweichung.

@@ -32,6 +32,15 @@ build/
 .env
 .env.local
 .env.*.local
+# Production env (per Phase 6 / card t_7a84ecb6). The .example
+# template is committed; the real secrets (Postgres password, Langfuse
+# NextAuth + Salt + Encryption key, backend API key) NEVER are.
+.env.prod
+.env.prod.local
+# Caddy state (per Phase 6). Caddy's data dir holds the issued Let's
+# Encrypt certs; keep that out of git.
+caddy_data/
+caddy_config/
 
 # Generated / runtime
 *.log
@@ -43,6 +52,10 @@ clausecraft_postgres_data/
 # Eval runs (Phase 2+; committed: .gitkeep, ignored: actual reports)
 evals/runs/*.json
 !evals/runs/.gitkeep
+
+# Asciinema recording artifacts (the .cast and .sh are committed;
+# the rendered .docx is a runtime copy of demo/expected-redline.docx)
+demo/redline-from-cast.docx
 
 # Eval cache (PDF text, embeddings, golden YAMLs — re-built from inputs)
 evals/.cache/*.json

@@ -1,0 +1,97 @@
+# Clausecraft production Caddyfile.
+#
+# This file is mounted into the caddy container at
+# /etc/caddy/Caddyfile.template. The container's entrypoint runs
+# `sed` on it to replace the `@DOMAIN@`, `@ACME_EMAIL@`, and
+# `@ACME_CA@` sentinels with the corresponding env-var values,
+# then `caddy validate`s the result, then `caddy run`s.
+#
+# Two operating modes share the same file:
+#
+#   1. Production (default). DOMAIN is a real public DNS name.
+#      Caddy provisions real Let's Encrypt certs via the HTTP-01
+#      challenge on port 80. The acme_ca global option at the top
+#      sets the Let's Encrypt staging vs production endpoint
+#      (staging is safe for the first deploy; flip to the
+#      production URL after staging certs validate). Override
+#      ACME_EMAIL in .env.prod.
+#
+#   2. Local smoke test. DOMAIN=localhost. The `local_certs`
+#      directive in the global options block (below) makes
+#      Caddy fall back to an internal self-signed cert if
+#      ACME issuance fails — which it always will for
+#      *.localhost, since no public CA signs those names.
+#      `curl -k https://app.localhost` works end-to-end. For
+#      a real public DNS in prod, ACME succeeds and the
+#      local_certs directive is a no-op.
+#
+# Listener: Caddy listens on :80 (HTTP, for the ACME challenge and
+# redirect-to-HTTPS) and :443 (HTTPS). The container uses the host
+# network so those bind directly on the public interface. See
+# `docker-compose.prod.yml` for the `network_mode: host` block.
+#
+# Sentinel choice: we use `@VAR@` (not `${VAR}` or `$VAR`) so the
+# sentinels do not collide with shell expansion in the entrypoint
+# script and do not collide with Caddy's own `{$VAR}` runtime
+# placeholders (e.g. `{http.request.host}`, `{host}`).
+
+{
+    # Global options. admin is reachable only on localhost (it's not
+    # exposed to the public internet because we use the host network,
+    # but the loopback bind is belt-and-braces).
+    admin localhost:2019
+    auto_https disable_redirects
+    # acme_ca controls the Let's Encrypt directory URL. Defaults to
+    # the production endpoint; the staging endpoint is set via
+    # ACME_CA in .env.prod for the first deploy to avoid rate
+    # limits.
+    acme_ca @ACME_CA@
+    email @ACME_EMAIL@
+    # local_certs: when ACME fails (e.g. *.localhost in the smoke
+    # test) Caddy falls back to an internal self-signed cert. For
+    # a real public DNS, ACME succeeds and the local_certs
+    # directive is a no-op. Caddy supports this at the global
+    # options level.
+    local_certs
+}
+
+# ---- HTTP -> HTTPS redirect + ACME challenge on :80 ----
+# All four hostnames (plus a bare `DOMAIN` and `www.DOMAIN`) redirect
+# to HTTPS. Caddy answers the ACME HTTP-01 challenge automatically
+# before the redirect rule, so cert renewal works.
+
+http://app.@DOMAIN@, http://api.@DOMAIN@, http://langfuse.@DOMAIN@ {
+    redir https://{host}{uri} permanent
+}
+
+http://@DOMAIN@, http://www.@DOMAIN@ {
+    redir https://@DOMAIN@{uri} permanent
+}
+
+# ---- HTTPS sites ----
+# The frontend SPA. Reverse-proxy to the Vite dev server (or the
+# static-file server, once the prod frontend build ships). Vite's dev
+# server is what the existing Docker image serves — that's fine for
+# the single-host prod deploy per the Phase 6 spec ("the Docker
+# Compose stack runs as-is").
+
+https://app.@DOMAIN@ {
+    reverse_proxy frontend:15173
+    encode zstd gzip
+}
+
+# The FastAPI backend.
+
+https://api.@DOMAIN@ {
+    reverse_proxy backend:8000
+    encode zstd gzip
+}
+
+# Langfuse v2 web UI. Note: the langfuse container's NEXTAUTH_URL
+# is set to https://langfuse.${DOMAIN} in docker-compose.prod.yml,
+# so the OAuth callback works.
+
+https://langfuse.@DOMAIN@ {
+    reverse_proxy langfuse-web:3000
+    encode zstd gzip
+}
