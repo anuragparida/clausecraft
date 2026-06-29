@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -232,6 +232,22 @@ export function TriagePage() {
   // The detector's best-effort guess. ``null`` until a file
   // is selected. Phase 4 default is "en" (per the spec).
   const [detected, setDetected] = useState<SupportedLanguage | null>(null);
+  // Phase 6: client-side clause search + per-type chip
+  // filters. Both apply on top of the result set returned
+  // by the backend. Empty means "no filter active". The
+  // chips render only for types actually present in the
+  // current result set — see ClauseFilter.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTypes, setActiveTypes] = useState<Set<string>>(new Set());
+  // Tracks the most recent ingest result identity. The
+  // reset-effect compares against this ref so the
+  // filter state is wiped when a fresh result set
+  // arrives, but kept when the same data is re-rendered
+  // (e.g. a parent re-render that didn't change the
+  // ingest). Used by ``handleFile`` and the effect
+  // below; declared before either so the closure order
+  // is correct.
+  const lastResultRef = useRef<IngestResponse | null>(null);
   // The display language for chrome strings (the i18n
   // shim looks up DE from de.json when this is "de").
   // Resolves "auto" → detected → "en" (fallback).
@@ -274,6 +290,18 @@ export function TriagePage() {
   const handleFile = useCallback(
     (file: File) => {
       setSelectedFile(file);
+      // Phase 6: reset the filter state synchronously
+      // when the user starts a new upload, so a stale
+      // "term" query from the previous contract doesn't
+      // silently carry over to the new one. The user
+      // expects the page to be "fresh" for the new
+      // result set. The effect below is a belt-and-
+      // suspenders fallback for cases where the result
+      // identity changes via a refetch (e.g. background
+      // revalidation).
+      setSearchQuery("");
+      setActiveTypes(new Set());
+      lastResultRef.current = null;
       ingest.reset();
       // Best-effort client-side sniff for the picker
       // preview. The backend re-detects at parse time —
@@ -310,6 +338,100 @@ export function TriagePage() {
 
   const result = ingest.data;
   const error = ingest.error instanceof Error ? ingest.error.message : null;
+
+  // Phase 6: compute the filtered view of the result set.
+  // Pure derivation — every render recomputes from the
+  // current ``searchQuery`` + ``activeTypes`` + ``result``.
+  // The filter applies case-insensitive substring match
+  // against id / text / type / position.section_title.
+  // Type chips apply additionally (intersection with the
+  // search filter). When the result set changes (new
+  // upload), the activeTypes Set is reset to a fresh
+  // empty Set in the ``handleFile`` callback above; we
+  // also defensively reset it here if ``result`` ever
+  // changes identity, so stale filters don't survive a
+  // refetch.
+  const filteredClauses = useMemo(() => {
+    if (!result) return [] as IngestResponseClause[];
+    const q = searchQuery.trim().toLowerCase();
+    return result.clauses.filter((c) => {
+      // Search match — empty query lets everything through.
+      if (q.length > 0) {
+        const haystack = [
+          c.id,
+          c.text,
+          c.type,
+          c.position?.section_title ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      // Type chip filter — empty Set lets everything through.
+      if (activeTypes.size > 0 && !activeTypes.has(c.type)) return false;
+      return true;
+    });
+  }, [result, searchQuery, activeTypes]);
+
+  // Phase 6: the unique clause types present in the
+  // *unfiltered* result set. The chips render one toggle
+  // per type, sorted alphabetically for stable ordering
+  // (so the chip row doesn't shuffle between uploads of
+  // different contracts).
+  const presentTypes = useMemo(() => {
+    if (!result) return [] as string[];
+    const set = new Set<string>();
+    for (const c of result.clauses) set.add(c.type);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [result]);
+
+  // True iff any filter is currently active — drives the
+  // "Showing N of M clauses" summary line vs the original
+  // aggregate summary.
+  const filterActive = searchQuery.trim().length > 0 || activeTypes.size > 0;
+
+  // Phase 6: clear both filters. Used by the "Clear"
+  // button on the search row.
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setActiveTypes(new Set());
+  }, []);
+
+  // Phase 6: toggle one type chip on/off. A new Set is
+  // always returned so React's setState bails out only
+  // when the value truly didn't change (no false-positive
+  // re-renders).
+  const toggleType = useCallback((type: string) => {
+    setActiveTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
+
+  // Phase 6: when a fresh result set arrives (new upload),
+  // wipe any stale filter state from the previous ingest.
+  // Without this, uploading a second contract after typing
+  // "term" in the search would silently carry the filter
+  // over, which is surprising — the user expects the page
+  // to be "fresh" for the new result. We track the
+  // previous result identity in a ref; when it changes
+  // (new object reference), we reset both filters.
+  // A ref + effect handles the case where react-query
+  // happens to return the same data object reference
+  // across consecutive successful mutations (which can
+  // happen with structural-sharing turned on).
+  useEffect(() => {
+    if (result && result !== lastResultRef.current) {
+      lastResultRef.current = result;
+      setSearchQuery("");
+      setActiveTypes(new Set());
+    }
+  }, [result]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -416,7 +538,116 @@ export function TriagePage() {
                     ratio
                   </span>
                 </div>
-                <DataTable clauses={result.clauses} />
+
+                {/* Phase 6: client-side clause search +
+                    per-type chip filter. Renders only when
+                    a result is present and has at least one
+                    clause (otherwise the chips row would be
+                    empty and the input would be useless).
+                    Sticky summary line replaces the original
+                    ``triage-summary`` count when a filter is
+                    active. */}
+                {result.clauses.length > 0 && (
+                  <div
+                    className="flex flex-col gap-2"
+                    data-testid="triage-filter-bar"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="search"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search clauses (id, text, type, section)…"
+                        aria-label="Search clauses"
+                        className="flex-1 min-w-[12rem] rounded-md border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        data-testid="triage-search-input"
+                      />
+                      {filterActive && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={clearFilters}
+                          data-testid="triage-filter-clear"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    {/* Type chips: one per type actually
+                        present in the unfiltered result set.
+                        Clicking toggles the filter; the chip
+                        visually reflects its active state via
+                        the Badge variant + ring outline. */}
+                    {presentTypes.length > 0 && (
+                      <div
+                        className="flex flex-wrap gap-1.5"
+                        data-testid="triage-type-filter-row"
+                      >
+                        {presentTypes.map((t) => {
+                          const active = activeTypes.has(t);
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => toggleType(t)}
+                              aria-pressed={active}
+                              className={
+                                "rounded-full transition focus:outline-none focus:ring-2 focus:ring-ring " +
+                                (active
+                                  ? "ring-2 ring-primary"
+                                  : "opacity-70 hover:opacity-100")
+                              }
+                              data-testid={`triage-type-filter-${t}`}
+                            >
+                              <Badge
+                                variant={
+                                  badgeVariantForType(t) as never
+                                }
+                              >
+                                {t}
+                              </Badge>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* Filter summary replaces the implicit
+                        "all visible" state when a filter is
+                        active. Hidden when no filter — the
+                        original ``triage-summary`` (clause
+                        count / classified count / ratio)
+                        already tells the user the totals. */}
+                    {filterActive && (
+                      <p
+                        className="text-xs text-muted-foreground"
+                        data-testid="triage-filter-summary"
+                      >
+                        Showing <strong>{filteredClauses.length}</strong>{" "}
+                        of <strong>{result.clauses.length}</strong>{" "}
+                        clauses
+                        {searchQuery.trim().length > 0 && (
+                          <>
+                            {" "}
+                            matching <span className="font-mono">
+                              "{searchQuery.trim()}"
+                            </span>
+                          </>
+                        )}
+                        {activeTypes.size > 0 && (
+                          <>
+                            {" "}
+                            in{" "}
+                            <span className="font-mono">
+                              {Array.from(activeTypes).sort().join(", ")}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <DataTable clauses={filteredClauses} />
               </CardContent>
             </Card>
           )}

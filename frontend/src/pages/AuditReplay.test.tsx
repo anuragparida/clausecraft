@@ -281,3 +281,214 @@ describe("AuditReplayPage", () => {
     expect(payload).toHaveTextContent("42");
   });
 });
+
+// --- Phase 6: event markers above the scrubber --------------------------
+
+/** Three rows spanning a real timestamp range so the
+ *  scrubber + markers both render. */
+function threeRowFixture() {
+  return [
+    {
+      contract_id: "demo-001",
+      clause_id: "c1",
+      decision_type: "flag_accepted",
+      payload_json: {},
+      decided_by: "operator-1",
+      decided_at: "2026-06-08T14:31:42.000Z",
+    },
+    {
+      contract_id: "demo-001",
+      clause_id: "c2",
+      decision_type: "severity_edited",
+      payload_json: { old_severity: 2, new_severity: 1 },
+      decided_by: "operator-1",
+      decided_at: "2026-06-08T14:32:08.000Z",
+    },
+    {
+      contract_id: "demo-001",
+      clause_id: "",
+      decision_type: "redline_generated",
+      payload_json: { accepted_count: 1 },
+      decided_by: "operator-1",
+      decided_at: "2026-06-08T14:35:00.000Z",
+    },
+  ];
+}
+
+describe("AuditReplayPage — Phase 6 event markers above the scrubber", () => {
+  it("renders one marker per visible row when scrubbing is enabled", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(threeRowFixture()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    render(
+      withQueryClient(
+        <AuditReplayPage contractId="demo-001" onBackToHome={() => {}} />,
+      ),
+    );
+
+    // Slider exists → markers should too (canScrub is
+    // true: 3 events span 14:31:42 → 14:35:00).
+    await screen.findByTestId("audit-scrub-slider");
+    expect(screen.getByTestId("audit-event-axis")).toBeInTheDocument();
+    // 3 markers, indexed 0..2, ordered chronologically.
+    expect(screen.getByTestId("audit-event-marker-0")).toBeInTheDocument();
+    expect(screen.getByTestId("audit-event-marker-1")).toBeInTheDocument();
+    expect(screen.getByTestId("audit-event-marker-2")).toBeInTheDocument();
+  });
+
+  it("does NOT render markers when there is a single event (canScrub=false)", async () => {
+    // Single-row response — canScrub is false (maxMs ==
+    // minMs), so the slider + markers are both hidden.
+    const oneRow = [threeRowFixture()[0]];
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(oneRow), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    render(
+      withQueryClient(
+        <AuditReplayPage contractId="demo-001" onBackToHome={() => {}} />,
+      ),
+    );
+
+    // Wait for the row to render.
+    await screen.findByTestId("audit-timeline-row");
+    // No slider, no axis, no markers.
+    expect(screen.queryByTestId("audit-scrub-slider")).toBeNull();
+    expect(screen.queryByTestId("audit-event-axis")).toBeNull();
+    expect(screen.queryByTestId("audit-event-marker-0")).toBeNull();
+  });
+
+  it("positions markers proportionally within [minMs, maxMs]", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(threeRowFixture()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    render(
+      withQueryClient(
+        <AuditReplayPage contractId="demo-001" onBackToHome={() => {}} />,
+      ),
+    );
+    await screen.findByTestId("audit-event-marker-2");
+
+    // Compute expected percentages from the fixture's
+    // timestamps.
+    const lo = Date.parse("2026-06-08T14:31:42.000Z");
+    const mid = Date.parse("2026-06-08T14:32:08.000Z");
+    const hi = Date.parse("2026-06-08T14:35:00.000Z");
+    const span = hi - lo;
+
+    // Markers are ordered chronologically (sorted by ts).
+    // We compare numerically (parsing the inline ``left``
+    // style) to avoid floating-point string format
+    // differences between our expected math and the
+    // browser's serialisation.
+    const expectedLeft = (t: number) => `${((t - lo) / span) * 100}%`;
+    const actualLeftPct = (el: HTMLElement) =>
+      Number.parseFloat(el.style.left);
+    const expectedLeftPct = (t: number) => ((t - lo) / span) * 100;
+
+    const m0 = screen.getByTestId("audit-event-marker-0");
+    const m1 = screen.getByTestId("audit-event-marker-1");
+    const m2 = screen.getByTestId("audit-event-marker-2");
+
+    // Sanity: the inline ``left`` style is a percentage
+    // string of the form "N%".
+    expect(m0.style.left).toMatch(/^[0-9.]+%/);
+    expect(expectedLeft(lo)).toBe("0%");
+    expect(expectedLeft(hi)).toBe("100%");
+    // Numerical comparison — tolerant of float format.
+    expect(actualLeftPct(m0)).toBeCloseTo(expectedLeftPct(lo), 6);
+    expect(actualLeftPct(m1)).toBeCloseTo(expectedLeftPct(mid), 6);
+    expect(actualLeftPct(m2)).toBeCloseTo(expectedLeftPct(hi), 6);
+  });
+
+  it("each marker carries a title tooltip with decision type + relative time", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(threeRowFixture()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    render(
+      withQueryClient(
+        <AuditReplayPage contractId="demo-001" onBackToHome={() => {}} />,
+      ),
+    );
+    const m2 = await screen.findByTestId("audit-event-marker-2");
+    // Most recent row → "0s ago" relative to itself.
+    expect(m2.getAttribute("title")).toMatch(/Redline generated/);
+    expect(m2.getAttribute("title")).toMatch(/0s ago/);
+
+    // Oldest row → some non-zero "X ago" string.
+    const m0 = screen.getByTestId("audit-event-marker-0");
+    expect(m0.getAttribute("title")).toMatch(/Flag accepted/);
+    expect(m0.getAttribute("title")).toMatch(/ago/);
+  });
+
+  it("clicking a marker moves the scrubber to that timestamp", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(threeRowFixture()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    const user = userEvent.setup();
+    render(
+      withQueryClient(
+        <AuditReplayPage contractId="demo-001" onBackToHome={() => {}} />,
+      ),
+    );
+    const slider = (await screen.findByTestId(
+      "audit-scrub-slider",
+    )) as HTMLInputElement;
+    const marker = await screen.findByTestId("audit-event-marker-0");
+
+    // Sanity: slider starts at maxMs (newest event).
+    const hi = Date.parse("2026-06-08T14:35:00.000Z");
+    expect(slider.value).toBe(String(hi));
+
+    // Click the oldest marker.
+    await user.click(marker);
+    // Slider moves to that timestamp.
+    const lo = Date.parse("2026-06-08T14:31:42.000Z");
+    expect(slider.value).toBe(String(lo));
+    // Reset button is now enabled (we moved it).
+    expect(screen.getByTestId("audit-scrub-reset")).not.toBeDisabled();
+  });
+
+  it("markers inherit the decision-type tone colors", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(threeRowFixture()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    render(
+      withQueryClient(
+        <AuditReplayPage contractId="demo-001" onBackToHome={() => {}} />,
+      ),
+    );
+    const m0 = await screen.findByTestId("audit-event-marker-0");
+    const m1 = await screen.findByTestId("audit-event-marker-1");
+    const m2 = await screen.findByTestId("audit-event-marker-2");
+    // flag_accepted → emerald-500.
+    expect(m0.className).toContain("bg-emerald-500");
+    // severity_edited → amber-500.
+    expect(m1.className).toContain("bg-amber-500");
+    // redline_generated → slate-400.
+    expect(m2.className).toContain("bg-slate-400");
+  });
+});
