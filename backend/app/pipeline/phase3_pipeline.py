@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.agents.deviation_spotter.schema import DeviationFlag
@@ -120,6 +121,12 @@ class PipelineRunState:
         a browser preview" fallback; it is the same
         contract text + accepted proposals, expressed
         as a unified diff). Empty if no redlines.
+    last_touched_at
+        UTC timestamp of the most recent state-mutating
+        access (:func:`get_state` is the choke point
+        for ingest / spot / decisions / redline
+        / docx-fetch). Powers the "recent contracts"
+        home card's sort order (newest first).
     """
 
     __slots__ = (
@@ -133,6 +140,7 @@ class PipelineRunState:
         "redlines",
         "output_docx_bytes",
         "output_markdown_bytes",
+        "last_touched_at",
     )
 
     def __init__(
@@ -153,6 +161,10 @@ class PipelineRunState:
         self.redlines: dict[str, dict[str, Any]] = {}
         self.output_docx_bytes: bytes = b""
         self.output_markdown_bytes: bytes = b""
+        # ``last_touched_at`` is initialised here so the first
+        # ``get_state`` call has a usable timestamp; subsequent
+        # calls overwrite it in :func:`get_state` itself.
+        self.last_touched_at: datetime = datetime.now(timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -177,13 +189,24 @@ _STATE: dict[str, PipelineRunState] = {}
 
 
 def get_state(contract_id: str) -> PipelineRunState:
-    """Return the state for a contract, creating an empty one if needed."""
+    """Return the state for a contract, creating an empty one if needed.
+
+    Updates the state's ``last_touched_at`` so the "recent
+    contracts" home card can sort by most-recently-active.
+    Every state-touching endpoint (ingest / spot / decisions /
+    redline / docx fetch) goes through this function — by
+    updating the timestamp here, the home card gets accurate
+    "last activity" ordering for free, without each endpoint
+    needing to remember to record it.
+    """
     if contract_id not in _STATE:
         _STATE[contract_id] = PipelineRunState(
             contract_id=contract_id,
             filename=contract_id,
         )
-    return _STATE[contract_id]
+    state = _STATE[contract_id]
+    state.last_touched_at = datetime.now(timezone.utc)
+    return state
 
 
 def has_state(contract_id: str) -> bool:
@@ -194,6 +217,73 @@ def has_state(contract_id: str) -> bool:
 def reset_state(contract_id: str) -> None:
     """Remove a contract's state. Used by tests that want a clean slate."""
     _STATE.pop(contract_id, None)
+
+
+#: The default cap on the number of contracts the
+#: ``GET /api/contracts`` endpoint returns. The home
+#: card renders this many rows; the value is small on
+#: purpose (the in-memory store only ever holds the
+#: contracts that were touched in this process, so a
+#: cap is defensive against process-lifetime growth).
+DEFAULT_RECENT_LIMIT: int = 10
+
+
+def list_recent_contracts(
+    *, limit: int = DEFAULT_RECENT_LIMIT
+) -> list[dict[str, Any]]:
+    """Return a JSON-safe summary of the most recently-touched contracts.
+
+    Powers the "Recent contracts" card on the home page. The
+    sort key is :attr:`PipelineRunState.last_touched_at`
+    descending — touching a contract (ingest / spot /
+    decisions / redline / docx fetch) bumps it to the top.
+
+    Returned shape per contract::
+
+        {
+          "contract_id": str,
+          "filename": str,
+          "has_ingest": bool,
+          "has_spot": bool,
+          "has_decisions": bool,
+          "has_redline": bool,
+          "clause_count": int,
+          "flag_count": int,
+          "decision_count": int,
+          "last_touched_at": str,  # ISO-8601 UTC
+        }
+
+    The counts are cheap projections of the existing state
+    (no extra DB / LLM work). ``limit`` is clamped to a
+    sensible range (``1..50``) so a bad client value can't
+    exhaust memory or render an empty list when the user
+    asked for zero rows.
+
+    The function never raises — if the store is empty, it
+    returns an empty list. The endpoint's response is
+    always 200.
+    """
+    safe_limit = max(1, min(50, int(limit)))
+    rows = sorted(
+        _STATE.values(),
+        key=lambda s: s.last_touched_at,
+        reverse=True,
+    )[:safe_limit]
+    return [
+        {
+            "contract_id": s.contract_id,
+            "filename": s.filename,
+            "has_ingest": bool(s.clauses),
+            "has_spot": bool(s.flags),
+            "has_decisions": bool(s.decisions),
+            "has_redline": bool(s.output_docx_bytes),
+            "clause_count": len(s.clauses),
+            "flag_count": len(s.flags),
+            "decision_count": len(s.decisions),
+            "last_touched_at": s.last_touched_at.isoformat(),
+        }
+        for s in rows
+    ]
 
 
 # --- State snapshot (Build 7 — resume-after-pause UI hydration) --------
