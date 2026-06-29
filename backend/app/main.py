@@ -862,6 +862,79 @@ async def get_contracts_state(contract_id: str) -> ContractStateResponse:
     return ContractStateResponse(**snap)
 
 
+# --- Phase 6: recent contracts -----------------------------------------
+
+
+class ContractSummaryResponse(BaseModel):
+    """Response body for ``GET /api/contracts``.
+
+    One row per in-memory state record, sorted by
+    ``last_touched_at`` descending. Powers the "Recent
+    contracts" card on the home page.
+
+    The shape is intentionally narrow: the home card
+    only needs enough metadata to render a useful row
+    (filename, where it is in the pipeline, when it
+    was last touched, where to click). The full
+    snapshot lives behind ``/contracts/{id}/state``
+    — that's where the review page fetches the
+    resume payload.
+    """
+
+    contract_id: str
+    filename: str
+    has_ingest: bool
+    has_spot: bool
+    has_decisions: bool
+    has_redline: bool
+    clause_count: int
+    flag_count: int
+    decision_count: int
+    last_touched_at: str
+
+
+@app.get(
+    "/api/contracts",
+    response_model=list[ContractSummaryResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_recent_contracts(
+    limit: int = 10,
+) -> list[ContractSummaryResponse]:
+    """Phase 6 — list the most recently-touched contracts.
+
+    Powers the "Recent contracts" card on the home page.
+    Touching a contract (ingest / spot / decisions /
+    redline / docx fetch) bumps ``last_touched_at`` via
+    :func:`app.pipeline.phase3_pipeline.get_state`,
+    which is the choke point for every state-mutating
+    endpoint. The list is therefore ordered
+    "most-recently-active first".
+
+    Parameters
+    ----------
+    limit
+        Cap on the number of rows. Default 10, clamped
+        to ``1..50`` server-side so a malicious or
+        curious client can't pull the entire process-
+        lifetime state in one call.
+
+    Behaviour
+    ---------
+    - Returns 200 with ``[]`` when the store is empty
+      (a fresh server, or a server that just
+      restarted — the in-memory store is process-
+      local).
+    - Returns 200 with up to ``limit`` rows otherwise.
+    - Never 4xx / 5xx for a malformed ``limit`` value;
+      the helper clamps it.
+    """
+    from app.pipeline.phase3_pipeline import list_recent_contracts
+
+    rows = list_recent_contracts(limit=limit)
+    return [ContractSummaryResponse(**r) for r in rows]
+
+
 @app.get(
     "/contracts/{contract_id}/redline.docx",
     response_class=Response,

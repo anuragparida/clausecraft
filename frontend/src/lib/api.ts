@@ -452,6 +452,58 @@ export async function getContractState(
   );
 }
 
+// --- Phase 6: recent contracts listing --------------------------------
+
+/**
+ * One row of the "Recent contracts" home card.
+ *
+ * Mirrors the ``ContractSummaryResponse`` shape the
+ * ``GET /api/contracts`` endpoint returns. The fields
+ * are intentionally narrow: the home card only needs
+ * enough metadata to render a useful row (filename,
+ * pipeline stage, when it was last touched, where to
+ * click).
+ *
+ * ``last_touched_at`` is an ISO-8601 UTC string from
+ * the backend (e.g. ``"2026-06-28T10:30:00+00:00"``).
+ * The card passes it to ``new Date(...)`` for
+ * relative-time formatting.
+ */
+export interface ContractSummary {
+  contract_id: string;
+  filename: string;
+  has_ingest: boolean;
+  has_spot: boolean;
+  has_decisions: boolean;
+  has_redline: boolean;
+  clause_count: number;
+  flag_count: number;
+  decision_count: number;
+  last_touched_at: string;
+}
+
+/**
+ * GET /api/contracts. Returns the most recently-touched
+ * contracts, sorted by ``last_touched_at`` desc.
+ *
+ * The endpoint never raises on a bad ``limit`` value —
+ * the backend clamps to ``1..50`` server-side. A
+ * non-2xx response is the only thing that rejects the
+ * promise (via :class:`ApiError`).
+ *
+ * The home card uses ``limit=10`` (the backend's default).
+ * Larger caps are useful for a future "all contracts"
+ * page; we keep the API open so we don't need a second
+ * endpoint.
+ */
+export async function getRecentContracts(
+  limit: number = 10,
+): Promise<ContractSummary[]> {
+  return request<ContractSummary[]>(
+    `/api/contracts?limit=${encodeURIComponent(String(limit))}`,
+  );
+}
+
 // --- Helpers -----------------------------------------------------------
 
 /**

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DisclaimerFooter } from "@/components/DisclaimerFooter";
+import { RecentContractsCard } from "@/components/RecentContractsCard";
 import { TriagePage } from "@/components/TriagePage";
 import {
   DeviationReviewPage,
@@ -223,6 +224,22 @@ function HomeView({ onNavigate }: { onNavigate: (to: string) => void }) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Phase 6 — Recent contracts card.
+
+              Fills the first of the three reserved home-grid
+              slots. The slot pattern (three siblings reserve
+              the layout for unmerged sibling cards) was set
+              up by the home-grid refactor; sibling cards
+              (Leaderboard, Pipeline Status) own the other two
+              slots. When this card grows (e.g. a "see all"
+              link), the slot can be promoted to a wider
+              column with `md:col-span-2`. */}
+          <RecentContractsCard
+            onOpenContract={(id) =>
+              onNavigate(`/contracts/${encodeURIComponent(id)}/review`)
+            }
+          />
         </div>
       </main>
       <DisclaimerFooter />
